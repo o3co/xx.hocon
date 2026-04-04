@@ -1,6 +1,5 @@
 import com.typesafe.config.*;
 import com.google.gson.*;
-import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 
@@ -63,7 +62,12 @@ public class GenerateExpected {
                     .setOriginDescription(confName);
                 Config config = ConfigFactory.parseFile(confPath.toFile(), parseOpts)
                     .resolve();
-                String json = toSortedJson(config.root());
+                ConfigObject root = config.root();
+                // Filter out environment-dependent keys that differ per machine
+                if (confName.equals("test01.conf")) {
+                    root = filterKeys(root, Set.of("system"));
+                }
+                String json = toSortedJson(root);
                 String outName = confName.replace(".conf", "-expected.json");
                 Path outPath = expectedDir.resolve(outName);
                 Files.writeString(outPath, json + "\n");
@@ -101,6 +105,14 @@ public class GenerateExpected {
 
         System.out.println();
         System.out.printf("Done. OK: %d, Errors: %d, Skipped: %d%n", okCount, errCount, skipCount);
+    }
+
+    static ConfigObject filterKeys(ConfigObject obj, Set<String> exclude) {
+        Map<String, ConfigValue> filtered = new HashMap<>(obj);
+        for (String key : exclude) {
+            filtered.remove(key);
+        }
+        return ConfigValueFactory.fromMap(filtered).toConfig().root();
     }
 
     static String toSortedJson(ConfigObject root) {

@@ -147,13 +147,5 @@
     "number": "57",
     "true": "true",
     "yes": "yes"
-  },
-  "system": {
-    "concatenated": "Your Java version is  and your user.home is ",
-    "home": "/Users/yoshi",
-    "lang": "C.UTF-8",
-    "path": "/Users/yoshi/.pyenv/bin:/Users/yoshi/.pyenv/shims:/opt/homebrew/bin:/usr/local/bin:/usr/local/bin:/usr/local/bin:/usr/local/Cellar/scala/2.13.1/bin:/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/Contents/Home/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Users/yoshi/.pyenv/bin:/opt/homebrew/bin:/usr/local/Cellar/scala/2.13.1/bin:/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/Contents/Home/bin:/Users/yoshi/.cargo/bin:/Users/yoshi/.composer/vendor/bin:/Users/yoshi/bin:/Users/yoshi/Library/Android/sdk/platform-tools:/Volume/Workspace/archlog/repos/https-local/login/bin:./.bin:/Users/yoshi/go/bin:/Users/yoshi/.composer/vendor/bin:/Users/yoshi/bin:/Users/yoshi/Library/Android/sdk/platform-tools:/Volume/Workspace/archlog/repos/https-local/login/bin:./.bin:/Users/yoshi/go/bin:/Volume/Workspace/archlog/repos/https-local/login/bin",
-    "pwd": "/Volumes/Workspace/o3co/agentscopes/hocon/repos/xx.hocon/generate",
-    "shell": "/bin/zsh"
   }
 }
