@@ -1,0 +1,5 @@
+{
+  "error": true,
+  "type": "UnresolvedSubstitution",
+  "message": "../testdata/hocon/test13-reference-bad-substitutions.conf: 1: Could not resolve substitution to a value: ${b}"
+}

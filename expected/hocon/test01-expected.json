@@ -1,0 +1,159 @@
+{
+  "arrays": {
+    "empty": [],
+    "firstElementNotASubst": [
+      "a",
+      "b"
+    ],
+    "ofArray": [
+      [
+        "a",
+        "b",
+        "c"
+      ],
+      [
+        "a",
+        "b",
+        "c"
+      ],
+      [
+        "a",
+        "b",
+        "c"
+      ]
+    ],
+    "ofBoolean": [
+      true,
+      false
+    ],
+    "ofDouble": [
+      3.14,
+      4.14,
+      5.14
+    ],
+    "ofInt": [
+      1,
+      2,
+      3
+    ],
+    "ofNull": [
+      null,
+      null,
+      null
+    ],
+    "ofObject": [
+      {
+        "fortyTwo": 42,
+        "fortyTwoAgain": 42
+      },
+      {
+        "false": false,
+        "falseAgain": false,
+        "true": true,
+        "trueAgain": true
+      },
+      {
+        "a": "a",
+        "abcd": "abcd",
+        "abcdAgain": "abcd",
+        "b": "b",
+        "c": "c",
+        "concatenated": "null bar 42 baz true 3.14 hi",
+        "d": "d",
+        "double": "3.14",
+        "doubleStartingWithDot": ".33",
+        "false": "false",
+        "no": "no",
+        "null": "null",
+        "number": "57",
+        "true": "true",
+        "yes": "yes"
+      }
+    ],
+    "ofString": [
+      "a",
+      "b",
+      "c"
+    ]
+  },
+  "booleans": {
+    "false": false,
+    "falseAgain": false,
+    "true": true,
+    "trueAgain": true
+  },
+  "durations": {
+    "halfSecond": "0.5s",
+    "largeNanos": "4878955355435272204ns",
+    "micros": "2000 micros",
+    "millis": "1 milli",
+    "minusLargeNanos": "-4878955355435272204ns",
+    "plusLargeNanos": "+4878955355435272204ns",
+    "second": "1s",
+    "secondAsNumber": 1000,
+    "secondsList": [
+      "1s",
+      "2seconds",
+      "3 s",
+      4000
+    ]
+  },
+  "floats": {
+    "fortyTwoPointOne": 42.1,
+    "fortyTwoPointOneAgain": 42.1,
+    "pointThirtyThree": ".33",
+    "pointThirtyThreeAgain": ".33"
+  },
+  "ints": {
+    "fortyTwo": 42,
+    "fortyTwoAgain": 42
+  },
+  "memsizes": {
+    "halfMeg": "0.5M",
+    "meg": "1M",
+    "megAsNumber": 1048576,
+    "megsList": [
+      "1M",
+      "1024K",
+      1048576
+    ],
+    "yottabyte": "1YB",
+    "yottabyteList": [
+      "1YB",
+      "0.5YB"
+    ]
+  },
+  "nulls": {},
+  "periods": {
+    "day": "1d",
+    "dayAsNumber": 2,
+    "month": "5 mo",
+    "week": "3 weeks",
+    "year": "8y"
+  },
+  "strings": {
+    "a": "a",
+    "abcd": "abcd",
+    "abcdAgain": "abcd",
+    "b": "b",
+    "c": "c",
+    "concatenated": "null bar 42 baz true 3.14 hi",
+    "d": "d",
+    "double": "3.14",
+    "doubleStartingWithDot": ".33",
+    "false": "false",
+    "no": "no",
+    "null": "null",
+    "number": "57",
+    "true": "true",
+    "yes": "yes"
+  },
+  "system": {
+    "concatenated": "Your Java version is  and your user.home is ",
+    "home": "/Users/yoshi",
+    "lang": "C.UTF-8",
+    "path": "/Users/yoshi/.pyenv/bin:/Users/yoshi/.pyenv/shims:/opt/homebrew/bin:/usr/local/bin:/usr/local/bin:/usr/local/bin:/usr/local/Cellar/scala/2.13.1/bin:/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/Contents/Home/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Users/yoshi/.pyenv/bin:/opt/homebrew/bin:/usr/local/Cellar/scala/2.13.1/bin:/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/Contents/Home/bin:/Users/yoshi/.cargo/bin:/Users/yoshi/.composer/vendor/bin:/Users/yoshi/bin:/Users/yoshi/Library/Android/sdk/platform-tools:/Volume/Workspace/archlog/repos/https-local/login/bin:./.bin:/Users/yoshi/go/bin:/Users/yoshi/.composer/vendor/bin:/Users/yoshi/bin:/Users/yoshi/Library/Android/sdk/platform-tools:/Volume/Workspace/archlog/repos/https-local/login/bin:./.bin:/Users/yoshi/go/bin:/Volume/Workspace/archlog/repos/https-local/login/bin",
+    "pwd": "/Volumes/Workspace/o3co/agentscopes/hocon/repos/xx.hocon/generate",
+    "shell": "/bin/zsh"
+  }
+}
