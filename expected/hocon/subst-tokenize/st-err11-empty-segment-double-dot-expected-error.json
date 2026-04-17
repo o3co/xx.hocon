@@ -1,0 +1,5 @@
+{
+  "error": true,
+  "type": "BadPath",
+  "message": "../testdata/hocon/subst-tokenize/st-err11-empty-segment-double-dot.conf: 1: path has a leading, trailing, or two adjacent period '.' (use quoted \"\" empty string if you want an empty element)"
+}
