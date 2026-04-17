@@ -1,0 +1,5 @@
+{
+  "error": true,
+  "type": "Parse",
+  "message": "../testdata/hocon/subst-tokenize/st-err06-unterminated-string.conf: 1: Expecting a value but got wrong token: 'newline' (JSON does not allow unescaped newline in quoted strings, use a backslash escape) (if you intended 'newline' (JSON does not allow unescaped newline in quoted strings, use a backslash escape) to be part of a key or string value, try enclosing the key or value in double quotes, or you may be able to rename the file .properties rather than .conf)"
+}

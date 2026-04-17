@@ -1,0 +1,5 @@
+{
+  "error": true,
+  "type": "Parse",
+  "message": "../testdata/hocon/subst-tokenize/st-err02-invalid-escape-q.conf: 1: Expecting a value but got wrong token: 'q' (backslash followed by 'q', this is not a valid escape sequence (quoted strings use JSON escaping, so use double-backslash \\\\ for literal backslash)) (if you intended 'q' (backslash followed by 'q', this is not a valid escape sequence (quoted strings use JSON escaping, so use double-backslash \\\\ for literal backslash)) to be part of a key or string value, try enclosing the key or value in double quotes, or you may be able to rename the file .properties rather than .conf)"
+}

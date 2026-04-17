@@ -1,0 +1,5 @@
+{
+  "error": true,
+  "type": "BadPath",
+  "message": "../testdata/hocon/subst-tokenize/st-err08-empty-path.conf: 1: Expecting a field name or path here, but got nothing"
+}

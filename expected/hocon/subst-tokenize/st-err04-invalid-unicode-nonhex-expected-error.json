@@ -1,0 +1,5 @@
+{
+  "error": true,
+  "type": "Parse",
+  "message": "../testdata/hocon/subst-tokenize/st-err04-invalid-unicode-nonhex.conf: 1: Expecting a value but got wrong token: 'ZZZZ' (Malformed hex digits after \\u escape in string: 'ZZZZ') (if you intended 'ZZZZ' (Malformed hex digits after \\u escape in string: 'ZZZZ') to be part of a key or string value, try enclosing the key or value in double quotes, or you may be able to rename the file .properties rather than .conf)"
+}

@@ -1,0 +1,5 @@
+{
+  "error": true,
+  "type": "Parse",
+  "message": "../testdata/hocon/subst-tokenize/st-err03-invalid-unicode-short.conf: 1: Expecting a value but got wrong token: '41\"}' (Malformed hex digits after \\u escape in string: '41\"}') (if you intended '41\"}' (Malformed hex digits after \\u escape in string: '41\"}') to be part of a key or string value, try enclosing the key or value in double quotes, or you may be able to rename the file .properties rather than .conf)"
+}
