@@ -6,9 +6,9 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/main/docs/spec-compliance.md) | **54.8%** | **60.6%** | 114 | 1 | 7 | 67 | 20 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **57.2%** | **63.2%** | 119 | 1 | 6 | 63 | 20 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/main/docs/spec-compliance.md) | **52.6%** | **58.2%** | 109 | 2 | 6 | 72 | 20 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **58.9%** | **65.1%** | 122 | 2 | 9 | 56 | 20 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **61.2%** | **67.7%** | 127 | 2 | 9 | 51 | 20 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **56.7%** | **62.7%** | 117 | 3 | 9 | 60 | 20 |
 
 Where:
 
@@ -54,8 +54,11 @@ Items where the test or implementation behavior contradicts the spec:
 |---|---|---|---|
 | S3.1 | rs | ⚠️ | Empty file → empty object; spec L130 says empty is invalid |
 | S3.4 | ts | ❌ | Unbraced root + stray `}` accepted ([#55](https://github.com/o3co/ts.hocon/issues/55)) |
+| S6.1 | ts, rs, go | ❌ | Lexer ignores Unicode Zs/Zl/Zp whitespace categories ([ts#72](https://github.com/o3co/ts.hocon/issues/72), [rs#62](https://github.com/o3co/rs.hocon/issues/62), [go#59](https://github.com/o3co/go.hocon/issues/59)) |
+| S6.2 | ts, rs, go | ❌ | Non-breaking spaces (U+00A0, U+2007, U+202F) not treated as whitespace ([ts#72](https://github.com/o3co/ts.hocon/issues/72), [rs#62](https://github.com/o3co/rs.hocon/issues/62), [go#59](https://github.com/o3co/go.hocon/issues/59)) |
+| S6.4 | ts, rs, go | ⚠️ | Of 8 ASCII control whitespace chars, only tab + CR recognized; vtab, FF, FS–US fail in all 3 impls ([ts#72](https://github.com/o3co/ts.hocon/issues/72), [rs#62](https://github.com/o3co/rs.hocon/issues/62), [go#59](https://github.com/o3co/go.hocon/issues/59)) |
 | S8.1 | ts | ⚠️ | Lexer allows backtick in unquoted strings, contrary to spec L245 forbidden set |
-| S8.6 | ts | ❌ | Lexer permits `0-9` and `-` as unquoted starts; parser turns `123abc` / `-foo` into strings instead of rejecting |
+| S8.6 | ts, rs, go | ❌ | Lexer permits `0-9` and `-` as unquoted starts; non-numeric forms like `123abc` / `-foo` are coerced to strings instead of rejected ([ts#73](https://github.com/o3co/ts.hocon/issues/73), [rs#63](https://github.com/o3co/rs.hocon/issues/63), [go#60](https://github.com/o3co/go.hocon/issues/60)) |
 | S10.13 | go | ⚠️ | Permissive: `a = [1, 2] 3` → `[1, 2, 3]`; spec L373 requires error for array/object in string concat |
 | S11.4 | go | ❌ | Parser does not accept TokenFloat keys; `10.0foo = x` is rejected rather than producing the spec-defined path split |
 | S13.11 | go | ⚠️ | Lenient mode drops optional substitutions in nested-include scope ([#45](https://github.com/o3co/go.hocon/issues/45)) |
@@ -66,14 +69,23 @@ Items where the test or implementation behavior contradicts the spec:
 
 Spec items with no test coverage in **any** of the three implementations. These are the natural targets for future test-debt PRs:
 
-- **S5.3–S5.6** — invalid comma patterns (double trailing, leading, consecutive)
-- **S6.1, S6.2, S6.4** — Unicode whitespace categories (Zs/Zl/Zp, non-breaking spaces, ASCII control set)
 - **S10.4** — mixing arrays + objects in concat is an error
 - **S15.1–S15.7** — numerically-indexed object → array conversion (entire section)
 - **S17.5, S17.7, S17.8** — type conversion error cases (null/object/array as wrong type)
 - **S21.4, S21.5** — single-letter byte abbreviations, fractional byte values
 
 See each `<repo>/docs/spec-compliance.md` for the full per-impl `🤷` list.
+
+### Cleared in Phase 1 (2026-05-12)
+
+The following items were cleared from shared test debt by [ts.hocon#74](https://github.com/o3co/ts.hocon/pull/74), [rs.hocon#64](https://github.com/o3co/rs.hocon/pull/64), and [go.hocon#61](https://github.com/o3co/go.hocon/pull/61):
+
+- **S2.3** — comment markers literal inside quoted strings (✅ in all 3)
+- **S5.2–S5.6** — comma rules (✅ in all 3)
+- **S6.1, S6.2** — Unicode/non-breaking whitespace (now verified ❌ in all 3 — see Top spec violations above)
+- **S6.4** — ASCII control whitespace (⚠️ in all 3 — partial pass)
+- **S8.6** — digit/hyphen unquoted starts (verified ❌ across rs/go too, was only ts before)
+- **S8.7, S8.8** — escape rejection + control-char allowance in unquoted strings (✅ in all 3)
 
 ## How this file is maintained
 
@@ -95,4 +107,4 @@ done
 
 ## Last verified
 
-2026-05-12 — initial population after d.2 execution pass + Codex review round 2.
+2026-05-12 — re-rolled-up after Phase 1 lexer/comma test-debt PRs landed in all three impls ([ts.hocon#74](https://github.com/o3co/ts.hocon/pull/74), [rs.hocon#64](https://github.com/o3co/rs.hocon/pull/64), [go.hocon#61](https://github.com/o3co/go.hocon/pull/61)). 12 items × 3 impls promoted from 🤷 to verified ✅ / ⚠️ / ❌.
