@@ -6,14 +6,14 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **66.5%** | **73.5%** | 137 | 4 | 16 | 32 | 20 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **68.9%** | **76.2%** | 142 | 4 | 16 | 27 | 20 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **63.4%** | **70.1%** | 131 | 3 | 15 | 40 | 20 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **68.7%** | **76.3%** | 141 | 5 | 22 | 20 | 21 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **70.1%** | **77.9%** | 144 | 5 | 22 | 17 | 21 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **64.4%** | **71.5%** | 132 | 5 | 23 | 28 | 21 |
 
 Where:
 
-- **Spec-total** = `(✅ + ⚠️·0.5) / 209`. Denominator includes ALL items, including the 20 globally out-of-scope. Out-of-scope items intentionally lower this number — it is the answer to "how much of HOCON.md does this implementation handle?".
-- **In-scope** = `(✅ + ⚠️·0.5) / 189`. Denominator excludes the 20 globally out-of-scope items. This is the answer to "of what the implementation chooses to support, how much is covered?".
+- **Spec-total** = `(✅ + ⚠️·0.5) / 209`. Denominator includes ALL items, including the 21 globally out-of-scope. Out-of-scope items intentionally lower this number — it is the answer to "how much of HOCON.md does this implementation handle?".
+- **In-scope** = `(✅ + ⚠️·0.5) / 188`. Denominator excludes the 21 globally out-of-scope items. This is the answer to "of what the implementation chooses to support, how much is covered?".
 - `❌` and `🤷` contribute 0. `🤷` is treated as 0 because an unverified claim is, by policy, not a pass — pinning it as ✅/❌ requires a test.
 
 Both numbers are shown side by side so neither over-claims nor under-claims. See [`spec-checklist.md`](spec-checklist.md) for the convention rationale.
@@ -28,14 +28,15 @@ Both numbers are shown side by side so neither over-claims nor under-claims. See
 | 🤷 | No test — implementation claim only, unverified |
 | ➖ | Globally out of scope (rationale required) |
 
-## Globally out-of-scope items (20)
+## Globally out-of-scope items (21)
 
-These 20 items are marked `➖` in all three implementations, by policy:
+These 21 items are marked `➖` in all three implementations, by policy:
 
 | Items | Rationale class |
 |---|---|
 | S14a.4, S14f.5 | classpath resources are a JVM-only concept |
 | S16.1 | MIME Type is set by HTTP servers, not parsers |
+| S17.5 | `"null"` → null when null requested — none of the three implementations has a `getNull()`-equivalent typed accessor; spec L1244 is structurally inapplicable to their API models (added in Phase 4) |
 | S20.1–S20.4 | Period Format mirrors `java.time.Period`, a Java-specific type |
 | S23.5, S23.6 | `.properties` multi-line + Unicode escapes; documented simplification in each README |
 | S24.1, S24.2 | reference.conf / application.conf are JVM conventions |
@@ -74,14 +75,18 @@ Items where the test or implementation behavior contradicts the spec:
 | S13a.13 | ts, rs, go | ❌ | `a = ${?a}foo` with no prior `a` resolves to `"foofoo"` not `"foo"` — the self-ref look-back picks up the trailing literal as its prior value per L841 ([ts#84](https://github.com/o3co/ts.hocon/issues/84), [rs#76](https://github.com/o3co/rs.hocon/issues/76), [go#68](https://github.com/o3co/go.hocon/issues/68)) |
 | S13c.1–S13c.5 | ts, rs, go | ❌ | `${X[]}` env-var list not implemented; each implementation's lexer rejects `[` / `]` inside `${...}` body |
 | S14c.2 | rs | ❌ | Non-relativized substitution path fallback not implemented ([#44](https://github.com/o3co/rs.hocon/issues/44)) |
+| S15.1–S15.3, S15.5–S15.7 | ts, rs, go | ❌ | Numerically-indexed object → array conversion not implemented in any of the three impls — `getList()` / `get_list()` / `GetStringSlice()` does not convert `{"0":"a","1":"b"}` to `["a","b"]` per L1191–L1216 ([ts#87](https://github.com/o3co/ts.hocon/issues/87), [rs#79](https://github.com/o3co/rs.hocon/issues/79), [go#71](https://github.com/o3co/go.hocon/issues/71)). S15.4 (empty object NOT converted) passes incidentally in all 3 because no conversion runs at all. |
+| S15.3 | ts, rs, go | ❌ | Real concat `[a] ${obj}` (with `obj = {"0":"x","1":"y"}`) leaves the object un-converted as the last array element; whitespace artefacts leak. Spec L1210 requires conversion + flatten to `["a","x","y"]`. Tracked alongside S15 root cause issues above. |
+| S17.6 | ts | ⚠️ | `getString()` on null silently returns the string `"null"` instead of throwing per L1252; other typed accessors throw, but *incidentally* (no explicit `valueType==='null'` guard in `requireScalar`) ([ts#88](https://github.com/o3co/ts.hocon/issues/88)). rs/go ✅. |
+| S17.7, S17.8 | go | ⚠️ | Non-Option accessors panic correctly per L1254-1255; Option accessors return `None` instead of error — partial violation ([go#72](https://github.com/o3co/go.hocon/issues/72)). ts/rs ✅. |
+| S21.4 | ts, go | ❌ | Single-letter byte abbreviations (`K`/`M`/`G`/…) not recognized — spec L1385 / java `-Xmx` convention. rs ✅ ([ts#89](https://github.com/o3co/ts.hocon/issues/89), [go#73](https://github.com/o3co/go.hocon/issues/73)). |
+| S21.5 | go | ❌ | Fractional byte values (`0.5KB`, `1.5MiB`, …) rejected — `parseBytes` uses `ParseInt`. ts/rs ✅ ([go#74](https://github.com/o3co/go.hocon/issues/74)). |
 
 ## Shared test debt
 
 Spec items with no test coverage in **any** of the three implementations. These are the natural targets for future test-debt PRs:
 
-- **S15.1–S15.7** — numerically-indexed object → array conversion (entire section)
-- **S17.5, S17.7, S17.8** — type conversion error cases (null/object/array as wrong type)
-- **S21.4, S21.5** — single-letter byte abbreviations, fractional byte values
+- (No items currently in this category — Phase 4 cleared the last shared 🤷 cluster around S15/S17/S21. See per-repo `docs/spec-compliance.md` for impl-specific remaining `🤷`.)
 
 See each `<repo>/docs/spec-compliance.md` for the full per-impl `🤷` list.
 
@@ -132,6 +137,21 @@ The following items were cleared from shared test debt by [ts.hocon#82](https://
 - **S12.5** — `include` may NOT begin a path expression (now verified ❌ in all 3)
 - **S13b.2** — `+=` on non-array prior value → error (✅ in go; ❌ in ts/rs — go is the only spec-compliant impl)
 
+### Cleared in Phase 4 (2026-05-13)
+
+The following items were cleared from shared test debt by [ts.hocon#90](https://github.com/o3co/ts.hocon/pull/90), [rs.hocon#81](https://github.com/o3co/rs.hocon/pull/81), and [go.hocon#75](https://github.com/o3co/go.hocon/pull/75):
+
+- **S15.1–S15.3, S15.5–S15.7** — numerically-indexed object → array conversion (verified ❌ in all 3 — see Top spec violations above)
+- **S15.4** — empty object NOT converted (✅ in all 3 — *incidental*: passes today because no conversion runs at all; must be re-validated when the S15 conversion path lands)
+- **S17.5** — `"null"` → null when null requested (now ➖ in all 3 — no `getNull()`-equivalent accessor in any impl; spec L1244 structurally inapplicable. Added to globally OOS list.)
+- **S17.6** — null → other type: error (✅ in rs/go; ⚠️ in ts — see Top spec violations above)
+- **S17.7** — object → other type: error (✅ in ts/rs; ⚠️ in go — Option accessors return None instead of error)
+- **S17.8** — array → other type: error (✅ in ts/rs; ⚠️ in go — same shape as S17.7)
+- **S21.4** — single-letter byte abbreviations (verified ❌ in ts/go; ✅ in rs — see Top spec violations above)
+- **S21.5** — fractional byte values (✅ in ts/rs; ❌ in go — see Top spec violations above)
+
+Multi-reviewer convergence observed during Phase 4: the S15.3 test in all three impls was initially written against a non-concatenation scenario (plain substitution / path-expression / array literal). Reviewers (Copilot on rs+go, Claude on ts) independently flagged this, leading to a uniform rewrite using the real adjacent-list-concat context `[a] ${obj}` across all three impls.
+
 ## How this file is maintained
 
 1. The canonical item definitions live in [`spec-checklist.md`](spec-checklist.md). Adding or removing items there is the only way to change the denominator.
@@ -147,9 +167,11 @@ for repo in ts.hocon rs.hocon go.hocon; do
 done
 ```
 
-4. Rates are computed as `(✅ + ⚠️·0.5) / N` with `N = 209` (spec-total) or `N = 209 − ➖ = 189` (in-scope).
+4. Rates are computed as `(✅ + ⚠️·0.5) / N` with `N = 209` (spec-total) or `N = 209 − ➖ = 188` (in-scope, where 21 items are globally out-of-scope as of Phase 4).
 5. When the template gains or loses an item, **all three per-repo files must be synced** before this matrix is rebuilt; otherwise the totals will be inconsistent.
 
 ## Last verified
+
+2026-05-13 — re-rolled-up after Phase 4 type-conversion / values test-debt PRs landed in all three impls ([ts.hocon#90](https://github.com/o3co/ts.hocon/pull/90), [rs.hocon#81](https://github.com/o3co/rs.hocon/pull/81), [go.hocon#75](https://github.com/o3co/go.hocon/pull/75)). 12–13 items × 3 impls promoted from 🤷 to verified ✅ / ⚠️ / ❌ / ➖. S17.5 reclassified globally OOS (denominator: 21 OOS, in-scope N = 188). New cross-impl violation rows: S15.1–S15.3/S15.5–S15.7 (3-way ❌), S17.6 (ts ⚠️), S17.7/S17.8 (go ⚠️), S21.4 (ts+go ❌), S21.5 (go ❌). Multi-reviewer convergence on S15.3 across ts/rs/go: initial tests didn't exercise concatenation context; uniform rewrite to `[a] ${obj}` adopted.
 
 2026-05-12 — re-rolled-up after Phase 3 substitution/include test-debt PRs landed in all three impls ([ts.hocon#85](https://github.com/o3co/ts.hocon/pull/85), [rs.hocon#77](https://github.com/o3co/rs.hocon/pull/77), [go.hocon#69](https://github.com/o3co/go.hocon/pull/69)). 11 items × 3 impls promoted from 🤷 to verified ✅ / ⚠️ / ❌; S13a.10 explicitly deferred as not externally observable. 3 new cross-impl violation rows added to Top spec violations (S13.9, S13.14, S13a.13); S13a.13 is convergent ❌ across all three impls; S13.14 has go as the lone compliant impl.
