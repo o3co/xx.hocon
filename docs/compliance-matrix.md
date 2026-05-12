@@ -6,9 +6,9 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **62.0%** | **68.5%** | 128 | 3 | 15 | 43 | 20 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **64.8%** | **71.7%** | 134 | 3 | 14 | 38 | 20 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **59.6%** | **65.9%** | 123 | 3 | 14 | 49 | 20 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **66.5%** | **73.5%** | 137 | 4 | 16 | 32 | 20 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **68.9%** | **76.2%** | 142 | 4 | 16 | 27 | 20 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **63.4%** | **70.1%** | 131 | 3 | 15 | 40 | 20 |
 
 Where:
 
@@ -68,7 +68,10 @@ Items where the test or implementation behavior contradicts the spec:
 | S11.8 | go | ❌ | Parser rejects TokenBool in key position; spec L504 requires stringification to `"true"` / `"false"`. Impl is stricter than spec ([go#66](https://github.com/o3co/go.hocon/issues/66)) |
 | S12.5 | ts, rs, go | ❌ | `include.foo = 1` silently accepted as key `["include", "foo"]`; spec L570 reserves `include` from beginning a path expression ([ts#80](https://github.com/o3co/ts.hocon/issues/80), [rs#71](https://github.com/o3co/rs.hocon/issues/71), [go#67](https://github.com/o3co/go.hocon/issues/67)) |
 | S13b.2 | ts, rs | ❌ | `+=` on non-array prior value silently allowed; spec L732 requires error. go ✅ correctly rejects ([ts#81](https://github.com/o3co/ts.hocon/issues/81), [rs#72](https://github.com/o3co/rs.hocon/issues/72)) |
+| S13.9 | rs | ❌ | `HOME = null; result = ${?HOME}` resolves `result` to a present null scalar instead of erasing the field per L618 "null treated same as missing"; env value is correctly blocked ([rs#74](https://github.com/o3co/rs.hocon/issues/74)). ts ✅, go ✅. |
 | S13.11 | go | ⚠️ | Lenient mode drops optional substitutions in nested-include scope ([#45](https://github.com/o3co/go.hocon/issues/45)) |
+| S13.14 | ts, rs | ⚠️ | Object substitution concat ✅; array variant `[1] ${?missing} [2]` produces `[1, " ", " ", 2]` instead of `[1, 2]` — whitespace artefacts leak as extra elements per L637 ([ts#83](https://github.com/o3co/ts.hocon/issues/83), [rs#75](https://github.com/o3co/rs.hocon/issues/75)). go ✅. |
+| S13a.13 | ts, rs, go | ❌ | `a = ${?a}foo` with no prior `a` resolves to `"foofoo"` not `"foo"` — the self-ref look-back picks up the trailing literal as its prior value per L841 ([ts#84](https://github.com/o3co/ts.hocon/issues/84), [rs#76](https://github.com/o3co/rs.hocon/issues/76), [go#68](https://github.com/o3co/go.hocon/issues/68)) |
 | S13c.1–S13c.5 | ts, rs, go | ❌ | `${X[]}` env-var list not implemented; each implementation's lexer rejects `[` / `]` inside `${...}` body |
 | S14c.2 | rs | ❌ | Non-relativized substitution path fallback not implemented ([#44](https://github.com/o3co/rs.hocon/issues/44)) |
 
@@ -92,6 +95,24 @@ The following items were cleared from shared test debt by [ts.hocon#74](https://
 - **S6.4** — ASCII control whitespace (⚠️ in all 3 — partial pass)
 - **S8.6** — digit/hyphen unquoted starts (verified ❌ across rs/go too, was only ts before)
 - **S8.7, S8.8** — escape rejection + control-char allowance in unquoted strings (✅ in all 3)
+
+### Cleared in Phase 3 (2026-05-12)
+
+The following items were cleared from shared test debt by [ts.hocon#85](https://github.com/o3co/ts.hocon/pull/85), [rs.hocon#77](https://github.com/o3co/rs.hocon/pull/77), and [go.hocon#69](https://github.com/o3co/go.hocon/pull/69):
+
+- **S13.3** — `${?` is exactly 3 chars; whitespace before `?` is not optional marker (✅ in all 3)
+- **S13.5** — substitutions are NOT parsed inside quoted strings (✅ in all 3)
+- **S13.9** — `null` in config blocks env var lookup (✅ in ts/go; ❌ in rs — see Top spec violations above)
+- **S13.13** — optional undefined in string concat → empty string (✅ in all 3)
+- **S13.14** — optional undefined in obj/array concat (✅ in go; ⚠️ in ts/rs — array variant broken, see Top spec violations above)
+- **S13.16** — substitutions only in field values / array elements (✅ in all 3)
+- **S13a.13** — `a = ${?a}foo` resolves to `"foo"` (now verified ❌ in all 3 — see Top spec violations above)
+- **S14a.6** — unquoted `include` at non-start-of-key is literal (✅ in all 3)
+- **S14a.8** — no value concatenation on include argument (✅ in all 3)
+- **S14a.9** — no substitutions in include argument (✅ in all 3)
+- **S14b.1** — included root must be an object; array → error (✅ in all 3)
+
+Deferred (not externally observable): **S13a.10** — substitution memoization-by-instance is an internal resolver invariant; black-box parse/resolve APIs cannot distinguish it.
 
 ### Cleared in Phase 2 (2026-05-12)
 
@@ -131,4 +152,4 @@ done
 
 ## Last verified
 
-2026-05-12 — re-rolled-up after Phase 2 concat/paths/`+=` test-debt PRs landed in all three impls ([ts.hocon#82](https://github.com/o3co/ts.hocon/pull/82), [rs.hocon#73](https://github.com/o3co/rs.hocon/pull/73), [go.hocon#64](https://github.com/o3co/go.hocon/pull/64)). 13 items × 3 impls promoted from 🤷 to verified ✅ / ⚠️ / ❌. 7 new cross-impl violation rows added to Top spec violations; S11.4 cross-impl status confirmed (ts/rs split correctly, only go violates); S13b.2 surfaces go as the lone compliant impl.
+2026-05-12 — re-rolled-up after Phase 3 substitution/include test-debt PRs landed in all three impls ([ts.hocon#85](https://github.com/o3co/ts.hocon/pull/85), [rs.hocon#77](https://github.com/o3co/rs.hocon/pull/77), [go.hocon#69](https://github.com/o3co/go.hocon/pull/69)). 11 items × 3 impls promoted from 🤷 to verified ✅ / ⚠️ / ❌; S13a.10 explicitly deferred as not externally observable. 3 new cross-impl violation rows added to Top spec violations (S13.9, S13.14, S13a.13); S13a.13 is convergent ❌ across all three impls; S13.14 has go as the lone compliant impl.
