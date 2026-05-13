@@ -6,15 +6,15 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **68.7%** | **76.3%** | 141 | 5 | 22 | 20 | 21 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **70.1%** | **77.9%** | 144 | 5 | 22 | 17 | 21 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **64.4%** | **71.5%** | 132 | 5 | 23 | 28 | 21 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **74.2%** | **83.3%** | 152 | 6 | 28 | 0 | 23 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **75.6%** | **84.0%** | 155 | 6 | 27 | 0 | 21 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **71.8%** | **80.2%** | 147 | 6 | 34 | 0 | 22 |
 
 Where:
 
-- **Spec-total** = `(✅ + ⚠️·0.5) / 209`. Denominator includes ALL items, including the 21 globally out-of-scope. Out-of-scope items intentionally lower this number — it is the answer to "how much of HOCON.md does this implementation handle?".
-- **In-scope** = `(✅ + ⚠️·0.5) / 188`. Denominator excludes the 21 globally out-of-scope items. This is the answer to "of what the implementation chooses to support, how much is covered?".
-- `❌` and `🤷` contribute 0. `🤷` is treated as 0 because an unverified claim is, by policy, not a pass — pinning it as ✅/❌ requires a test.
+- **Spec-total** = `(✅ + ⚠️·0.5) / 209`. Denominator includes ALL items, including out-of-scope. Out-of-scope items intentionally lower this number — it is the answer to "how much of HOCON.md does this implementation handle?".
+- **In-scope** = `(✅ + ⚠️·0.5) / (209 − ➖_per_impl)`. The denominator is **per-impl** because each implementation can additionally mark items ➖ for language-natural reasons that don't apply to its siblings (e.g. ts marks S1.1 ➖ because JS strings are pre-decoded Unicode at the I/O boundary, but go cannot — Go `string` permits arbitrary bytes). Globally shared ➖ count is 21; per-impl: ts=23 (+ S1.1, S13a.10), rs=21, go=22 (+ S13a.10). This is the answer to "of what the implementation chooses to support, how much is covered?".
+- `❌` and `🤷` contribute 0. `🤷` is treated as 0 because an unverified claim is, by policy, not a pass — pinning it as ✅/❌ requires a test. After Phase 5, all three impls reached `🤷 = 0`.
 
 Both numbers are shown side by side so neither over-claims nor under-claims. See [`spec-checklist.md`](spec-checklist.md) for the convention rationale.
 
@@ -26,11 +26,11 @@ Both numbers are shown side by side so neither over-claims nor under-claims. See
 | ⚠️ | Test exists, partial pass / pinning a spec-violating behavior |
 | ❌ | Test exists and fails, OR known spec violation documented in source |
 | 🤷 | No test — implementation claim only, unverified |
-| ➖ | Globally out of scope (rationale required) |
+| ➖ | Out of scope (rationale required). May be **globally out of scope** (excluded by all three impls — see [Globally out-of-scope items](#globally-out-of-scope-items-21)) or **per-impl out of scope** (one impl excludes for language-natural reasons that don't apply to siblings, e.g. ts S1.1 because JS strings are pre-decoded Unicode at the I/O boundary). |
 
 ## Globally out-of-scope items (21)
 
-These 21 items are marked `➖` in all three implementations, by policy:
+These 21 items are marked `➖` in **all three** implementations, by policy. Some impls also mark additional items `➖` for language-natural reasons (e.g. ts S1.1, ts/go S13a.10) — those are noted in the impl's own `spec-compliance.md`, not here.
 
 | Items | Rationale class |
 |---|---|
@@ -53,32 +53,49 @@ Items where the test or implementation behavior contradicts the spec:
 
 | Item | Impl | Status | Description |
 |---|---|---|---|
-| S3.1 | rs | ⚠️ | Empty file → empty object; spec L130 says empty is invalid |
+| S1.1 | go | ❌ | Invalid UTF-8 (e.g. `string([]byte{0xff})` via `ParseString`) is silently substituted with U+FFFD instead of rejected; spec L117 requires rejection. Go `string` is `[]byte` and is not language-guaranteed UTF-8. ts ➖ (JS string is pre-decoded Unicode at the I/O boundary; the parser cannot observe raw bytes — see ts.hocon S1.1 entry). rs ✅ (Rust `&str` is language-guaranteed valid UTF-8; verified positively via `tests/testdata/hocon/bom.conf` fixture). |
+| S3.1 | ts, rs, go | ❌ / ⚠️ / ❌ | Empty file accepted. rs returns empty object; ts/go return `nil` error. Spec L130 says empty is invalid. |
+| S8.2 | go | ❌ | `//` inside an unquoted run without preceding whitespace is treated as literal content; spec L248 says `//` starts a comment anywhere outside a quoted string. ts/rs ✅. |
 | S3.4 | ts | ❌ | Unbraced root + stray `}` accepted ([#55](https://github.com/o3co/ts.hocon/issues/55)) |
 | S6.1 | ts, rs, go | ❌ | Lexer ignores Unicode Zs/Zl/Zp whitespace categories ([ts#72](https://github.com/o3co/ts.hocon/issues/72), [rs#62](https://github.com/o3co/rs.hocon/issues/62), [go#59](https://github.com/o3co/go.hocon/issues/59)) |
 | S6.2 | ts, rs, go | ❌ | Non-breaking spaces (U+00A0, U+2007, U+202F) not treated as whitespace ([ts#72](https://github.com/o3co/ts.hocon/issues/72), [rs#62](https://github.com/o3co/rs.hocon/issues/62), [go#59](https://github.com/o3co/go.hocon/issues/59)) |
 | S6.4 | ts, rs, go | ⚠️ | Of 8 ASCII control whitespace chars, only tab + CR recognized; vtab, FF, FS–US fail in all 3 impls ([ts#72](https://github.com/o3co/ts.hocon/issues/72), [rs#62](https://github.com/o3co/rs.hocon/issues/62), [go#59](https://github.com/o3co/go.hocon/issues/59)) |
 | S8.1 | ts | ⚠️ | Lexer allows backtick in unquoted strings, contrary to spec L245 forbidden set |
 | S8.6 | ts, rs, go | ❌ | Lexer permits `0-9` and `-` as unquoted starts; non-numeric forms like `123abc` / `-foo` are coerced to strings instead of rejected ([ts#73](https://github.com/o3co/ts.hocon/issues/73), [rs#63](https://github.com/o3co/rs.hocon/issues/63), [go#60](https://github.com/o3co/go.hocon/issues/60)) |
+| S10.2 | rs | ❌ | Adjacent array concat `[1,2] [3,4]` produces a 5-element list with a whitespace scalar between the two arrays; spec L355 requires array concatenation (merge into `[1,2,3,4]`). ts/go ✅. |
 | S10.4 | ts, rs, go | ❌ | Mixing arrays + objects in concat silently allowed; spec L385 requires error ([ts#75](https://github.com/o3co/ts.hocon/issues/75), [rs#65](https://github.com/o3co/rs.hocon/issues/65), [go#63](https://github.com/o3co/go.hocon/issues/63)) |
 | S10.8 | ts, rs, go | ❌ / ⚠️ | Unquoted concat in field keys (`a b = 1`) rejected; spec L317/L556 requires acceptance as key "a b". rs partial pass: quoted variant works ([ts#76](https://github.com/o3co/ts.hocon/issues/76), [rs#66](https://github.com/o3co/rs.hocon/issues/66), [go#65](https://github.com/o3co/go.hocon/issues/65)) |
 | S10.13 | ts, rs, go | ❌ / ❌ / ⚠️ | Array/object in string concat silently accepted; spec L373 requires error. go ⚠️ permissive: `a = [1, 2] 3` → `[1, 2, 3]` ([ts#77](https://github.com/o3co/ts.hocon/issues/77), [rs#67](https://github.com/o3co/rs.hocon/issues/67)) |
 | S10.14 | ts | ⚠️ | Object substitutions correct; whitespace not stripped around array substitutions (included as extra element) ([ts#78](https://github.com/o3co/ts.hocon/issues/78)) |
+| S10.15 | rs, go | ❌ | Quoted whitespace between obj/array substitutions (e.g. `c = ${a} " " ${b}`) is silently accepted and the arrays merged to `[1, 2]`; spec L442 requires this to be an error. ts ✅. |
+| S10.17 | rs | ❌ | Substitution resolving to an array does not participate in array concat (`${arr} [x]`); the impl errors instead of merging. Spec L450 requires participation. ts/go ✅. |
 | S10.19 | ts, rs, go | ❌ | Mixing substitution-resolved object with literal array silently accepted; spec L385-389 requires error ([ts#79](https://github.com/o3co/ts.hocon/issues/79), [rs#68](https://github.com/o3co/rs.hocon/issues/68), [go#63](https://github.com/o3co/go.hocon/issues/63)) |
+| S11.3 | go | ❌ | Numbers in path positions don't retain their original string representation; numeric path expressions like `1.2.3 = x` are rejected by the parser. ts/rs ✅. |
 | S11.4 | go | ❌ | Parser does not accept TokenFloat keys; `10.0foo = x` is rejected rather than producing the spec-defined path split ([go#62](https://github.com/o3co/go.hocon/issues/62)). ts/rs verified compliant. |
 | S11.8 | go | ❌ | Parser rejects TokenBool in key position; spec L504 requires stringification to `"true"` / `"false"`. Impl is stricter than spec ([go#66](https://github.com/o3co/go.hocon/issues/66)) |
 | S12.5 | ts, rs, go | ❌ | `include.foo = 1` silently accepted as key `["include", "foo"]`; spec L570 reserves `include` from beginning a path expression ([ts#80](https://github.com/o3co/ts.hocon/issues/80), [rs#71](https://github.com/o3co/rs.hocon/issues/71), [go#67](https://github.com/o3co/go.hocon/issues/67)) |
 | S13b.2 | ts, rs | ❌ | `+=` on non-array prior value silently allowed; spec L732 requires error. go ✅ correctly rejects ([ts#81](https://github.com/o3co/ts.hocon/issues/81), [rs#72](https://github.com/o3co/rs.hocon/issues/72)) |
 | S13.9 | rs | ❌ | `HOME = null; result = ${?HOME}` resolves `result` to a present null scalar instead of erasing the field per L618 "null treated same as missing"; env value is correctly blocked ([rs#74](https://github.com/o3co/rs.hocon/issues/74)). ts ✅, go ✅. |
+| S13.15 | rs, go | ❌ | `foo : ${?bar}${?baz}` skip semantics: spec L658 says the field is skipped only when **both** substitutions are undefined. rs/go differ from this; go in particular creates the field with an empty-string value when both are undefined. ts ✅. |
 | S13.11 | go | ⚠️ | Lenient mode drops optional substitutions in nested-include scope ([#45](https://github.com/o3co/go.hocon/issues/45)) |
 | S13.14 | ts, rs | ⚠️ | Object substitution concat ✅; array variant `[1] ${?missing} [2]` produces `[1, " ", " ", 2]` instead of `[1, 2]` — whitespace artefacts leak as extra elements per L637 ([ts#83](https://github.com/o3co/ts.hocon/issues/83), [rs#75](https://github.com/o3co/rs.hocon/issues/75)). go ✅. |
+| S13a.3 | ts | ⚠️ | Self-reference before any prior value (`a = ${a}`) raises a cycle error, but the error type / message classifies this as a generic substitution error rather than the "undefined" path the spec describes at L795. rs/go ✅ (correct error class). |
+| S13a.12 | go | ❌ | Self-ref in a path expression (`${foo.a}` where `foo.a` is being defined) does not resolve to the "below" value per L831; the looked-up sub-object is discarded in the merge. ts/rs ✅. |
 | S13a.13 | ts, rs, go | ❌ | `a = ${?a}foo` with no prior `a` resolves to `"foofoo"` not `"foo"` — the self-ref look-back picks up the trailing literal as its prior value per L841 ([ts#84](https://github.com/o3co/ts.hocon/issues/84), [rs#76](https://github.com/o3co/rs.hocon/issues/76), [go#68](https://github.com/o3co/go.hocon/issues/68)) |
 | S13c.1–S13c.5 | ts, rs, go | ❌ | `${X[]}` env-var list not implemented; each implementation's lexer rejects `[` / `]` inside `${...}` body |
+| S14a.10 | go | ❌ | Unquoted include argument (e.g. `include foo.conf`) is silently accepted instead of rejected with a parse error per L958. ts/rs ✅. |
 | S14c.2 | rs | ❌ | Non-relativized substitution path fallback not implemented ([#44](https://github.com/o3co/rs.hocon/issues/44)) |
 | S15.1–S15.3, S15.5–S15.7 | ts, rs, go | ❌ | Numerically-indexed object → array conversion not implemented in any of the three impls — `getList()` / `get_list()` / `GetStringSlice()` does not convert `{"0":"a","1":"b"}` to `["a","b"]` per L1191–L1216 ([ts#87](https://github.com/o3co/ts.hocon/issues/87), [rs#79](https://github.com/o3co/rs.hocon/issues/79), [go#71](https://github.com/o3co/go.hocon/issues/71)). S15.4 (empty object NOT converted) passes incidentally in all 3 because no conversion runs at all. |
 | S15.3 | ts, rs, go | ❌ | Real concat `[a] ${obj}` (with `obj = {"0":"x","1":"y"}`) leaves the object un-converted as the last array element; whitespace artefacts leak. Spec L1210 requires conversion + flatten to `["a","x","y"]`. Tracked alongside S15 root cause issues above. |
 | S17.6 | ts | ⚠️ | `getString()` on null silently returns the string `"null"` instead of throwing per L1252; other typed accessors throw, but *incidentally* (no explicit `valueType==='null'` guard in `requireScalar`) ([ts#88](https://github.com/o3co/ts.hocon/issues/88)). rs/go ✅. |
+| S18.1 | ts | ❌ | Number value taken as default unit not implemented — bare-number duration values are not interpreted with the impl's default unit per L1280. rs/go ✅. |
+| S18.4 | ts, rs, go | ❌ / ⚠️ / ❌ | String value with no unit should be interpreted with the default unit per L1294. ts/go: `getDuration("500")` errors instead of producing 500 ms. rs ⚠️: some forms work, others error (partial). |
 | S17.7, S17.8 | go | ⚠️ | Non-Option accessors panic correctly per L1254-1255; Option accessors return `None` instead of error — partial violation ([go#72](https://github.com/o3co/go.hocon/issues/72)). ts/rs ✅. |
+| S19.1 | go | ⚠️ | Nanosecond units: `ns` / `nanosecond` / `nanoseconds` work; `nano` / `nanos` aliases missing per L1310. ts/rs ✅. |
+| S19.2 | go | ❌ | Microsecond units (`us` / `micro` / `micros` / `microsecond` / `microseconds`) all missing from `parseDuration`; `getDurationOption` returns `None`. ts/rs ✅. |
+| S19.8 | ts, rs | ❌ | Duration unit names should be case-sensitive (lowercase only) per L1304; both impls accept `MS`, `Seconds`, `NS`, etc. (rs `parse_duration` calls `.to_lowercase()` before matching at `src/config.rs:417`; ts has the same shape). go ✅. |
+| S22.2 | ts | ❌ | Intermediate non-object hides earlier object across files per L1430; ts merges across the non-object barrier. rs/go ✅. |
+| S23.4 | ts, go | ❌ | When a `.properties` key conflicts with an object path (leaf-vs-parent), the object should win per L1462; ts/go keep the leaf string instead. rs ✅. |
 | S21.4 | ts, go | ❌ | Single-letter byte abbreviations (`K`/`M`/`G`/…) not recognized — spec L1385 / java `-Xmx` convention. rs ✅ ([ts#89](https://github.com/o3co/ts.hocon/issues/89), [go#73](https://github.com/o3co/go.hocon/issues/73)). |
 | S21.5 | go | ❌ | Fractional byte values (`0.5KB`, `1.5MiB`, …) rejected — `parseBytes` uses `ParseInt`. ts/rs ✅ ([go#74](https://github.com/o3co/go.hocon/issues/74)). |
 
@@ -86,9 +103,9 @@ Items where the test or implementation behavior contradicts the spec:
 
 Spec items with no test coverage in **any** of the three implementations. These are the natural targets for future test-debt PRs:
 
-- (No items currently in this category — Phase 4 cleared the last shared 🤷 cluster around S15/S17/S21. See per-repo `docs/spec-compliance.md` for impl-specific remaining `🤷`.)
+- (Empty — Phase 4 cleared the last shared `🤷` cluster around S15/S17/S21; Phase 5 cleared per-impl `🤷` in all three impls. The `🤷` column in the top table is now `0` everywhere.)
 
-See each `<repo>/docs/spec-compliance.md` for the full per-impl `🤷` list.
+The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 ### Cleared in Phase 1 (2026-05-12)
 
@@ -152,6 +169,32 @@ The following items were cleared from shared test debt by [ts.hocon#90](https://
 
 Multi-reviewer convergence observed during Phase 4: the S15.3 test in all three impls was initially written against a non-concatenation scenario (plain substitution / path-expression / array literal). Reviewers (Copilot on rs+go, Claude on ts) independently flagged this, leading to a uniform rewrite using the real adjacent-list-concat context `[a] ${obj}` across all three impls.
 
+### Cleared in Phase 5 (2026-05-13)
+
+The remaining per-impl `🤷` items (ts: 20, rs: 17, go: 28) were cleared by [ts.hocon#91](https://github.com/o3co/ts.hocon/pull/91), [rs.hocon#82](https://github.com/o3co/rs.hocon/pull/82), and [go.hocon#76](https://github.com/o3co/go.hocon/pull/76). All three impls now have `🤷 = 0`. Phase 5 was per-impl mop-up (no shared-cluster work — that ended at Phase 4).
+
+Cross-impl convergent verifications (items where the same status now lands in 2+ impls):
+
+- **S3.1** — empty-file rule: ❌ in ts/go (nil error), ⚠️ in rs (empty object) → **3-way violation** (existing row updated)
+- **S18.4** — bare-number duration default unit: ❌ in ts/go, ⚠️ in rs → **3-way violation** (new row)
+- **S10.15** — quoted whitespace between obj/array substitutions: ❌ in rs/go (silently merged) → 2-way violation (new row)
+- **S13.15** — `${?bar}${?baz}` skip when both undefined: ❌ in rs/go → 2-way violation (new row)
+- **S19.8** — duration unit case sensitivity: ❌ in ts/rs (`.to_lowercase()` before matching) → 2-way violation (new row)
+- **S23.4** — `.properties` object-vs-leaf conflict: ❌ in ts/go (leaf wins) → 2-way violation (new row)
+
+Per-impl ❌ / ⚠️ verifications added to Top spec violations:
+
+- ts-only: S13a.3 ⚠️ (cycle error class), S18.1 ❌ (number value default unit), S22.2 ❌ (intermediate non-object across files)
+- rs-only: S10.2 ❌ (array concat whitespace scalar), S10.17 ❌ (substituted-array concat)
+- go-only: S1.1 ❌ (invalid UTF-8 → U+FFFD), S8.2 ❌ (`//` in unquoted), S11.3 ❌ (numeric path expressions), S13a.12 ❌ (self-ref path), S14a.10 ❌ (unquoted include arg), S19.1 ⚠️ (`nano`/`nanos` aliases missing), S19.2 ❌ (microsecond units missing)
+
+Per-impl ➖ added (NOT promoted to globally OOS — language-natural divergence):
+
+- ts: S1.1 (JS `string` is pre-decoded Unicode at the I/O boundary; the parser cannot observe raw byte sequences. Note: Node's default `fs.readFileSync('utf-8')` is non-fatal — invalid bytes are silently replaced with U+FFFD — strict rejection requires a custom decoder. Documented at the impl level.)
+- ts, go: S13a.10 (substitution memoization-by-instance is an internal resolver invariant; black-box parse/resolve APIs cannot distinguish it. Same reasoning as the Phase 3 deferral note.)
+
+Multi-reviewer convergence observed during Phase 5: Copilot review on go.hocon #76 caught a misclassification — S1.1 had been initially marked ➖ on the (incorrect) rationale that Go strings are guaranteed valid UTF-8. They are not (Go `string` is `[]byte`). The probe revealed that go silently substitutes invalid UTF-8 with U+FFFD instead of rejecting per spec L117 → reclassified ❌ with a Pin/Spec test pair. ts marks ➖ (JS string is pre-decoded Unicode; parser cannot observe raw bytes); rs marks ✅ (Rust `&str` is language-guaranteed valid UTF-8, verified positively via `bom.conf` fixture). The three impls' divergent classifications all reflect their language's actual string-type guarantees.
+
 ## How this file is maintained
 
 1. The canonical item definitions live in [`spec-checklist.md`](spec-checklist.md). Adding or removing items there is the only way to change the denominator.
@@ -167,11 +210,13 @@ for repo in ts.hocon rs.hocon go.hocon; do
 done
 ```
 
-4. Rates are computed as `(✅ + ⚠️·0.5) / N` with `N = 209` (spec-total) or `N = 209 − ➖ = 188` (in-scope, where 21 items are globally out-of-scope as of Phase 4).
+4. Rates are computed as `(✅ + ⚠️·0.5) / N` with `N = 209` (spec-total) or `N = 209 − ➖_per_impl` (in-scope). After Phase 5 the per-impl ➖ counts diverge — globally shared ➖ is 21, but ts has 23 (+ S1.1, S13a.10) and go has 22 (+ S13a.10), so denominators are: ts=186, rs=188, go=187. When recomputing, count each repo's ➖ from its own `docs/spec-compliance.md`.
 5. When the template gains or loses an item, **all three per-repo files must be synced** before this matrix is rebuilt; otherwise the totals will be inconsistent.
 
 ## Last verified
 
-2026-05-13 — re-rolled-up after Phase 4 type-conversion / values test-debt PRs landed in all three impls ([ts.hocon#90](https://github.com/o3co/ts.hocon/pull/90), [rs.hocon#81](https://github.com/o3co/rs.hocon/pull/81), [go.hocon#75](https://github.com/o3co/go.hocon/pull/75)). 12–13 items × 3 impls promoted from 🤷 to verified ✅ / ⚠️ / ❌ / ➖. S17.5 reclassified globally OOS (denominator: 21 OOS, in-scope N = 188). New cross-impl violation rows: S15.1–S15.3/S15.5–S15.7 (3-way ❌), S17.6 (ts ⚠️), S17.7/S17.8 (go ⚠️), S21.4 (ts+go ❌), S21.5 (go ❌). Multi-reviewer convergence on S15.3 across ts/rs/go: initial tests didn't exercise concatenation context; uniform rewrite to `[a] ${obj}` adopted.
+2026-05-13 (Phase 5) — re-rolled-up after Phase 5 per-impl `🤷` mop-up landed in all three impls ([ts.hocon#91](https://github.com/o3co/ts.hocon/pull/91), [rs.hocon#82](https://github.com/o3co/rs.hocon/pull/82), [go.hocon#76](https://github.com/o3co/go.hocon/pull/76)). 65 items total (ts 20 / rs 17 / go 28) cleared from `🤷` to verified ✅ / ⚠️ / ❌ / ➖. All three impls now have `🤷 = 0`. New per-impl ➖ added (NOT globally OOS): ts S1.1 + S13a.10, go S13a.10 — denominators diverge to ts=186, rs=188, go=187. New cross-impl violation rows: S3.1 expanded to 3-way (ts/go ❌, rs ⚠️), S18.4 3-way (ts/go ❌, rs ⚠️), S10.15 + S13.15 (rs+go ❌), S19.8 (ts+rs ❌), S23.4 (ts+go ❌), plus 12 single-impl rows (ts: S13a.3/S18.1/S22.2; rs: S10.2/S10.17; go: S1.1/S8.2/S11.3/S13a.12/S14a.10/S19.1/S19.2). Multi-reviewer convergence: Copilot caught S1.1 misclassification on go.hocon — initially marked ➖ on incorrect "Go strings are UTF-8" rationale; reclassified ❌ after probe showed silent U+FFFD substitution.
+
+2026-05-13 (Phase 4) — re-rolled-up after Phase 4 type-conversion / values test-debt PRs landed in all three impls ([ts.hocon#90](https://github.com/o3co/ts.hocon/pull/90), [rs.hocon#81](https://github.com/o3co/rs.hocon/pull/81), [go.hocon#75](https://github.com/o3co/go.hocon/pull/75)). 12–13 items × 3 impls promoted from 🤷 to verified ✅ / ⚠️ / ❌ / ➖. S17.5 reclassified globally OOS (denominator: 21 OOS, in-scope N = 188). New cross-impl violation rows: S15.1–S15.3/S15.5–S15.7 (3-way ❌), S17.6 (ts ⚠️), S17.7/S17.8 (go ⚠️), S21.4 (ts+go ❌), S21.5 (go ❌). Multi-reviewer convergence on S15.3 across ts/rs/go: initial tests didn't exercise concatenation context; uniform rewrite to `[a] ${obj}` adopted.
 
 2026-05-12 — re-rolled-up after Phase 3 substitution/include test-debt PRs landed in all three impls ([ts.hocon#85](https://github.com/o3co/ts.hocon/pull/85), [rs.hocon#77](https://github.com/o3co/rs.hocon/pull/77), [go.hocon#69](https://github.com/o3co/go.hocon/pull/69)). 11 items × 3 impls promoted from 🤷 to verified ✅ / ⚠️ / ❌; S13a.10 explicitly deferred as not externally observable. 3 new cross-impl violation rows added to Top spec violations (S13.9, S13.14, S13a.13); S13a.13 is convergent ❌ across all three impls; S13.14 has go as the lone compliant impl.
