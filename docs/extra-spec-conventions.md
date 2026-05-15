@@ -42,6 +42,54 @@ Same glyphs as `spec-checklist.md`:
 
 The two `🤷` are due to absent test coverage, not divergent behavior — followup PRs will add explicit NEL regression tests in ts.hocon and rs.hocon to flip those to ✅.
 
+### E2 — Numeric-key array conversion: leading-zero key forms rejected (`"00"` ≠ `"0"`)
+
+**Source**: implicit-by-absence + cross-impl convention. HOCON.md §Conversion of numerically-indexed objects to arrays (L1184–L1219) requires conversion of objects whose keys "parse as positive integers" but does not specify whether `"00"` and `"0"` are the same key (they parse to the same `int` in every common stdlib parser). Lightbend's reference impl uses `Integer.parseInt(key, 10)` and `HashMap<Integer, ConfigValue>`, so `"00"` and `"0"` collide at the HashMap level — the surviving value depends on object key iteration order, which Java does not guarantee.
+
+**o3co convention**: each integer N is canonicalised to exactly one textual form (`Integer.toString(N)`). Keys with leading zeros (`"00"`, `"01"`, `"007"`) are pre-filtered out by the regex `^(0|[1-9][0-9]*)$` before integer parsing. This guarantees deterministic conversion across the three impls and avoids the Lightbend collision race.
+
+**Why an E-item rather than an S-item**: the spec is silent on whether `"00"` is a "valid" integer key. We are tightening — Lightbend accepts the form, we reject it.
+
+| Impl | Status | Test | Notes |
+| --- | --- | --- | --- |
+| ts.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Pre-filter regex applied in `numericObjectToArray` helper before `parseInt`. |
+| rs.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Pre-filter applied in `numeric_object_to_array` helper before `from_str`. |
+| go.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Pre-filter applied in `numericObjectToArray` helper before `strconv.ParseInt`. |
+
+**Fixture**: `testdata/hocon/numeric-obj-array/na08-leading-zero.conf` + sibling `expected/.../na08-leading-zero.divergence.md` (records Lightbend's non-deterministic `["a"]`-or-`["b"]` behaviour).
+
+### E3 — Numeric-key array conversion: leading `+` key forms rejected (`"+1"` ≠ `"1"`)
+
+**Source**: implicit-by-absence + cross-impl convention. Same spec section as E2. Lightbend's `Integer.parseInt("+1", 10)` returns 1, so Lightbend treats `"+1"` and `"1"` as the same integer key. JS `Number.parseInt("+1", 10)`, Rust `i32::from_str("+1")`, and Go `strconv.ParseInt("+1", 10, 32)` all also accept the leading `+` — relying on the native parser to reject this form would silently break canonical-text guarantee.
+
+**o3co convention**: same canonicalisation as E2. The pre-filter regex `^(0|[1-9][0-9]*)$` rejects any leading sign character. `"+1"` is ineligible; only `"1"` is.
+
+**Why an E-item rather than an S-item**: the spec is silent on this form. We are tightening — Lightbend accepts the form (and produces a deterministic, but non-canonical, result), we reject it.
+
+| Impl | Status | Test | Notes |
+| --- | --- | --- | --- |
+| ts.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Same pre-filter as E2. |
+| rs.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Same pre-filter as E2. |
+| go.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Same pre-filter as E2. |
+
+**Fixture**: `testdata/hocon/numeric-obj-array/na10a-plus-sign.conf` + sibling `expected/.../na10a-plus-sign.divergence.md`.
+
+### E4 — Numeric-key array conversion: leading `-` key forms rejected, including `"-0"` (`"-0"` ≠ `"0"`)
+
+**Source**: implicit-by-absence + cross-impl convention. Same spec section as E2. Lightbend's `Integer.parseInt("-0", 10)` returns 0; the negative-filter `if (i < 0) continue;` does NOT skip `-0` because the parsed int is 0, not less than 0. So `"-0"` and `"0"` collide at the HashMap level the same way as E2 (`"00"` ↔ `"0"`).
+
+**o3co convention**: same canonicalisation as E2. The pre-filter regex `^(0|[1-9][0-9]*)$` rejects any leading sign character — for negatives, this is the *only* mechanism (no separate post-parse `i < 0` filter is needed since the regex already excludes `-`).
+
+**Why an E-item rather than an S-item**: the spec says "positive integers" but does not specify the textual form for zero or for negatives. We are tightening uniformly — leading `-` is rejected for *any* value, not just `< 0`.
+
+| Impl | Status | Test | Notes |
+| --- | --- | --- | --- |
+| ts.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Same pre-filter as E2/E3. |
+| rs.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Same pre-filter as E2/E3. |
+| go.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Same pre-filter as E2/E3. |
+
+**Fixture**: `testdata/hocon/numeric-obj-array/na10b-minus-zero.conf` + sibling `expected/.../na10b-minus-zero.divergence.md` (records Lightbend's non-deterministic `["a"]`-or-`["b"]` behaviour, identical mechanism to E2's na08).
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -52,3 +100,4 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 ## Last verified
 
 2026-05-16 — file created; E1 (NEL) added.
+2026-05-16 — E2 (leading-zero key), E3 (leading `+` key), E4 (leading `-` key incl. `-0`) added as part of S15 numerically-indexed-object → array work (Phase 6 #2).
