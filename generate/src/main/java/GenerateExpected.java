@@ -44,6 +44,22 @@ public class GenerateExpected {
         "subst-tokenize/st18-deep-nested-quoted.conf",
         "subst-tokenize/st19-quoted-escape-slash.conf",
         "subst-tokenize/st20-quoted-escape-backspace-formfeed.conf",
+        "numeric-obj-array/na01-basic.conf",
+        "numeric-obj-array/na02-lazy-getobject.conf",
+        "numeric-obj-array/na03a-concat-left-list.conf",
+        "numeric-obj-array/na03b-concat-right-list.conf",
+        "numeric-obj-array/na03c-concat-two-objs.conf",
+        "numeric-obj-array/na03d-concat-multi-piece.conf",
+        "numeric-obj-array/na04-empty.conf",
+        "numeric-obj-array/na05-non-int-keys.conf",
+        "numeric-obj-array/na06-gaps.conf",
+        "numeric-obj-array/na07-sort.conf",
+        "numeric-obj-array/na08-leading-zero.conf",
+        "numeric-obj-array/na09-negative.conf",
+        "numeric-obj-array/na10a-plus-sign.conf",
+        "numeric-obj-array/na10b-minus-zero.conf",
+        "numeric-obj-array/na11-overflow.conf",
+        "numeric-obj-array/na12-no-eligible.conf",
     };
 
     // Conf files that should produce a parse/resolve error
