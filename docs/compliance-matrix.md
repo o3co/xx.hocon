@@ -6,9 +6,9 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **74.2%** | **83.3%** | 152 | 6 | 28 | 0 | 23 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **75.6%** | **84.0%** | 155 | 6 | 27 | 0 | 21 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **71.8%** | **80.2%** | 147 | 6 | 34 | 0 | 22 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **75.4%** | **84.7%** | 155 | 5 | 26 | 0 | 23 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **76.8%** | **85.4%** | 158 | 5 | 25 | 0 | 21 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **73.0%** | **81.6%** | 150 | 5 | 32 | 0 | 22 |
 
 Where:
 
@@ -57,9 +57,6 @@ Items where the test or implementation behavior contradicts the spec:
 | S3.1 | ts, rs, go | ❌ / ⚠️ / ❌ | Empty file accepted. rs returns empty object; ts/go return `nil` error. Spec L130 says empty is invalid. |
 | S8.2 | go | ❌ | `//` inside an unquoted run without preceding whitespace is treated as literal content; spec L248 says `//` starts a comment anywhere outside a quoted string. ts/rs ✅. |
 | S3.4 | ts | ❌ | Unbraced root + stray `}` accepted ([#55](https://github.com/o3co/ts.hocon/issues/55)) |
-| S6.1 | ts, rs, go | ❌ | Lexer ignores Unicode Zs/Zl/Zp whitespace categories ([ts#72](https://github.com/o3co/ts.hocon/issues/72), [rs#62](https://github.com/o3co/rs.hocon/issues/62), [go#59](https://github.com/o3co/go.hocon/issues/59)) |
-| S6.2 | ts, rs, go | ❌ | Non-breaking spaces (U+00A0, U+2007, U+202F) not treated as whitespace ([ts#72](https://github.com/o3co/ts.hocon/issues/72), [rs#62](https://github.com/o3co/rs.hocon/issues/62), [go#59](https://github.com/o3co/go.hocon/issues/59)) |
-| S6.4 | ts, rs, go | ⚠️ | Of 8 ASCII control whitespace chars, only tab + CR recognized; vtab, FF, FS–US fail in all 3 impls ([ts#72](https://github.com/o3co/ts.hocon/issues/72), [rs#62](https://github.com/o3co/rs.hocon/issues/62), [go#59](https://github.com/o3co/go.hocon/issues/59)) |
 | S8.1 | ts | ⚠️ | Lexer allows backtick in unquoted strings, contrary to spec L245 forbidden set |
 | S8.6 | ts, rs, go | ❌ | Lexer permits `0-9` and `-` as unquoted starts; non-numeric forms like `123abc` / `-foo` are coerced to strings instead of rejected ([ts#73](https://github.com/o3co/ts.hocon/issues/73), [rs#63](https://github.com/o3co/rs.hocon/issues/63), [go#60](https://github.com/o3co/go.hocon/issues/60)) |
 | S10.2 | rs | ❌ | Adjacent array concat `[1,2] [3,4]` produces a 5-element list with a whitespace scalar between the two arrays; spec L355 requires array concatenation (merge into `[1,2,3,4]`). ts/go ✅. |
@@ -106,6 +103,26 @@ Spec items with no test coverage in **any** of the three implementations. These 
 - (Empty — Phase 4 cleared the last shared `🤷` cluster around S15/S17/S21; Phase 5 cleared per-impl `🤷` in all three impls. The `🤷` column in the top table is now `0` everywhere.)
 
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
+
+For behaviors that fall **outside** HOCON.md but should converge across the three impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### Cleared in Phase 6 #1 (2026-05-15)
+
+The following items were cleared from "Top spec violations" by [ts.hocon#94](https://github.com/o3co/ts.hocon/pull/94), [rs.hocon#84](https://github.com/o3co/rs.hocon/pull/84), and [go.hocon#78](https://github.com/o3co/go.hocon/pull/78) — first Phase 6 wave: cross-impl convergent fix for HOCON.md §Whitespace L165–184:
+
+- **S6.1** — Unicode Zs/Zl/Zp category whitespace (✅ in all 3, was ❌ in all 3)
+- **S6.2** — non-breaking spaces U+00A0/U+2007/U+202F (✅ in all 3, was ❌ in all 3)
+- **S6.4** — ASCII control whitespace (vtab/FF/FS–US) (✅ in all 3, was ⚠️ in all 3 — only tab + CR previously recognized)
+- **S6.3** — BOM (U+FEFF) broadened from "stripped only at start-of-input" to "whitespace anywhere" (already ✅; coverage broadened with mid-stream regression test)
+
+Each impl introduced a single `isHoconWhitespace` / `is_hocon_whitespace` predicate covering the full spec set, routed through main lexer + substitution body + unquoted terminator. The newline-vs-whitespace ordering invariant (LF still emits the newline token) was preserved.
+
+Cross-impl convergent intentional behavior changes worth noting (3-way):
+
+- **BOM mid-stream** is now whitespace (was: stripped only at start-of-input). Pinned by `S6.3 BOM mid-stream` regression test in each impl.
+- **CR (`\r`) inside `${...}`** is now inter-segment whitespace (was: `"unterminated substitution"` error alongside LF). Spec L182–184 restricts newline to U+000A specifically; CR is whitespace, not newline. LF still terminates substitution body as error.
+
+Go-specific incidental fix during the convergence: `isUnquotedForbidden` previously routed through `unicode.IsSpace()` and silently treated NEL (U+0085) as whitespace; replaced with `isHoconWhitespace()`. The NEL handling is now cross-impl convergent and tracked separately in [`extra-spec-conventions.md`](extra-spec-conventions.md) as **E1** (E-namespace because NEL non-membership in HOCON_WS is implicit-by-absence in the spec, not enumerated).
 
 ### Cleared in Phase 1 (2026-05-12)
 
@@ -214,6 +231,8 @@ done
 5. When the template gains or loses an item, **all three per-repo files must be synced** before this matrix is rebuilt; otherwise the totals will be inconsistent.
 
 ## Last verified
+
+2026-05-16 (Phase 6 #1) — re-rolled-up after the first Phase 6 impl-gap wave landed in all three impls ([ts.hocon#94](https://github.com/o3co/ts.hocon/pull/94), [rs.hocon#84](https://github.com/o3co/rs.hocon/pull/84), [go.hocon#78](https://github.com/o3co/go.hocon/pull/78)). S6.1/6.2/6.4 cleared from "Top spec violations" in all 3 (3 items × 3 impls = 9 cells flipped from ❌/⚠️ to ✅); S6.3 coverage broadened (BOM anywhere, not just start-of-input). Rate lift per impl: ts 83.3% → 84.7%, rs 84.0% → 85.4%, go 80.2% → 81.6% (in-scope). 3-way convergent intentional behavior changes recorded in PR descriptions and the "Cleared in Phase 6 #1" section above: BOM mid-stream is now whitespace; CR inside `${...}` is now inter-segment whitespace (was error). New `extra-spec-conventions.md` doc added (E-namespace, separate from S-namespace) capturing NEL handling (E1) as the first cross-impl extra-spec convention; S6.6 row from go.hocon's per-impl file (added in #78) was reclassified out of canonical scope and removed via [go.hocon#79](https://github.com/o3co/go.hocon/pull/79).
 
 2026-05-13 (Phase 5) — re-rolled-up after Phase 5 per-impl `🤷` mop-up landed in all three impls ([ts.hocon#91](https://github.com/o3co/ts.hocon/pull/91), [rs.hocon#82](https://github.com/o3co/rs.hocon/pull/82), [go.hocon#76](https://github.com/o3co/go.hocon/pull/76)). 65 items total (ts 20 / rs 17 / go 28) cleared from `🤷` to verified ✅ / ⚠️ / ❌ / ➖. All three impls now have `🤷 = 0`. New per-impl ➖ added (NOT globally OOS): ts S1.1 + S13a.10, go S13a.10 — denominators diverge to ts=186, rs=188, go=187. New cross-impl violation rows: S3.1 expanded to 3-way (ts/go ❌, rs ⚠️), S18.4 3-way (ts/go ❌, rs ⚠️), S10.15 + S13.15 (rs+go ❌), S19.8 (ts+rs ❌), S23.4 (ts+go ❌), plus 12 single-impl rows (ts: S13a.3/S18.1/S22.2; rs: S10.2/S10.17; go: S1.1/S8.2/S11.3/S13a.12/S14a.10/S19.1/S19.2). Multi-reviewer convergence: Copilot caught S1.1 misclassification on go.hocon — initially marked ➖ on incorrect "Go strings are UTF-8" rationale; reclassified ❌ after probe showed silent U+FFFD substitution.
 
