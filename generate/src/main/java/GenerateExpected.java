@@ -50,6 +50,7 @@ public class GenerateExpected {
         "numeric-obj-array/na03b-concat-right-list.conf",
         "numeric-obj-array/na03c-concat-two-objs.conf",
         "numeric-obj-array/na03d-concat-multi-piece.conf",
+        "numeric-obj-array/na03e-multi-piece-overlap.conf",
         "numeric-obj-array/na04-empty.conf",
         "numeric-obj-array/na05-non-int-keys.conf",
         "numeric-obj-array/na06-gaps.conf",
