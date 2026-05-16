@@ -6,9 +6,9 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **75.4%** | **84.7%** | 155 | 5 | 26 | 0 | 23 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **76.8%** | **85.4%** | 158 | 5 | 25 | 0 | 21 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **73.0%** | **81.6%** | 150 | 5 | 32 | 0 | 22 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **78.7%** | **88.4%** | 163 | 3 | 20 | 0 | 23 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **80.9%** | **89.9%** | 167 | 4 | 17 | 0 | 21 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **75.8%** | **84.8%** | 156 | 5 | 26 | 0 | 22 |
 
 Where:
 
@@ -59,13 +59,10 @@ Items where the test or implementation behavior contradicts the spec:
 | S3.4 | ts | ❌ | Unbraced root + stray `}` accepted ([#55](https://github.com/o3co/ts.hocon/issues/55)) |
 | S8.1 | ts | ⚠️ | Lexer allows backtick in unquoted strings, contrary to spec L245 forbidden set |
 | S8.6 | ts, rs, go | ❌ | Lexer permits `0-9` and `-` as unquoted starts; non-numeric forms like `123abc` / `-foo` are coerced to strings instead of rejected ([ts#73](https://github.com/o3co/ts.hocon/issues/73), [rs#63](https://github.com/o3co/rs.hocon/issues/63), [go#60](https://github.com/o3co/go.hocon/issues/60)) |
-| S10.2 | rs | ❌ | Adjacent array concat `[1,2] [3,4]` produces a 5-element list with a whitespace scalar between the two arrays; spec L355 requires array concatenation (merge into `[1,2,3,4]`). ts/go ✅. |
 | S10.4 | ts, rs, go | ❌ | Mixing arrays + objects in concat silently allowed; spec L385 requires error ([ts#75](https://github.com/o3co/ts.hocon/issues/75), [rs#65](https://github.com/o3co/rs.hocon/issues/65), [go#63](https://github.com/o3co/go.hocon/issues/63)) |
 | S10.8 | ts, rs, go | ❌ / ⚠️ | Unquoted concat in field keys (`a b = 1`) rejected; spec L317/L556 requires acceptance as key "a b". rs partial pass: quoted variant works ([ts#76](https://github.com/o3co/ts.hocon/issues/76), [rs#66](https://github.com/o3co/rs.hocon/issues/66), [go#65](https://github.com/o3co/go.hocon/issues/65)) |
 | S10.13 | ts, rs, go | ❌ / ❌ / ⚠️ | Array/object in string concat silently accepted; spec L373 requires error. go ⚠️ permissive: `a = [1, 2] 3` → `[1, 2, 3]` ([ts#77](https://github.com/o3co/ts.hocon/issues/77), [rs#67](https://github.com/o3co/rs.hocon/issues/67)) |
-| S10.14 | ts | ⚠️ | Object substitutions correct; whitespace not stripped around array substitutions (included as extra element) ([ts#78](https://github.com/o3co/ts.hocon/issues/78)) |
 | S10.15 | rs, go | ❌ | Quoted whitespace between obj/array substitutions (e.g. `c = ${a} " " ${b}`) is silently accepted and the arrays merged to `[1, 2]`; spec L442 requires this to be an error. ts ✅. |
-| S10.17 | rs | ❌ | Substitution resolving to an array does not participate in array concat (`${arr} [x]`); the impl errors instead of merging. Spec L450 requires participation. ts/go ✅. |
 | S10.19 | ts, rs, go | ❌ | Mixing substitution-resolved object with literal array silently accepted; spec L385-389 requires error ([ts#79](https://github.com/o3co/ts.hocon/issues/79), [rs#68](https://github.com/o3co/rs.hocon/issues/68), [go#63](https://github.com/o3co/go.hocon/issues/63)) |
 | S11.3 | go | ❌ | Numbers in path positions don't retain their original string representation; numeric path expressions like `1.2.3 = x` are rejected by the parser. ts/rs ✅. |
 | S11.4 | go | ❌ | Parser does not accept TokenFloat keys; `10.0foo = x` is rejected rather than producing the spec-defined path split ([go#62](https://github.com/o3co/go.hocon/issues/62)). ts/rs verified compliant. |
@@ -75,15 +72,12 @@ Items where the test or implementation behavior contradicts the spec:
 | S13.9 | rs | ❌ | `HOME = null; result = ${?HOME}` resolves `result` to a present null scalar instead of erasing the field per L618 "null treated same as missing"; env value is correctly blocked ([rs#74](https://github.com/o3co/rs.hocon/issues/74)). ts ✅, go ✅. |
 | S13.15 | rs, go | ❌ | `foo : ${?bar}${?baz}` skip semantics: spec L658 says the field is skipped only when **both** substitutions are undefined. rs/go differ from this; go in particular creates the field with an empty-string value when both are undefined. ts ✅. |
 | S13.11 | go | ⚠️ | Lenient mode drops optional substitutions in nested-include scope ([#45](https://github.com/o3co/go.hocon/issues/45)) |
-| S13.14 | ts, rs | ⚠️ | Object substitution concat ✅; array variant `[1] ${?missing} [2]` produces `[1, " ", " ", 2]` instead of `[1, 2]` — whitespace artefacts leak as extra elements per L637 ([ts#83](https://github.com/o3co/ts.hocon/issues/83), [rs#75](https://github.com/o3co/rs.hocon/issues/75)). go ✅. |
 | S13a.3 | ts | ⚠️ | Self-reference before any prior value (`a = ${a}`) raises a cycle error, but the error type / message classifies this as a generic substitution error rather than the "undefined" path the spec describes at L795. rs/go ✅ (correct error class). |
 | S13a.12 | go | ❌ | Self-ref in a path expression (`${foo.a}` where `foo.a` is being defined) does not resolve to the "below" value per L831; the looked-up sub-object is discarded in the merge. ts/rs ✅. |
 | S13a.13 | ts, rs, go | ❌ | `a = ${?a}foo` with no prior `a` resolves to `"foofoo"` not `"foo"` — the self-ref look-back picks up the trailing literal as its prior value per L841 ([ts#84](https://github.com/o3co/ts.hocon/issues/84), [rs#76](https://github.com/o3co/rs.hocon/issues/76), [go#68](https://github.com/o3co/go.hocon/issues/68)) |
 | S13c.1–S13c.5 | ts, rs, go | ❌ | `${X[]}` env-var list not implemented; each implementation's lexer rejects `[` / `]` inside `${...}` body |
 | S14a.10 | go | ❌ | Unquoted include argument (e.g. `include foo.conf`) is silently accepted instead of rejected with a parse error per L958. ts/rs ✅. |
 | S14c.2 | rs | ❌ | Non-relativized substitution path fallback not implemented ([#44](https://github.com/o3co/rs.hocon/issues/44)) |
-| S15.1–S15.3, S15.5–S15.7 | ts, rs, go | ❌ | Numerically-indexed object → array conversion not implemented in any of the three impls — `getList()` / `get_list()` / `GetStringSlice()` does not convert `{"0":"a","1":"b"}` to `["a","b"]` per L1191–L1216 ([ts#87](https://github.com/o3co/ts.hocon/issues/87), [rs#79](https://github.com/o3co/rs.hocon/issues/79), [go#71](https://github.com/o3co/go.hocon/issues/71)). S15.4 (empty object NOT converted) passes incidentally in all 3 because no conversion runs at all. |
-| S15.3 | ts, rs, go | ❌ | Real concat `[a] ${obj}` (with `obj = {"0":"x","1":"y"}`) leaves the object un-converted as the last array element; whitespace artefacts leak. Spec L1210 requires conversion + flatten to `["a","x","y"]`. Tracked alongside S15 root cause issues above. |
 | S17.6 | ts | ⚠️ | `getString()` on null silently returns the string `"null"` instead of throwing per L1252; other typed accessors throw, but *incidentally* (no explicit `valueType==='null'` guard in `requireScalar`) ([ts#88](https://github.com/o3co/ts.hocon/issues/88)). rs/go ✅. |
 | S18.1 | ts | ❌ | Number value taken as default unit not implemented — bare-number duration values are not interpreted with the impl's default unit per L1280. rs/go ✅. |
 | S18.4 | ts, rs, go | ❌ / ⚠️ / ❌ | String value with no unit should be interpreted with the default unit per L1294. ts/go: `getDuration("500")` errors instead of producing 500 ms. rs ⚠️: some forms work, others error (partial). |
@@ -105,6 +99,31 @@ Spec items with no test coverage in **any** of the three implementations. These 
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the three impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### Cleared in Phase 6 #2 (2026-05-17)
+
+The following items were cleared from "Top spec violations" by [ts.hocon#95](https://github.com/o3co/ts.hocon/pull/95), [rs.hocon#85](https://github.com/o3co/rs.hocon/pull/85), and [go.hocon#80](https://github.com/o3co/go.hocon/pull/80) — second Phase 6 wave: cross-impl convergent fix for HOCON.md §Conversion of numerically-indexed objects to arrays (L1184–L1219), via a new `numericObjectToArray` helper wired into accessors (`getList` / `get_list` / `getArray`) and the resolver pairwise-fold concat join. xx.hocon ground truth pinned by 17 fixtures in [xx.hocon#10](https://github.com/o3co/xx.hocon/pull/10) and [xx.hocon#11](https://github.com/o3co/xx.hocon/pull/11) (na03e-overlap added after multi-agent review).
+
+- **S15.1** — numerically-keyed object → array when array context (✅ in all 3, was ❌ in all 3)
+- **S15.2** — conversion is lazy (only on type-required access) (✅ in all 3 — now explicit guard, no longer incidental)
+- **S15.3** — conversion in concatenation when list expected (✅ in all 3, was ❌ in all 3)
+- **S15.4** — empty object NOT converted (✅ in all 3 — now explicit empty-guard, no longer incidental)
+- **S15.5** — non-integer keys ignored during conversion (✅ in all 3, was ❌ in all 3)
+- **S15.6** — missing indices compacted (✅ in all 3, was ❌ in all 3)
+- **S15.7** — sorted by integer key value (✅ in all 3, was ❌ in all 3)
+
+Three new entries (**E2 / E3 / E4**) in [`extra-spec-conventions.md`](extra-spec-conventions.md) document the canonical-text guarantee — leading-zero (`"00"` ≠ `"0"`), leading `+` (`"+1"` ≠ `"1"`), and leading sign char on zero (`"-0"` ≠ `"0"`) are all rejected via a pre-filter regex `^(0|[1-9][0-9]*)$`. JS / Rust / Go native int parsers all accept these forms, so the pre-filter is required in every impl; relying on the native parser would silently break canonical-text guarantee.
+
+Multi-reviewer convergence observed during Phase 6 #2: 5 of 6 reviewers (3 Codex + 2 Claude general-purpose Opus) independently flagged that the initial single-pass loop variant of the multi-piece concat produced wrong results for overlapping numeric keys (`obj1={"0":"x"}, obj2={"0":"z"}, arr=${obj1} ${obj2} [a]` → single-pass `["x","z","a"]`, spec-correct pairwise-fold `["z","a"]`). The fixture `na03d-concat-multi-piece.conf` originally shipped used disjoint keys and could not detect the divergence. A follow-up fixture `na03e-multi-piece-overlap.conf` (xx.hocon#11) pins Lightbend ground truth `["z","y","a"]` for overlapping keys, and all 3 impls refactored to true left-to-right pairwise fold via a `joinPair` helper.
+
+Side-effect fixes (separator-skip in array-concat path, required for S15.3 NORMATIVE behaviour, simultaneously resolved adjacent pinned bugs):
+
+- **S10.2** (rs only) — `[1,2] [3,4]` array-array concat ✅ (was ❌, see ts.hocon/go.hocon already ✅)
+- **S10.14** (ts only) — whitespace around array substitutions stripped ✅ (was ⚠️)
+- **S10.17** (rs only) — substitution-resolved array participates in array concat ✅ (was ❌)
+- **S13.14** (ts, rs) — optional missing in array concat → clean array ✅ (was ⚠️ in both; go already ✅)
+
+rs.hocon additionally extended serde to thread the same conversion through `deserialize_seq` and `deserialize_enum` in the new `OwnedHoconDeserializer`, so `#[derive(Deserialize)] struct Cfg { items: Vec<String> }` against `items = {"0":"a","1":"b"}` works under the `serde` feature.
 
 ### Cleared in Phase 6 #1 (2026-05-15)
 
@@ -231,6 +250,8 @@ done
 5. When the template gains or loses an item, **all three per-repo files must be synced** before this matrix is rebuilt; otherwise the totals will be inconsistent.
 
 ## Last verified
+
+2026-05-17 (Phase 6 #2) — re-rolled-up after the second Phase 6 impl-gap wave landed in all three impls ([ts.hocon#95](https://github.com/o3co/ts.hocon/pull/95), [rs.hocon#85](https://github.com/o3co/rs.hocon/pull/85), [go.hocon#80](https://github.com/o3co/go.hocon/pull/80)). S15.1–S15.7 cleared from "Top spec violations" in all 3 (6 cells × 3 impls = 18 cells flipped from ❌ to ✅, plus S15.4 promoted from incidental-pass to explicit-guard ✅). Rate lift per impl (in-scope): ts 84.7% → 88.4% (+3.7pp), rs 85.4% → 89.9% (+4.5pp), go 81.6% → 84.8% (+3.2pp). Three new entries E2/E3/E4 in `extra-spec-conventions.md` document canonical-text-strict integer-key parse rule (`"00"` / `"+1"` / `"-0"` rejected via pre-filter regex despite native JS/Rust/Go parsers accepting them). Side-effect fixes from the separator-skip required by S15.3 simultaneously cleared S10.2 (rs), S10.14 (ts), S10.17 (rs), and S13.14 (ts, rs) — 5 additional cells flipped ❌/⚠️ → ✅. Multi-reviewer convergence on the multi-piece concat: 5/6 reviewers (3 Codex + 2 Claude general-purpose Opus) independently flagged that the initial single-pass loop variant produced wrong results for overlapping numeric keys; follow-up fixture [xx.hocon#11](https://github.com/o3co/xx.hocon/pull/11) (na03e-multi-piece-overlap) pinned Lightbend ground truth and all 3 impls refactored to true left-to-right pairwise fold via `joinPair`. rs.hocon additionally extended serde `deserialize_seq` + `deserialize_enum` (`OwnedHoconDeserializer`) to thread the conversion through typed `Vec<T>` deserialization.
 
 2026-05-16 (Phase 6 #1) — re-rolled-up after the first Phase 6 impl-gap wave landed in all three impls ([ts.hocon#94](https://github.com/o3co/ts.hocon/pull/94), [rs.hocon#84](https://github.com/o3co/rs.hocon/pull/84), [go.hocon#78](https://github.com/o3co/go.hocon/pull/78)). S6.1/6.2/6.4 cleared from "Top spec violations" in all 3 (3 items × 3 impls = 9 cells flipped from ❌/⚠️ to ✅); S6.3 coverage broadened (BOM anywhere, not just start-of-input). Rate lift per impl: ts 83.3% → 84.7%, rs 84.0% → 85.4%, go 80.2% → 81.6% (in-scope). 3-way convergent intentional behavior changes recorded in PR descriptions and the "Cleared in Phase 6 #1" section above: BOM mid-stream is now whitespace; CR inside `${...}` is now inter-segment whitespace (was error). New `extra-spec-conventions.md` doc added (E-namespace, separate from S-namespace) capturing NEL handling (E1) as the first cross-impl extra-spec convention; S6.6 row from go.hocon's per-impl file (added in #78) was reclassified out of canonical scope and removed via [go.hocon#79](https://github.com/o3co/go.hocon/pull/79).
 
