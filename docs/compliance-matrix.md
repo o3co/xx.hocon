@@ -6,9 +6,9 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **78.7%** | **88.4%** | 163 | 3 | 20 | 0 | 23 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **80.9%** | **89.9%** | 167 | 4 | 17 | 0 | 21 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **75.8%** | **84.8%** | 156 | 5 | 26 | 0 | 22 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **78.5%** | **88.2%** | 162 | 4 | 20 | 0 | 23 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **79.9%** | **88.8%** | 164 | 6 | 18 | 0 | 21 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **76.1%** | **85.0%** | 156 | 6 | 25 | 0 | 22 |
 
 Where:
 
@@ -58,7 +58,7 @@ Items where the test or implementation behavior contradicts the spec:
 | S8.2 | go | ❌ | `//` inside an unquoted run without preceding whitespace is treated as literal content; spec L248 says `//` starts a comment anywhere outside a quoted string. ts/rs ✅. |
 | S3.4 | ts | ❌ | Unbraced root + stray `}` accepted ([#55](https://github.com/o3co/ts.hocon/issues/55)) |
 | S8.1 | ts | ⚠️ | Lexer allows backtick in unquoted strings, contrary to spec L245 forbidden set |
-| S8.6 | ts, rs, go | ❌ | Lexer permits `0-9` and `-` as unquoted starts; non-numeric forms like `123abc` / `-foo` are coerced to strings instead of rejected ([ts#73](https://github.com/o3co/ts.hocon/issues/73), [rs#63](https://github.com/o3co/rs.hocon/issues/63), [go#60](https://github.com/o3co/go.hocon/issues/60)) (fixtures: `testdata/hocon/unquoted-starts/` us01-us16 — Phase 6 #3c; Lightbend-quirk subset us02/us03/us13 documented under [E8](extra-spec-conventions.md#e8)) |
+| S8.6 | ts, rs, go | ⚠️ | `-` not followed by a digit is now rejected at lex/parse time in all 3 impls (Phase 6 #3c Phase 2 — [ts.hocon#96](https://github.com/o3co/ts.hocon/pull/96)+[#97](https://github.com/o3co/ts.hocon/pull/97), [rs.hocon#86](https://github.com/o3co/rs.hocon/pull/86), [go.hocon#82](https://github.com/o3co/go.hocon/pull/82)). Digit-leading unquoted strings (us13 `01`, us15 `1e+x`) remain accepted as a known gap. go.hocon additionally defers us08/us09 (parser numeric-key support) to [go.hocon#81](https://github.com/o3co/go.hocon/issues/81). See the "Partially cleared in Phase 6 #3c" section below for details. ([ts#73](https://github.com/o3co/ts.hocon/issues/73), [rs#63](https://github.com/o3co/rs.hocon/issues/63), [go#60](https://github.com/o3co/go.hocon/issues/60)) (fixtures: `testdata/hocon/unquoted-starts/` us01-us16 — Phase 6 #3c; Lightbend-quirk subset us02/us03/us13 documented under [E8](extra-spec-conventions.md#e8)) |
 | S10.4 | ts, rs, go | ❌ | Mixing arrays + objects in concat silently allowed; spec L385 requires error ([ts#75](https://github.com/o3co/ts.hocon/issues/75), [rs#65](https://github.com/o3co/rs.hocon/issues/65), [go#63](https://github.com/o3co/go.hocon/issues/63)) |
 | S10.8 | ts, rs, go | ❌ / ⚠️ | Unquoted concat in field keys (`a b = 1`) rejected; spec L317/L556 requires acceptance as key "a b". rs partial pass: quoted variant works ([ts#76](https://github.com/o3co/ts.hocon/issues/76), [rs#66](https://github.com/o3co/rs.hocon/issues/66), [go#65](https://github.com/o3co/go.hocon/issues/65)) |
 | S10.13 | ts, rs, go | ❌ / ❌ / ⚠️ | Array/object in string concat silently accepted; spec L373 requires error. go ⚠️ permissive: `a = [1, 2] 3` → `[1, 2, 3]` ([ts#77](https://github.com/o3co/ts.hocon/issues/77), [rs#67](https://github.com/o3co/rs.hocon/issues/67)) |
@@ -99,6 +99,34 @@ Spec items with no test coverage in **any** of the three implementations. These 
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the three impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### Partially cleared in Phase 6 #3c (2026-05-18)
+
+The following item was **partially** cleared from "Top spec violations" by [ts.hocon#96](https://github.com/o3co/ts.hocon/pull/96) + [ts.hocon#97](https://github.com/o3co/ts.hocon/pull/97), [rs.hocon#86](https://github.com/o3co/rs.hocon/pull/86), and [go.hocon#82](https://github.com/o3co/go.hocon/pull/82) — third Phase 6 wave: cross-impl convergent fix for HOCON.md §Unquoted strings (L270-276) rejecting `-` not followed by a digit. xx.hocon ground truth pinned by 16 fixtures in [xx.hocon#16](https://github.com/o3co/xx.hocon/pull/16) (us01-us16).
+
+- **S8.6** — unquoted strings cannot begin with `-` (unless followed by a digit) (⚠️ partial in all 3, was ❌ in all 3)
+
+What's enforced now (all 3 impls):
+- `a = -foo`, `a = -bar`, `a = -` → `ParseError`
+- `a.-foo = 1` (dotted key segment) → `ParseError`
+- `${-foo}` (substitution path segment) → `ParseError` at lex/parse time, gated on `!curStarted` so `${"a"-foo}` (quoted+unquoted concat → key `"a-foo"`) remains accepted
+
+What remains as ⚠️ partial:
+- Digit-leading unquoted strings that resolve to value-concat strings (e.g. `123abc`, `1ex`, `1.x`, `0xff`, `1.0.0`, `-1foo`) are not lex-rejected — they continue to tokenize and resolve to the value-concat string matching Lightbend output. The strict lex-time rejection (us13 `01`, us15 `1e+x`) requires introducing a `Number` token kind in ts/rs (the unquoted-only token model has no number kind) or a stricter `lex_number` validity check in go (already has number tokens). Tracked as `it.fails` / `#[should_panic]` / `t.Skip` tripwires in each impl's conformance file.
+- go.hocon defers us08 (`123abc = 1` → `{"123abc": 1}`) and us09 (`3.14 = "v"` → `{"3":{"14":"v"}}`) to [go.hocon#81](https://github.com/o3co/go.hocon/issues/81) (parser numeric-key support).
+
+Cross-impl architectural divergence (intentional):
+- **ts.hocon and rs.hocon** take **Option B**: the lexer has no separate Number token kind (per `tokenizes_numbers_as_unquoted` test in rs.hocon and `unquoted: bare word, number, true/false/null` comment in ts.hocon `token.ts:17`). Fix is a single `isDecimalDigit` peek-ahead check at three sites — main tokenize loop's unquoted-start branch, `parseSubstBody` (gated on `!curStarted`), and `parseKey` after dot-split.
+- **go.hocon** takes **Option A** (plan-shaped, since the lexer already has `TokenInt`/`TokenFloat`): `readNumber` rewritten as greedy-with-backtrack per the HOCON.md number grammar (fractional/exponent productions backtrack to the last valid number end if not followed by a digit); leading `-` no-digit returns `TokenError`. The same `parseSubstBody` `!curStarted` gate and `parseKey` segment check are added.
+
+Multi-reviewer convergence observed during Phase 6 #3c: the **`parseSubstBody` segment-start gate** was independently flagged by Claude general-purpose Opus and Codex on rs.hocon PR #86 round-1 review — the initial check fired for every unquoted fragment, breaking `${"a"-foo}` quoted+unquoted concat. The same bug was then found in ts.hocon PR #96 (already merged) and fixed via follow-up PR #97; go.hocon implemented the gate correctly from the start in PR #82 based on the rs/ts convergent learning. Cross-impl review feedback loop confirmed as a useful pattern for catching architectural mistakes that pass single-impl tests because there's nothing to gate.
+
+Side-effect fixes (single-impl, landed alongside Phase 6 #3c):
+- **go.hocon CI** — `.github/workflows/test.yml` updated to use `-coverpkg=./...` so cross-package coverage (tests in `package hocon_test` exercising `internal/lexer`/`internal/parser`) is measured correctly for codecov. Previously the per-package default under-reported and falsely failed `codecov/patch` on PRs adding cross-package integration tests.
+
+Two strict-spec gaps (us13/us15) are documented but deferred:
+- us13 (`01` leading-zero): Lightbend silent-accept quirk excluded from generator. xx.hocon E8 in `extra-spec-conventions.md`.
+- us15 (`1e+x` incomplete-exp + `+` in unquoted): Lightbend value-parser error. Tripwires in each impl's conformance test fire when behavior changes.
 
 ### Cleared in Phase 6 #2 (2026-05-17)
 
@@ -250,6 +278,8 @@ done
 5. When the template gains or loses an item, **all three per-repo files must be synced** before this matrix is rebuilt; otherwise the totals will be inconsistent.
 
 ## Last verified
+
+2026-05-18 (Phase 6 #3c) — re-rolled-up after the third Phase 6 impl-gap wave landed in all three impls ([ts.hocon#96](https://github.com/o3co/ts.hocon/pull/96) + [ts.hocon#97](https://github.com/o3co/ts.hocon/pull/97), [rs.hocon#86](https://github.com/o3co/rs.hocon/pull/86), [go.hocon#82](https://github.com/o3co/go.hocon/pull/82)). S8.6 partially cleared in all 3 (1 item × 3 impls = 3 cells flipped from ❌ to ⚠️). Rate change per impl (in-scope): ts 88.4% → 88.2% (−0.2pp), rs 89.9% → 88.8% (−1.1pp), go 84.8% → 85.0% (+0.2pp). The rate movement is intentionally mixed because ❌ → ⚠️ flips contribute +0.5/N to the numerator but the develop-branch state since the previous Phase 6 #2 roll-up also included unrelated `✅` → `⚠️` shifts in ts/rs (other tracked items reclassified), so the net per-impl delta varies. Architecture divergence (intentional): ts/rs took Option B (single peek-ahead in unquoted-only lexer); go took Option A (greedy-with-backtrack `lex_number` per HOCON.md number grammar, since the lexer already has TokenInt/TokenFloat). Multi-reviewer convergence on the `parseSubstBody` segment-start gate: Claude+Codex flagged the missing `!curStarted` gate on rs.hocon PR #86, which then surfaced the same bug already merged in ts.hocon PR #96 (fixed via follow-up PR #97); go.hocon PR #82 implemented the gate correctly from the start based on rs/ts learning. Side-effect fix (go-only): CI `.github/workflows/test.yml` now uses `-coverpkg=./...` so cross-package coverage is measured correctly for codecov (was falsely failing patch-coverage on PRs with cross-package integration tests). Two strict-spec gaps remain `it.fails`/`#[should_panic]`/`t.Skip` tripwires (us13 `01`, us15 `1e+x`); go.hocon additionally defers parser numeric-key support for us08/us09 to [go.hocon#81](https://github.com/o3co/go.hocon/issues/81).
 
 2026-05-17 (Phase 6 #2) — re-rolled-up after the second Phase 6 impl-gap wave landed in all three impls ([ts.hocon#95](https://github.com/o3co/ts.hocon/pull/95), [rs.hocon#85](https://github.com/o3co/rs.hocon/pull/85), [go.hocon#80](https://github.com/o3co/go.hocon/pull/80)). S15.1–S15.7 cleared from "Top spec violations" in all 3 (6 cells × 3 impls = 18 cells flipped from ❌ to ✅, plus S15.4 promoted from incidental-pass to explicit-guard ✅). Rate lift per impl (in-scope): ts 84.7% → 88.4% (+3.7pp), rs 85.4% → 89.9% (+4.5pp), go 81.6% → 84.8% (+3.2pp). Three new entries E2/E3/E4 in `extra-spec-conventions.md` document canonical-text-strict integer-key parse rule (`"00"` / `"+1"` / `"-0"` rejected via pre-filter regex despite native JS/Rust/Go parsers accepting them). Side-effect fixes from the separator-skip required by S15.3 simultaneously cleared S10.2 (rs), S10.14 (ts), S10.17 (rs), and S13.14 (ts, rs) — 5 additional cells flipped ❌/⚠️ → ✅. Multi-reviewer convergence on the multi-piece concat: 5/6 reviewers (3 Codex + 2 Claude general-purpose Opus) independently flagged that the initial single-pass loop variant produced wrong results for overlapping numeric keys; follow-up fixture [xx.hocon#11](https://github.com/o3co/xx.hocon/pull/11) (na03e-multi-piece-overlap) pinned Lightbend ground truth and all 3 impls refactored to true left-to-right pairwise fold via `joinPair`. rs.hocon additionally extended serde `deserialize_seq` + `deserialize_enum` (`OwnedHoconDeserializer`) to thread the conversion through typed `Vec<T>` deserialization.
 
