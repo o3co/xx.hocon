@@ -109,7 +109,7 @@ public class GenerateExpected {
         "include-reservation/ir06-quoted-include.conf",
         "include-reservation/ir07-include-non-initial.conf",
         "include-reservation/ir08-include-as-value.conf",
-        "include-reservation/ir09-include-url-form.conf",
+        "include-reservation/ir09-include-file-form.conf",
         "include-reservation/ir11-quoted-include-dotted.conf",
         "include-reservation/ir14-substitution-include-path.conf",
     };
