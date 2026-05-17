@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$WrongType
+Message: ../testdata/hocon/concat-errors/ce11-array-plus-empty-object.conf: 1: Cannot concatenate object or list with a non-object-or-list, SimpleConfigList([1]) and SimpleConfigObject({}) are not compatible

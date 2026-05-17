@@ -1,0 +1,133 @@
+# xx.hocon Fixture Conventions
+
+This document describes the conventions for test fixtures in xx.hocon. It is
+NORMATIVE for downstream cluster implementations (3b, 3c, 3e, 3f and future
+clusters that add error-expected fixtures).
+
+---
+
+## Fixture groups
+
+Fixtures live under `testdata/hocon/<group>/` and their expected outputs under
+`expected/hocon/<group>/`.
+
+### SUCCESS_CONFS
+
+Fixtures that must parse and resolve without error. The generator runs each
+through Lightbend (`ConfigFactory.parseFile().resolve()`) and writes
+`expected/hocon/<group>/<name>-expected.json`.
+
+Conformance test assertion: parse/resolve succeeds AND the resulting JSON
+matches `<name>-expected.json`.
+
+### ERROR_CONFS (legacy — JSON sidecar)
+
+Fixtures that are expected to error. The generator captures the exception and
+writes a JSON sidecar:
+
+```
+expected/hocon/<group>/<name>-expected-error.json
+```
+
+Format:
+
+```json
+{
+  "error": true,
+  "type": "<SimpleClassName>",
+  "message": "<exception message>"
+}
+```
+
+Used by legacy fixture groups (`cycle.conf`, `test13-reference-bad-substitutions.conf`,
+`subst-tokenize/st-err*.conf`). New groups should use the `.error` sidecar
+convention below.
+
+### CONCAT_ERROR_CONFS — `.error` sidecar (NORMATIVE for clusters 3b, 3c, 3e, 3f)
+
+Fixtures that must cause a parse/resolve error. The generator writes a
+plain-text sidecar:
+
+```
+expected/hocon/<group>/<name>.error
+```
+
+#### Sidecar format
+
+```
+Exception class: <fully-qualified Java exception class name>
+Message: <exception message verbatim>
+```
+
+Example (`ce01-array-plus-object.error`):
+
+```
+Exception class: com.typesafe.config.ConfigException$WrongType
+Message: ../testdata/hocon/concat-errors/ce01-array-plus-object.conf: 1: Cannot concatenate object or list with a non-object-or-list, SimpleConfigList([1]) and SimpleConfigObject({"b":2}) are not compatible
+```
+
+#### Semantics for conformance test runners
+
+- **Existence** of `<name>.error` is the signal: the fixture is expected to
+  fail.
+- Conformance tests MUST assert that parse/resolve raises any `HoconError` (or
+  per-impl equivalent). No exact message matching is required or expected.
+- The sidecar content is for traceability (human reference to Lightbend's
+  actual error), not for cross-impl assertion.
+
+#### Generator behaviour
+
+1. For each entry in `CONCAT_ERROR_CONFS`, the generator attempts
+   `ConfigFactory.parseFile(path).resolve()`.
+2. If Lightbend throws `ConfigException` (or subtype), the generator writes the
+   sidecar. The generator prints `OK (.error sidecar): <name> -> <name>.error`.
+3. If Lightbend does NOT throw, the generator prints
+   `UNEXPECTED SUCCESS (expected error): <name>` and increments the error
+   counter. The build still succeeds, but the fixture must be re-examined — see
+   §Lightbend quirks below.
+
+#### Adding a new error-expected fixture group
+
+1. Create fixtures under `testdata/hocon/<new-group>/`.
+2. Add fixture paths to `CONCAT_ERROR_CONFS` in
+   `generate/src/main/java/GenerateExpected.java`.
+3. Run `./gradlew run` from `generate/`.
+4. Verify all entries produced `.error` sidecars (no `UNEXPECTED SUCCESS`
+   lines).
+5. Commit `testdata/hocon/<new-group>/` and `expected/hocon/<new-group>/`
+   together.
+
+---
+
+## Lightbend quirks
+
+Some fixtures document spec-required errors that Lightbend 1.4.3 does not
+enforce. These cannot have `.error` sidecars because the generator oracle
+(Lightbend) does not throw. They are documented here for implementers.
+
+### ce05-object-plus-scalar (`a = { b: 1 } x`)
+
+Spec S10.13 says this should be a type error (object in string concat). However,
+Lightbend 1.4.3 silently accepts it: the object wins and the trailing unquoted
+scalar `x` is discarded, yielding `{"b": 1}`.
+
+**Conformance test treatment:** ce05 has no `.error` sidecar. It is excluded
+from `CONCAT_ERROR_CONFS`. Conformance tests for S10.13 coverage should focus on
+ce06 (`x { b: 1 }`) which Lightbend does error on, and ce12/ce13 for resolved
+substitution variants. Implementations MAY reject `ce05`-style input as an
+extension beyond Lightbend, but MUST NOT fail their conformance suite for
+accepting it.
+
+---
+
+## Fixture naming convention
+
+| Prefix | Group | Coverage |
+| --- | --- | --- |
+| `ce01`–`ce15` | `concat-errors/` | S10.4 / S10.13 / S10.19 concat type-check (cluster 3b) |
+| `st01`–`st20` | `subst-tokenize/` | Substitution tokenization (Phase 4) |
+| `st-err01`–`st-err11` | `subst-tokenize/` | Substitution tokenization errors (Phase 4) |
+| `na01`–`na12` | `numeric-obj-array/` | Numeric-object-to-array conversion (Phase 6 #2, S15) |
+
+Future clusters (3c, 3e, 3f) should use a new prefix and group directory, and
+add their error fixtures to `CONCAT_ERROR_CONFS`.
