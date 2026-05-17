@@ -112,6 +112,20 @@ public class GenerateExpected {
         "include-reservation/ir09-include-file-form.conf",
         "include-reservation/ir11-quoted-include-dotted.conf",
         "include-reservation/ir14-substitution-include-path.conf",
+        // S13a.13 self-ref look-back fixtures (cluster 3f). Per-impl bug (ts/rs/go produce
+        // "foofoo" for `a = ${?a}foo` with no prior `a`; spec/Lightbend produce "foo").
+        // All 10 positive fixtures are Lightbend-spec-conformant. sr05 (required no prior)
+        // is the only error fixture and lives in SIDECAR_ERROR_CONFS below.
+        "self-ref-lookback/sr01-optional-no-prior.conf",
+        "self-ref-lookback/sr02-optional-no-prior-leading.conf",
+        "self-ref-lookback/sr03-optional-no-prior-both-sides.conf",
+        "self-ref-lookback/sr04-optional-with-prior.conf",
+        "self-ref-lookback/sr06-required-with-prior.conf",
+        "self-ref-lookback/sr07-array-optional-no-prior.conf",
+        "self-ref-lookback/sr08-array-optional-with-prior.conf",
+        "self-ref-lookback/sr09-nested-no-prior.conf",
+        "self-ref-lookback/sr10-nested-with-prior.conf",
+        "self-ref-lookback/sr11-mutual-ref-forward.conf",
     };
 
     // Conf files expected to produce a parse/resolve error and have a plain-text
@@ -156,6 +170,12 @@ public class GenerateExpected {
         "include-reservation/ir10-include-plus-equals.conf",
         "include-reservation/ir12-include-newline-arg.conf",
         "include-reservation/ir13-include-object-body.conf",
+        // S13a.13 sr05: `a = ${a}foo` with no prior `a` — required self-ref to undefined
+        // value. Lightbend throws UnresolvedSubstitution. Strict-spec impl behaviour is
+        // identical: required substitution to no-prior is an error regardless of
+        // optional/required asymmetry — the fix only changes optional from "foofoo"
+        // resolution to undefined; required already errors today.
+        "self-ref-lookback/sr05-required-no-prior.conf",
     };
 
     // Conf files that should produce a parse/resolve error (traditional JSON error record format)
