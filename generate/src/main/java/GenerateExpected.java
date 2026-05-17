@@ -101,6 +101,17 @@ public class GenerateExpected {
         "unquoted-starts/us12-hex-prefix.conf",
         "unquoted-starts/us14-multi-dot-version.conf",
         "unquoted-starts/us16-negative-with-tail.conf",
+        // S12.5 include-reservation positive fixtures (cluster 3e). Negative fixtures
+        // distributed between SIDECAR_ERROR_CONFS (Lightbend throws) and Lightbend-quirk
+        // exclusions (Lightbend silently accepts dotted `include.foo`). See E9 in
+        // docs/extra-spec-conventions.md and "Lightbend quirks" in docs/fixture-conventions.md.
+        "include-reservation/ir05-include-statement.conf",
+        "include-reservation/ir06-quoted-include.conf",
+        "include-reservation/ir07-include-non-initial.conf",
+        "include-reservation/ir08-include-as-value.conf",
+        "include-reservation/ir09-include-url-form.conf",
+        "include-reservation/ir11-quoted-include-dotted.conf",
+        "include-reservation/ir14-substitution-include-path.conf",
     };
 
     // Conf files expected to produce a parse/resolve error and have a plain-text
@@ -132,6 +143,19 @@ public class GenerateExpected {
         // Strict-spec impl would also lex-error (number(1) backtrack from `e+`, then `+` as
         // reserved char). Both produce "some error" — conformance test asserts error raised.
         "unquoted-starts/us15-incomplete-exp.conf",
+        // S12.5 include-reservation negative fixtures (cluster 3e). Lightbend throws on
+        // ir01/ir02/ir10/ir12/ir13 via the include-statement parser (text after `include`
+        // is not a valid include argument). Lightbend EXCLUDES (quirks):
+        //   - ir03 `include.foo = 1`: tokenizer joins into single unquoted, PathParser
+        //     splits later → silently accepted as key path
+        //   - ir04 `a = { include.bar = 1 }`: same mechanism inside nested object
+        // Both are documented under §Lightbend quirks in docs/fixture-conventions.md and
+        // E9 in docs/extra-spec-conventions.md. Per-impl tests load ir03/ir04 directly.
+        "include-reservation/ir01-include-equals.conf",
+        "include-reservation/ir02-include-colon.conf",
+        "include-reservation/ir10-include-plus-equals.conf",
+        "include-reservation/ir12-include-newline-arg.conf",
+        "include-reservation/ir13-include-object-body.conf",
     };
 
     // Conf files that should produce a parse/resolve error (traditional JSON error record format)

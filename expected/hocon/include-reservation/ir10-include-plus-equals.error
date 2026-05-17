@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/hocon/include-reservation/ir10-include-plus-equals.conf: 1: include keyword is not followed by a quoted string, but by: '+='

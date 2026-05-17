@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/hocon/include-reservation/ir13-include-object-body.conf: 1: include keyword is not followed by a quoted string, but by: '{'
