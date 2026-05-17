@@ -90,12 +90,7 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 
 **Fixture**: `testdata/hocon/numeric-obj-array/na10b-minus-zero.conf` + sibling `expected/.../na10b-minus-zero.divergence.md` (records Lightbend's non-deterministic `["a"]`-or-`["b"]` behaviour, identical mechanism to E2's na08).
 
-## How this file is maintained
-
-1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
-2. Use the next available `E<n>` ID; never reuse retired IDs.
-3. Each entry records: source / rationale, per-impl status with test refs, and any cross-impl divergence notes.
-4. E-items do not affect compliance rates in [`compliance-matrix.md`](compliance-matrix.md), but the matrix should link here so readers can find these conventions when scanning compliance state.
+<a id="e5"></a>
 
 ### E5 — Trailing scalar after object in concat is a type error (not silently discarded)
 
@@ -107,11 +102,18 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 
 | Impl | Status | Test | Notes |
 | --- | --- | --- | --- |
-| ts.hocon | ❌ → ✅ (after Phase 6 #3b impl) | `concat-errors/ce05-object-plus-scalar.conf` loaded by per-impl test (no xx.hocon `.error` sidecar; Lightbend doesn't throw) | impl rejects via `joinPair` type-mismatch branch |
-| rs.hocon | ❌ → ✅ (after Phase 6 #3b impl) | same fixture | same |
-| go.hocon | ❌ → ✅ (after Phase 6 #3b impl) | same fixture | same |
+| ts.hocon | ❌ | `concat-errors/ce05-object-plus-scalar.conf` loaded by per-impl test (no xx.hocon `.error` sidecar; Lightbend doesn't throw) | Will flip to ✅ after Phase 6 #3b impl PR merges; impl rejects via `joinPair` type-mismatch branch |
+| rs.hocon | ❌ | same fixture | Will flip to ✅ after Phase 6 #3b impl PR merges |
+| go.hocon | ❌ | same fixture | Will flip to ✅ after Phase 6 #3b impl PR merges |
 
 **Fixture**: `testdata/hocon/concat-errors/ce05-object-plus-scalar.conf`. No `expected/.../ce05-object-plus-scalar.error` sidecar (Lightbend silent-accept; see `fixture-conventions.md` "Lightbend quirks").
+
+## How this file is maintained
+
+1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
+2. Use the next available `E<n>` ID; never reuse retired IDs.
+3. Each entry records: source / rationale, per-impl status with test refs, and any cross-impl divergence notes.
+4. E-items do not affect compliance rates in [`compliance-matrix.md`](compliance-matrix.md), but the matrix should link here so readers can find these conventions when scanning compliance state.
 
 ## Last verified
 
