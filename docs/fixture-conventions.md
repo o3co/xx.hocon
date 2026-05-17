@@ -240,5 +240,16 @@ parser (text after `include` is not a valid include argument); these live in
 | `us01`–`us16` | `unquoted-starts/` | S8.6 strict-spec unquoted-string-starts (cluster 3c) |
 | `ir01`–`ir14` | `include-reservation/` | S12.5 strict-spec `include` reservation at key-path start (cluster 3e) |
 
+### Sibling include-target files
+
+Some fixtures use `include "<sibling>.conf"` directives that load a sibling
+`.conf` in the same group directory. The sibling target files are named
+`<base>-inner.conf` (e.g. `ir05-inner.conf`, `ir09-inner.conf`) and are NOT
+standalone fixtures — they are not listed in `SUCCESS_CONFS` /
+`SIDECAR_ERROR_CONFS` and no `*-expected.json` is generated for them. Per-impl
+test runners that iterate a fixture directory directly (rather than reading
+the canonical `_CONFS` arrays from `GenerateExpected.java`) MUST skip
+`*-inner.conf` files.
+
 Future clusters (3f and beyond) should use a new prefix and group directory,
 and add their error fixtures to `SIDECAR_ERROR_CONFS`.
