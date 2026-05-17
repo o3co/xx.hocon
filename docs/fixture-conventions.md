@@ -199,6 +199,33 @@ value-layer-equivalent to strict spec; safe in `SUCCESS_CONFS`) and us15
 (`a = 1e+x`) which both Lightbend and strict-spec reject — Lightbend on reserved
 `+`, strict-spec lex on the same (`.error` sidecar produced).
 
+### ir03 / ir04 (cluster 3e, S12.5 strict-spec divergence)
+
+Two S12.5 fixtures encode strict-HOCON-spec behaviour where Lightbend silently
+accepts spec-violating dotted-include paths:
+
+- `ir03-include-dot-foo-equals` (`include.foo = 1`) — spec says parse error
+  (HOCON.md L570 reserves `include` from beginning a key path expression);
+  Lightbend's tokenizer joins `include.foo` into a single unquoted token, then
+  PathParser splits it later; `isIncludeKeyword` matches only the bare 7-char
+  `include` token, so the joined form silently parses as a regular nested key:
+  `{"include":{"foo":1}}`.
+- `ir04-include-nested-object` (`a = { include.bar = 1 }`) — same mechanism
+  inside a nested object literal. Lightbend produces `{"a":{"include":{"bar":1}}}`.
+
+**Conformance test treatment:** both are EXCLUDED from `SIDECAR_ERROR_CONFS`
+(the safety net would fire on Lightbend's silent accept). The `.conf` files are
+kept on disk for per-impl test loading. Per the o3co strict-HOCON-spec posture
+(see [extra-spec-conventions.md E9](extra-spec-conventions.md#e9)),
+**implementations MUST reject `ir03`/`ir04`** per HOCON.md L570 — a deliberate
+Lightbend divergence.
+
+The remaining S12.5 negative fixtures (ir01 `include = 1`, ir02 `include : 1`,
+ir10 `include += [1]`, ir12 `include` + newline + `foo.conf`, ir13
+`include { x = 1 }`) all cause Lightbend to throw via the include-statement
+parser (text after `include` is not a valid include argument); these live in
+`SIDECAR_ERROR_CONFS` with `.error` sidecars produced.
+
 ---
 
 ## Fixture naming convention
@@ -211,6 +238,7 @@ value-layer-equivalent to strict spec; safe in `SUCCESS_CONFS`) and us15
 | `na01`–`na12` | `numeric-obj-array/` | Numeric-object-to-array conversion (Phase 6 #2, S15) |
 | `ev01`–`ev11` | `env-var-list/` | S13c env-var list expansion `${X[]}` / `${?X[]}` (cluster 3a) |
 | `us01`–`us16` | `unquoted-starts/` | S8.6 strict-spec unquoted-string-starts (cluster 3c) |
+| `ir01`–`ir14` | `include-reservation/` | S12.5 strict-spec `include` reservation at key-path start (cluster 3e) |
 
-Future clusters (3e, 3f) should use a new prefix and group directory, and
-add their error fixtures to `SIDECAR_ERROR_CONFS`.
+Future clusters (3f and beyond) should use a new prefix and group directory,
+and add their error fixtures to `SIDECAR_ERROR_CONFS`.

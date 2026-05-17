@@ -179,6 +179,28 @@ This produces three observable divergences from the strict spec:
 
 **Fixtures**: `testdata/hocon/unquoted-starts/us02-hyphen-no-digit.conf`, `us03-hyphen-alone.conf`, `us13-leading-zero.conf`. No `.error` sidecars (Lightbend silent-accept; see `fixture-conventions.md` "Lightbend quirks"). The remaining S8.6 fixtures (us01, us04-us12, us14, us16) are Lightbend-value-layer-equivalent and live in `SUCCESS_CONFS`; us15 (`a = 1e+x`) errors in both Lightbend and strict spec and lives in `SIDECAR_ERROR_CONFS`.
 
+<a id="e9"></a>
+
+### E9 — `include` reserved at the start of a key path (Lightbend tolerates dotted-include silently)
+
+**Source**: cross-impl convention. HOCON.md §Path expressions L570-572 states:
+
+> As a special rule, the unquoted string `include` may not begin a path expression in a key, because it has a special interpretation (see below).
+
+Lightbend 1.4.3 enforces this rule only for the bare form (`include = 1`, `include : 1`, `include += [1]`, `include { x = 1 }`, and forms where text after `include` is not a valid include argument such as `include\nfoo.conf`). For the dotted form, the tokenizer joins `include.foo` into a single unquoted token before the parser can apply the reservation rule, then PathParser splits it later — by which time `isIncludeKeyword` (which matches only the bare 7-char `include`) has already passed. Result: `include.foo = 1` and `a = { include.bar = 1 }` are silently accepted as regular nested keys.
+
+**o3co convention**: each of ts.hocon / rs.hocon / go.hocon MUST reject ALL forms where the first parsed path element equals the bare unquoted string `include`, including the dotted form. Detection runs post-PathParser on the constructed element list — uniform for both `include = 1` (one token) and `include.foo = 1` (one joined token, post-split into `["include", "foo"]`). Quoted-form `"include"` bypasses the reservation. Substitution paths (`${include}`, `${include.foo}`) are NOT subject to the reservation (Codex-verified; the L570 rule says "begin a path expression in a key", which substitutions are not).
+
+**Why an E-item rather than an S-item**: HOCON.md L570 IS the canonical spec rule; the matrix already marks S12.5 as ❌ in all 3 impls. E9 documents the specific Lightbend divergence pattern (silent accept for dotted-include) and the per-fixture treatment, parallel to E5 and E8.
+
+| Impl | Status | Test | Notes |
+| --- | --- | --- | --- |
+| ts.hocon | ❌ | `include-reservation/ir03-include-dot-foo-equals.conf` + `ir04-include-nested-object.conf` loaded by per-impl test (no xx.hocon `.error` sidecar; Lightbend doesn't throw) | Will flip to ✅ after Phase 6 #3e impl PR merges; parser checks first parsed path element post-PathParser |
+| rs.hocon | ❌ | same fixtures | Will flip to ✅ after Phase 6 #3e impl PR merges |
+| go.hocon | ❌ | same fixtures | Will flip to ✅ after Phase 6 #3e impl PR merges |
+
+**Fixtures**: `testdata/hocon/include-reservation/ir03-include-dot-foo-equals.conf`, `ir04-include-nested-object.conf`. No `.error` sidecars (Lightbend silent-accept; see `fixture-conventions.md` "Lightbend quirks"). The remaining S12.5 negative fixtures (ir01, ir02, ir10, ir12, ir13) live in `SIDECAR_ERROR_CONFS` with generator-produced `.error` sidecars (Lightbend's include-statement parser rejects each).
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -193,3 +215,4 @@ This produces three observable divergences from the strict spec:
 2026-05-17 — E5 (trailing scalar in object/array concat) added as part of S10 concat type-check tightening work (Phase 6 #3b).
 2026-05-17 — E6 (`${X[]}` config-defined wins), E7 (whitespace before `[]` allowed) added as part of S13c env-var-list fixture work (Phase 6 #3a).
 2026-05-17 — E8 (S8.6 strict unquoted-starts; Lightbend fallback divergences for us02/us03/us13) added as part of Phase 6 #3c.
+2026-05-17 — E9 (`include` reserved at start of key path; Lightbend silent-accept for dotted form ir03/ir04) added as part of Phase 6 #3e.
