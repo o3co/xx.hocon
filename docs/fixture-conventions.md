@@ -111,12 +111,9 @@ Spec S10.13 says this should be a type error (object in string concat). However,
 Lightbend 1.4.3 silently accepts it: the object wins and the trailing unquoted
 scalar `x` is discarded, yielding `{"b": 1}`.
 
-**Conformance test treatment:** ce05 has no `.error` sidecar. It is excluded
-from `CONCAT_ERROR_CONFS`. Conformance tests for S10.13 coverage should focus on
-ce06 (`x { b: 1 }`) which Lightbend does error on, and ce12/ce13 for resolved
-substitution variants. Implementations MAY reject `ce05`-style input as an
-extension beyond Lightbend, but MUST NOT fail their conformance suite for
-accepting it.
+**Conformance test treatment:** ce05 has no `.error` sidecar (Lightbend does not throw, so the generator cannot produce one). It is excluded from `CONCAT_ERROR_CONFS`. However per the o3co strict-HOCON-spec posture (see [extra-spec-conventions.md E5](extra-spec-conventions.md#e5)), **implementations MUST reject `ce05`-style input** as a type error per HOCON.md L373 — this is a deliberate Lightbend divergence. Per-impl conformance tests assert the error directly (the `.conf` is loaded by test code, not by the generator).
+
+Other S10.13 coverage runs through ce06 (`x { b: 1 }`) which Lightbend does error on, and ce12/ce13 for resolved-substitution variants.
 
 ---
 
