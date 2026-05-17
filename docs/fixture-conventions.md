@@ -43,6 +43,63 @@ Used by legacy fixture groups (`cycle.conf`, `test13-reference-bad-substitutions
 `subst-tokenize/st-err*.conf`). New groups should use the `.error` sidecar
 convention below.
 
+### ENV_VAR_LIST_SIDECAR — `.env` sidecar for `${X[]}` fixtures (S13c, cluster 3a)
+
+Fixtures under `testdata/hocon/env-var-list/` exercise the spec S13c env-var list
+expansion syntax (`${X[]}` and `${?X[]}`). Lightbend typesafe-config 1.4.3 does
+NOT implement `[]`, so the generator pre-expands these patterns using a
+per-fixture `.env` sidecar before invoking Lightbend.
+
+#### `.env` sidecar format
+
+Each success fixture (and ev03 error fixture) has a paired
+`testdata/hocon/env-var-list/<name>.env` file:
+
+```text
+# Comments and blank lines are skipped.
+S13C_EV01_MY_LIST_0=a
+S13C_EV01_MY_LIST_1=b
+# Lines without `=` are treated as keys with empty-string values.
+```
+
+- Keys follow the spec convention `<NAME>_0`, `<NAME>_1`, ...; lookup stops at
+  the first absent index.
+- Empty string IS a valid value (see ev10 fixture) — `containsKey` (not
+  truthy) determines presence.
+- Fixture key prefix is namespaced (e.g. `S13C_EV01_…`) so concurrent
+  generator runs and host env do not collide.
+
+#### Hermeticity
+
+`EnvVarListExpander.generateJson` calls `setUseSystemEnvironment(false)` on
+`ConfigResolveOptions`, so generator output is invariant under the host's
+environment. The required-empty and optional-empty placeholders use a
+distinctive sentinel path (`__hocon_gen_NEVER_DEFINED_DO_NOT_SET__`) for
+defense in depth. Do not export that name as a shell var or system property in
+CI.
+
+#### Multi-file include semantics
+
+`generateJson` pre-expands every `.conf` in the fixture's directory into a
+temp dir, then loads the target from the temp dir. This makes
+`include "sibling.conf"` work (see ev11-include-context + ev11-inner). For
+fixtures that need a sibling include, keep all files in the same directory —
+cross-directory includes are NOT pre-expanded.
+
+`ev11-inner.conf` is include-only: it is not in `SUCCESS_CONFS` and has no
+expected JSON of its own.
+
+### ENV_VAR_LIST_ERROR_CONFS — `.error` sidecar with pre-expansion (S13c errors)
+
+Distinct from `SIDECAR_ERROR_CONFS` only in the pre-processing step: source
+text is run through `EnvVarListExpander.expandListSubstitutions` (with
+`setUseSystemEnvironment(false)`) before Lightbend evaluation. Output format
+matches `SIDECAR_ERROR_CONFS` (`<name>.error` plain text). Same UNEXPECTED
+SUCCESS safety-net throw.
+
+Currently: `ev03-required-no-elements.conf`. Add new entries to the
+`ENV_VAR_LIST_ERROR_CONFS` array in `GenerateExpected.java`.
+
 ### SIDECAR_ERROR_CONFS — `.error` sidecar (NORMATIVE for clusters 3b, 3c, 3e, 3f)
 
 Fixtures that must cause a parse/resolve error. The generator writes a
@@ -126,6 +183,7 @@ Other S10.13 coverage runs through ce03 (`[1, 2] 3`), ce04 (`3 [1, 2]`), ce06 (`
 | `st01`–`st20` | `subst-tokenize/` | Substitution tokenization (Phase 4) |
 | `st-err01`–`st-err11` | `subst-tokenize/` | Substitution tokenization errors (Phase 4) |
 | `na01`–`na12` | `numeric-obj-array/` | Numeric-object-to-array conversion (Phase 6 #2, S15) |
+| `ev01`–`ev11` | `env-var-list/` | S13c env-var list expansion `${X[]}` / `${?X[]}` (cluster 3a) |
 
 Future clusters (3c, 3e, 3f) should use a new prefix and group directory, and
-add their error fixtures to `CONCAT_ERROR_CONFS`.
+add their error fixtures to `SIDECAR_ERROR_CONFS`.

@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: env-var-list/ev03-required-no-elements.conf: 1: Could not resolve substitution to a value: ${__hocon_gen_NEVER_DEFINED_DO_NOT_SET__}

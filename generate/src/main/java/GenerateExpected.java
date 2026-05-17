@@ -5,7 +5,9 @@ import java.util.*;
 
 public class GenerateExpected {
 
-    // Conf files that should parse successfully and produce expected JSON
+    // Conf files that should parse successfully and produce expected JSON.
+    // Fixtures with a .env sidecar are processed via EnvVarListExpander
+    // (which expands ${X[]} patterns using the sidecar env vars before Lightbend parses).
     static final String[] SUCCESS_CONFS = {
         "test01.conf",
         "test02.conf",
@@ -23,7 +25,7 @@ public class GenerateExpected {
         "bom.conf",
         "file-include.conf",
         // "include-from-list.conf",  // typesafe-config limitation: include in list can't resolve ${}
-        // "env-variables.conf",      // uses ${VAR[]} syntax not supported by typesafe-config
+        // "env-variables.conf",      // uses ${VAR[]} syntax not supported by typesafe-config 1.4.3
         "subst-tokenize/st01-unquoted-simple.conf",
         "subst-tokenize/st02-quoted-single-segment.conf",
         "subst-tokenize/st03-quoted-dot-in-key.conf",
@@ -64,6 +66,19 @@ public class GenerateExpected {
         // concat-errors success fixtures (regression guards: ce09 S15 bridge, ce15 optional-omission)
         "concat-errors/ce09-numeric-obj-still-works.conf",
         "concat-errors/ce15-optional-missing-suppresses-pair.conf",
+        // env-var-list fixtures (S13c): processed via EnvVarListExpander with .env sidecar
+        // because typesafe-config 1.4.3 does not natively support ${X[]} syntax.
+        "env-var-list/ev01-basic.conf",
+        "env-var-list/ev02-stops-at-gap.conf",
+        // ev03-required-no-elements.conf is in ENV_VAR_LIST_ERROR_CONFS (expected resolve error)
+        "env-var-list/ev04-optional-no-elements.conf",
+        "env-var-list/ev05-config-defined-wins.conf",
+        "env-var-list/ev06-concat-prepend.conf",
+        "env-var-list/ev07-concat-append.conf",
+        "env-var-list/ev08-self-append.conf",
+        "env-var-list/ev09-whitespace-before-suffix.conf",
+        "env-var-list/ev10-empty-string-element.conf",
+        "env-var-list/ev11-include-context.conf",
     };
 
     // Conf files expected to produce a parse/resolve error and have a plain-text
@@ -93,7 +108,7 @@ public class GenerateExpected {
         "concat-errors/ce14-optional-missing-mid-concat.conf",
     };
 
-    // Conf files that should produce a parse/resolve error
+    // Conf files that should produce a parse/resolve error (traditional JSON error record format)
     static final String[] ERROR_CONFS = {
         "cycle.conf",
         "test13-reference-bad-substitutions.conf",
@@ -108,6 +123,15 @@ public class GenerateExpected {
         "subst-tokenize/st-err09-empty-segment-leading-dot.conf",
         "subst-tokenize/st-err10-empty-segment-trailing-dot.conf",
         "subst-tokenize/st-err11-empty-segment-double-dot.conf",
+    };
+
+    // env-var-list error fixtures: these use ${X[]} syntax so require sidecar-based
+    // expansion before we can determine if they error. The generator pre-processes the
+    // source text to expand ${X[]} patterns; if the expanded form still has an unresolvable
+    // substitution (no env vars set for a required subst), Lightbend throws.
+    static final String[] ENV_VAR_LIST_ERROR_CONFS = {
+        // ev03: required ${X[]} with no env elements → UnresolvedSubstitution error
+        "env-var-list/ev03-required-no-elements.conf",
     };
 
     static final Gson GSON = new GsonBuilder()
@@ -135,22 +159,33 @@ public class GenerateExpected {
                 skipCount++;
                 continue;
             }
+
+            // Check for .env sidecar — use EnvVarListExpander if present
+            Path sidecarPath = testdataDir.resolve(confName.replace(".conf", ".env"));
+            boolean hasSidecar = Files.exists(sidecarPath);
+
             try {
-                ConfigParseOptions parseOpts = ConfigParseOptions.defaults()
-                    .setOriginDescription(confName);
-                Config config = ConfigFactory.parseFile(confPath.toFile(), parseOpts)
-                    .resolve();
-                ConfigObject root = config.root();
-                // Filter out environment-dependent keys that differ per machine
-                if (confName.equals("test01.conf")) {
-                    root = filterKeys(root, Set.of("system"));
+                String json;
+                if (hasSidecar) {
+                    Map<String, String> env = EnvVarListExpander.loadEnvSidecar(sidecarPath);
+                    json = EnvVarListExpander.generateJson(confPath, env);
+                } else {
+                    ConfigParseOptions parseOpts = ConfigParseOptions.defaults()
+                        .setOriginDescription(confName);
+                    Config config = ConfigFactory.parseFile(confPath.toFile(), parseOpts).resolve();
+                    ConfigObject root = config.root();
+                    // Filter out environment-dependent keys that differ per machine
+                    if (confName.equals("test01.conf")) {
+                        root = filterKeys(root, Set.of("system"));
+                    }
+                    json = toSortedJson(root) + "\n";
                 }
-                String json = toSortedJson(root);
+
                 String outName = confName.replace(".conf", "-expected.json");
                 Path outPath = expectedDir.resolve(outName);
                 Files.createDirectories(outPath.getParent());
-                Files.writeString(outPath, json + "\n");
-                System.out.println("  OK: " + confName + " -> " + outName);
+                Files.writeString(outPath, json);
+                System.out.println("  OK" + (hasSidecar ? " (sidecar)" : "") + ": " + confName + " -> " + outName);
                 okCount++;
             } catch (Exception e) {
                 System.err.println("  ERROR (unexpected): " + confName + ": " + e.getMessage());
@@ -179,6 +214,67 @@ public class GenerateExpected {
                 Files.createDirectories(outPath.getParent());
                 Files.writeString(outPath, GSON.toJson(errObj) + "\n");
                 System.out.println("  OK (error): " + confName + " -> " + outName);
+                okCount++;
+            }
+        }
+
+        // ENV_VAR_LIST_ERROR_CONFS: error fixtures that use ${X[]} syntax. Pre-process via
+        // EnvVarListExpander.expandListSubstitutions so the expanded form can be evaluated
+        // by Lightbend; expect Lightbend to throw. Emits a plain-text .error sidecar (same
+        // format as SIDECAR_ERROR_CONFS) and applies the same UNEXPECTED-SUCCESS safety net.
+        // setUseSystemEnvironment(false) ensures the expanded fixture cannot leak through
+        // to host env / system properties — same hermeticity guarantee as EnvVarListExpander.
+        for (String confName : ENV_VAR_LIST_ERROR_CONFS) {
+            Path confPath = testdataDir.resolve(confName);
+            if (!Files.exists(confPath)) {
+                System.err.println("SKIP (not found): " + confName);
+                skipCount++;
+                continue;
+            }
+            Path sidecarPath = testdataDir.resolve(confName.replace(".conf", ".env"));
+            Map<String, String> env;
+            if (Files.exists(sidecarPath)) {
+                env = EnvVarListExpander.loadEnvSidecar(sidecarPath);
+            } else {
+                // The safety net only catches "did NOT throw"; it cannot detect "threw the
+                // wrong error". Surface missing-sidecar so a fixture author who forgot the
+                // .env file gets a clear breadcrumb instead of a confusing vacuous error.
+                System.err.println("  WARN: no .env sidecar for " + confName + " — proceeding with empty env");
+                env = new LinkedHashMap<>();
+            }
+            String source = Files.readString(confPath);
+            String processed = EnvVarListExpander.expandListSubstitutions(source, env);
+            // Origin appears in Lightbend's exception message and lands in the .error sidecar.
+            // We go through parseString (because the source is pre-expanded), so we set the
+            // origin manually to the short conf path. This differs from SIDECAR_ERROR_CONFS
+            // which uses parseFile and gets `../testdata/hocon/<group>/<name>.conf` as origin.
+            // Per fixture-conventions.md §Semantics, conformance tests MUST NOT match on
+            // message content, so the format difference is purely cosmetic.
+            ConfigParseOptions parseOpts = ConfigParseOptions.defaults()
+                .setOriginDescription(confName)
+                .setSyntax(ConfigSyntax.CONF);
+            ConfigResolveOptions resolveOpts = ConfigResolveOptions.defaults()
+                .setUseSystemEnvironment(false);
+            Exception caught = null;
+            try {
+                ConfigFactory.parseString(processed, parseOpts).resolve(resolveOpts);
+            } catch (Exception e) {
+                caught = e;
+            }
+            if (caught == null) {
+                throw new RuntimeException(
+                    "Expected error fixture " + confName + " did NOT throw — verify the .env sidecar "
+                    + "(missing keys?) or move to SUCCESS_CONFS per docs/fixture-conventions.md.");
+            }
+            {
+                Exception e = caught;
+                String sidecar = "Exception class: " + e.getClass().getName() + "\n"
+                               + "Message: " + e.getMessage() + "\n";
+                String outName = confName.replace(".conf", ".error");
+                Path outPath = expectedDir.resolve(outName);
+                Files.createDirectories(outPath.getParent());
+                Files.writeString(outPath, sidecar);
+                System.out.println("  OK (.error sidecar): " + confName + " -> " + outName);
                 okCount++;
             }
         }
