@@ -232,11 +232,24 @@ public class GenerateExpected {
                 continue;
             }
             Path sidecarPath = testdataDir.resolve(confName.replace(".conf", ".env"));
-            Map<String, String> env = Files.exists(sidecarPath)
-                ? EnvVarListExpander.loadEnvSidecar(sidecarPath)
-                : new LinkedHashMap<>();
+            Map<String, String> env;
+            if (Files.exists(sidecarPath)) {
+                env = EnvVarListExpander.loadEnvSidecar(sidecarPath);
+            } else {
+                // The safety net only catches "did NOT throw"; it cannot detect "threw the
+                // wrong error". Surface missing-sidecar so a fixture author who forgot the
+                // .env file gets a clear breadcrumb instead of a confusing vacuous error.
+                System.err.println("  WARN: no .env sidecar for " + confName + " — proceeding with empty env");
+                env = new LinkedHashMap<>();
+            }
             String source = Files.readString(confPath);
             String processed = EnvVarListExpander.expandListSubstitutions(source, env);
+            // Origin appears in Lightbend's exception message and lands in the .error sidecar.
+            // We go through parseString (because the source is pre-expanded), so we set the
+            // origin manually to the short conf path. This differs from SIDECAR_ERROR_CONFS
+            // which uses parseFile and gets `../testdata/hocon/<group>/<name>.conf` as origin.
+            // Per fixture-conventions.md §Semantics, conformance tests MUST NOT match on
+            // message content, so the format difference is purely cosmetic.
             ConfigParseOptions parseOpts = ConfigParseOptions.defaults()
                 .setOriginDescription(confName)
                 .setSyntax(ConfigSyntax.CONF);

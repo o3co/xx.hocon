@@ -143,11 +143,12 @@ public class EnvVarListExpander {
      * Limitation: see class-level note about quoted-string contexts.
      */
     static String expandListSubstitutions(String source, Map<String, String> env) {
-        // Match ${?NAME []} or ${NAME []} — whitespace before [] is optional.
+        // Match ${?NAME []} or ${NAME []} — ASCII horizontal whitespace (space/tab) before [] is optional.
+        // Whitespace class matches E7 in docs/extra-spec-conventions.md.
         // Group 1: '?' or '' (optional marker)
         // Group 2: NAME (path, single-segment or dotted)
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
-            "\\$\\{(\\??)([A-Za-z_][A-Za-z0-9_.]*) *\\[\\]\\}"
+            "\\$\\{(\\??)([A-Za-z_][A-Za-z0-9_.]*)[ \\t]*\\[\\]\\}"
         );
         java.util.regex.Matcher m = pattern.matcher(source);
         StringBuilder sb = new StringBuilder();

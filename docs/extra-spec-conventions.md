@@ -135,7 +135,7 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 
 **Source**: implicit-by-absence + cross-impl convention. HOCON.md L902–L920 introduces `${X[]}` without specifying tokenizer behaviour for whitespace between the path expression and the `[]` suffix. Substitution body tokenization (HOCON.md L1410–L1450) generally allows whitespace inside `${...}` body (e.g. `${ X }` is equivalent to `${X}`), so allowing `${X []}` matches that general permissiveness. Per-impl tokenizers can each decide independently, but uniform handling avoids cross-impl friction.
 
-**o3co convention**: any number (including zero) of horizontal whitespace characters between the path expression and `[]` is accepted and treated identically to no-whitespace. The substitution body up to and including the `[]` is a single token sequence at the tokenizer level.
+**o3co convention**: any number (including zero) of ASCII horizontal whitespace characters (`0x20` SPACE or `0x09` TAB) between the path expression and `[]` is accepted and treated identically to no-whitespace. The substitution body up to and including the `[]` is a single token sequence at the tokenizer level. Other Unicode horizontal whitespace (NBSP, etc.) is out of scope for this convention.
 
 **Why an E-item rather than an S-item**: HOCON.md does not enumerate this tokenizer cell. We are not tightening or loosening — we are picking the lenient side of an unspecified degree of freedom.
 
@@ -145,7 +145,7 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 | rs.hocon | 🤷 | same fixture | Same as ts. |
 | go.hocon | 🤷 | same fixture | Same as ts. |
 
-**Fixture**: `testdata/hocon/env-var-list/ev09-whitespace-before-suffix.conf` + `expected/hocon/env-var-list/ev09-whitespace-before-suffix-expected.json`. Generator regex permits `\s*` between path expression and `[]`.
+**Fixture**: `testdata/hocon/env-var-list/ev09-whitespace-before-suffix.conf` + `expected/hocon/env-var-list/ev09-whitespace-before-suffix-expected.json`. Generator regex permits `[ \t]*` (ASCII space or tab) between path expression and `[]`.
 
 ## How this file is maintained
 
