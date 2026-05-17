@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/self-ref-lookback/sr05-required-no-prior.conf: 1: Could not resolve substitution to a value: ${a} was part of a cycle of substitutions involving ${a}, ${a}

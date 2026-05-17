@@ -239,6 +239,7 @@ parser (text after `include` is not a valid include argument); these live in
 | `ev01`–`ev11` | `env-var-list/` | S13c env-var list expansion `${X[]}` / `${?X[]}` (cluster 3a) |
 | `us01`–`us16` | `unquoted-starts/` | S8.6 strict-spec unquoted-string-starts (cluster 3c) |
 | `ir01`–`ir14` | `include-reservation/` | S12.5 strict-spec `include` reservation at key-path start (cluster 3e) |
+| `sr01`–`sr11` | `self-ref-lookback/` | S13a.13 optional self-ref in value concatenation look-back (cluster 3f) |
 
 ### Sibling include-target files
 
@@ -251,5 +252,5 @@ test runners that iterate a fixture directory directly (rather than reading
 the canonical `_CONFS` arrays from `GenerateExpected.java`) MUST skip
 `*-inner.conf` files.
 
-Future clusters (3f and beyond) should use a new prefix and group directory,
-and add their error fixtures to `SIDECAR_ERROR_CONFS`.
+Future clusters should use a new prefix and group directory, and add their
+error fixtures to `SIDECAR_ERROR_CONFS`.
