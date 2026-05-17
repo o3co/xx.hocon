@@ -79,6 +79,28 @@ public class GenerateExpected {
         "env-var-list/ev09-whitespace-before-suffix.conf",
         "env-var-list/ev10-empty-string-element.conf",
         "env-var-list/ev11-include-context.conf",
+        // S8.6 unquoted-string-starts strict-spec fixtures (cluster 3c). The strict spec
+        // says: leading 0-9 must trigger number-lex; leading `-` must trigger number-lex
+        // with required digit (lex error if absent). Per-impl conformance asserts the
+        // token stream. Lightbend-quirk fixtures EXCLUDED here:
+        //   - us02 (`-foo`), us03 (`-`): Lightbend silently accepts as unquoted; strict
+        //     spec errors. See E8.
+        //   - us13 (`01`): Lightbend parses as number 1 (Long.parseLong drops leading
+        //     zero); strict spec emits number(0) + unquoted("1") → string "01". See E8.
+        // SIDECAR_ERROR_CONFS handles us15 (`1e+x`) since Lightbend errors on the
+        // reserved `+` character (strict-spec lex also errors but for a different reason).
+        "unquoted-starts/us01-digit-prefix-with-tail.conf",
+        "unquoted-starts/us04-hyphen-with-digit.conf",
+        "unquoted-starts/us05-number-then-comment.conf",
+        "unquoted-starts/us06-embedded-digits.conf",
+        "unquoted-starts/us07-embedded-hyphen.conf",
+        "unquoted-starts/us08-numeric-key-positive.conf",
+        "unquoted-starts/us09-dotted-number-key.conf",
+        "unquoted-starts/us10-greedy-backtrack-exp.conf",
+        "unquoted-starts/us11-greedy-backtrack-frac.conf",
+        "unquoted-starts/us12-hex-prefix.conf",
+        "unquoted-starts/us14-multi-dot-version.conf",
+        "unquoted-starts/us16-negative-with-tail.conf",
     };
 
     // Conf files expected to produce a parse/resolve error and have a plain-text
@@ -106,6 +128,10 @@ public class GenerateExpected {
         "concat-errors/ce12-string-concat-resolved-array.conf",
         "concat-errors/ce13-string-concat-resolved-object.conf",
         "concat-errors/ce14-optional-missing-mid-concat.conf",
+        // S8.6 us15: Lightbend errors on reserved `+` outside quotes in the unquoted tail.
+        // Strict-spec impl would also lex-error (number(1) backtrack from `e+`, then `+` as
+        // reserved char). Both produce "some error" — conformance test asserts error raised.
+        "unquoted-starts/us15-incomplete-exp.conf",
     };
 
     // Conf files that should produce a parse/resolve error (traditional JSON error record format)
