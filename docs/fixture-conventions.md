@@ -173,6 +173,32 @@ scalar `x` is discarded, yielding `{"b": 1}`.
 
 Other S10.13 coverage runs through ce03 (`[1, 2] 3`), ce04 (`3 [1, 2]`), ce06 (`x { b: 1 }`), and ce12/ce13 for resolved-substitution variants — Lightbend errors on all of these (sidecars produced).
 
+### us02 / us03 / us13 (cluster 3c, S8.6 strict-spec divergence)
+
+Three S8.6 fixtures encode strict-HOCON-spec behaviour where Lightbend silently
+accepts spec-violating input:
+
+- `us02-hyphen-no-digit` (`a = -foo`) — spec says lex error (`-` must be followed
+  by a digit per HOCON.md L270-276); Lightbend tokenizes as
+  `unquoted("-") + unquoted("foo")` and produces `{"a":"-foo"}`.
+- `us03-hyphen-alone` (`a = -`) — spec says lex error; Lightbend produces `{"a":"-"}`.
+- `us13-leading-zero` (`a = 01`) — strict JSON-number grammar (HOCON.md L270-276)
+  forbids leading zeros on non-zero ints, so the spec tokenizes as
+  `number(0) + unquoted("1")` → string `"01"`. Lightbend calls
+  `Long.parseLong("01")` → number `1` and produces `{"a":1}`.
+
+**Conformance test treatment:** all three are EXCLUDED from `SUCCESS_CONFS` and
+`SIDECAR_ERROR_CONFS` (the safety net would fire on Lightbend's silent accept).
+The `.conf` files are kept on disk for per-impl test loading. Per the o3co
+strict-HOCON-spec posture (see [extra-spec-conventions.md E8](extra-spec-conventions.md#e8)),
+**implementations MUST reject `us02`/`us03` and produce string `"01"` for `us13`**
+per HOCON.md L270-276 — a deliberate Lightbend divergence.
+
+Other S8.6 coverage runs through us01/us04-us12/us14/us16 (Lightbend
+value-layer-equivalent to strict spec; safe in `SUCCESS_CONFS`) and us15
+(`a = 1e+x`) which both Lightbend and strict-spec reject — Lightbend on reserved
+`+`, strict-spec lex on the same (`.error` sidecar produced).
+
 ---
 
 ## Fixture naming convention
@@ -184,6 +210,7 @@ Other S10.13 coverage runs through ce03 (`[1, 2] 3`), ce04 (`3 [1, 2]`), ce06 (`
 | `st-err01`–`st-err11` | `subst-tokenize/` | Substitution tokenization errors (Phase 4) |
 | `na01`–`na12` | `numeric-obj-array/` | Numeric-object-to-array conversion (Phase 6 #2, S15) |
 | `ev01`–`ev11` | `env-var-list/` | S13c env-var list expansion `${X[]}` / `${?X[]}` (cluster 3a) |
+| `us01`–`us16` | `unquoted-starts/` | S8.6 strict-spec unquoted-string-starts (cluster 3c) |
 
-Future clusters (3c, 3e, 3f) should use a new prefix and group directory, and
+Future clusters (3e, 3f) should use a new prefix and group directory, and
 add their error fixtures to `SIDECAR_ERROR_CONFS`.

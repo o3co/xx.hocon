@@ -147,6 +147,38 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 
 **Fixture**: `testdata/hocon/env-var-list/ev09-whitespace-before-suffix.conf` + `expected/hocon/env-var-list/ev09-whitespace-before-suffix-expected.json`. Generator regex permits `[ \t]*` (ASCII space or tab) between path expression and `[]`.
 
+<a id="e8"></a>
+
+### E8 — Unquoted-string-starts are strict per HOCON.md L270-276 (Lightbend tolerates fallback)
+
+**Source**: cross-impl convention. HOCON.md §Unquoted strings L270-276 states:
+
+> An unquoted string may not *begin* with the digits 0-9 or with a hyphen (`-`, 0x002D) because those are valid characters to begin a JSON number. The initial number character, plus any valid-in-JSON number characters that follow it, must be parsed as a number value.
+
+Lightbend 1.4.3's `Tokenizer.pullNumber` does NOT enforce this strictly. Its actual behaviour (verified empirically against fixture group `unquoted-starts/`):
+
+1. Consumes a maximal run of number-like chars (`0123456789eE+-.`).
+2. Tries `Long.parseLong` then `Double.parseDouble`.
+3. **Falls back to unquoted-text on parse failure** (provided no reserved chars are present).
+
+This produces three observable divergences from the strict spec:
+
+- **`a = -foo`** (us02): Lightbend → `unquoted("-") + unquoted("foo")` → `{"a":"-foo"}`. Spec → lex error (`-` not followed by digit).
+- **`a = -`** (us03): Lightbend → `unquoted("-")` → `{"a":"-"}`. Spec → lex error.
+- **`a = 01`** (us13): Lightbend → `Long.parseLong("01") = 1` → `{"a":1}`. Spec → `number(0) + unquoted("1")` → `{"a":"01"}` (strict JSON-number grammar forbids leading zeros on non-zero ints; only `0` alone is a valid leading-zero number).
+
+**o3co convention**: each of ts.hocon / rs.hocon / go.hocon MUST implement the strict spec algorithm — leading `0-9` triggers number-lex (always succeeds with ≥1 digit); leading `-` triggers number-lex with required digit (lex error if absent, NO fallback to unquoted). Number lex uses greedy-with-backtrack-to-last-valid-prefix per the algorithm in the design spec (`docs/superpowers/specs/2026-05-17-s8-unquoted-starts-design.md` §HOCON number grammar).
+
+**Why an E-item rather than an S-item**: HOCON.md L270-276 IS the canonical spec rule; the matrix already marks S8.6 as ❌ in all 3 impls. E8 tracks the *specific Lightbend divergence pattern* and the per-fixture treatment, parallel to E5 for the S10.13 ce05 quirk. The S8.6 matrix row will flip ❌→✅ as each impl PR merges.
+
+| Impl | Status | Test | Notes |
+| --- | --- | --- | --- |
+| ts.hocon | ❌ | `unquoted-starts/us02`, `us03`, `us13` loaded by per-impl test (no xx.hocon `.error` sidecar; Lightbend doesn't throw) | Will flip to ✅ after Phase 6 #3c impl PR merges; lexer removes the unquoted-fallback for leading `-` and emits strict `number(0) + unquoted("1")` for `01` |
+| rs.hocon | ❌ | same fixtures | Will flip to ✅ after Phase 6 #3c impl PR merges |
+| go.hocon | ❌ | same fixtures | Will flip to ✅ after Phase 6 #3c impl PR merges |
+
+**Fixtures**: `testdata/hocon/unquoted-starts/us02-hyphen-no-digit.conf`, `us03-hyphen-alone.conf`, `us13-leading-zero.conf`. No `.error` sidecars (Lightbend silent-accept; see `fixture-conventions.md` "Lightbend quirks"). The remaining S8.6 fixtures (us01, us04-us12, us14, us16) are Lightbend-value-layer-equivalent and live in `SUCCESS_CONFS`; us15 (`a = 1e+x`) errors in both Lightbend and strict spec and lives in `SIDECAR_ERROR_CONFS`.
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -160,3 +192,4 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 2026-05-16 — E2 (leading-zero key), E3 (leading `+` key), E4 (leading `-` key incl. `-0`) added as part of S15 numerically-indexed-object → array work (Phase 6 #2).
 2026-05-17 — E5 (trailing scalar in object/array concat) added as part of S10 concat type-check tightening work (Phase 6 #3b).
 2026-05-17 — E6 (`${X[]}` config-defined wins), E7 (whitespace before `[]` allowed) added as part of S13c env-var-list fixture work (Phase 6 #3a).
+2026-05-17 — E8 (S8.6 strict unquoted-starts; Lightbend fallback divergences for us02/us03/us13) added as part of Phase 6 #3c.
