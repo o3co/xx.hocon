@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$WrongType
+Message: ../testdata/hocon/concat-errors/ce12-string-concat-resolved-array.conf: 2: Cannot concatenate object or list with a non-object-or-list, Quoted("x ") and SimpleConfigList([1]) are not compatible

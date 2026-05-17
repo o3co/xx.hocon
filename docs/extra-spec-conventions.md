@@ -90,6 +90,24 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 
 **Fixture**: `testdata/hocon/numeric-obj-array/na10b-minus-zero.conf` + sibling `expected/.../na10b-minus-zero.divergence.md` (records Lightbend's non-deterministic `["a"]`-or-`["b"]` behaviour, identical mechanism to E2's na08).
 
+<a id="e5"></a>
+
+### E5 — Trailing scalar after object in concat is a type error (not silently discarded)
+
+**Source**: cross-impl convention. HOCON.md §Value concatenation (L373) requires: "it is invalid for arrays or objects to appear in a string value concatenation." Lightbend 1.4.3 violates this: given `a = { b: 1 } x`, the parser silently accepts the input, the object wins, and the trailing unquoted scalar `x` is discarded → `a = {"b": 1}`. No error is raised. This was discovered empirically during Phase 6 #3b xx.hocon fixture generation (cluster 3b) — Lightbend's generator did NOT throw on the `ce05-object-plus-scalar.conf` fixture, contradicting the spec.
+
+**o3co convention**: each of ts.hocon / rs.hocon / go.hocon MUST raise a type error (`ResolveError` or per-impl resolver-layer equivalent) for `{object} scalar` concatenation. The error fires in the pairwise-fold `joinPair` helper introduced by Phase 6 #2 (S15 work). The same rule extends to `[array] scalar`, `scalar {object}`, `scalar [array]` (covered by ce03–ce06 in the `concat-errors/` fixture group); the asymmetry — where Lightbend errors on some but not others — is documented in `fixture-conventions.md` "Lightbend quirks".
+
+**Why an E-item rather than an S-item**: HOCON.md L373 is unambiguous, but Lightbend's reference implementation does not enforce it for this specific cell. Tracking this as an E-item makes the deliberate Lightbend divergence explicit (parallel to the strict-spec posture for S8.6 cluster 3c and S12.5 cluster 3e). The S10.13 row in `compliance-matrix.md` already represents the canonical spec rule; E5 documents the specific Lightbend divergence in narrative form so implementers know what they are tightening beyond Lightbend.
+
+| Impl | Status | Test | Notes |
+| --- | --- | --- | --- |
+| ts.hocon | ❌ | `concat-errors/ce05-object-plus-scalar.conf` loaded by per-impl test (no xx.hocon `.error` sidecar; Lightbend doesn't throw) | Will flip to ✅ after Phase 6 #3b impl PR merges; impl rejects via `joinPair` type-mismatch branch |
+| rs.hocon | ❌ | same fixture | Will flip to ✅ after Phase 6 #3b impl PR merges |
+| go.hocon | ❌ | same fixture | Will flip to ✅ after Phase 6 #3b impl PR merges |
+
+**Fixture**: `testdata/hocon/concat-errors/ce05-object-plus-scalar.conf`. No `expected/.../ce05-object-plus-scalar.error` sidecar (Lightbend silent-accept; see `fixture-conventions.md` "Lightbend quirks").
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -101,3 +119,4 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 
 2026-05-16 — file created; E1 (NEL) added.
 2026-05-16 — E2 (leading-zero key), E3 (leading `+` key), E4 (leading `-` key incl. `-0`) added as part of S15 numerically-indexed-object → array work (Phase 6 #2).
+2026-05-17 — E5 (trailing scalar in object/array concat) added as part of S10 concat type-check tightening work (Phase 6 #3b).

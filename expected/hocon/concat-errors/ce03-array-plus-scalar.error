@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$WrongType
+Message: ../testdata/hocon/concat-errors/ce03-array-plus-scalar.conf: 1: Cannot concatenate object or list with a non-object-or-list, SimpleConfigList([1,2]) and ConfigInt(3) are not compatible
