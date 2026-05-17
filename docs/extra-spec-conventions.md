@@ -108,6 +108,45 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 
 **Fixture**: `testdata/hocon/concat-errors/ce05-object-plus-scalar.conf`. No `expected/.../ce05-object-plus-scalar.error` sidecar (Lightbend silent-accept; see `fixture-conventions.md` "Lightbend quirks").
 
+<a id="e6"></a>
+
+### E6 — `${X[]}` config-defined wins, `[]` suffix is a no-op when X is a config key
+
+**Source**: implicit-by-absence + cross-impl convention. HOCON.md §Environment variable list expansion (L902–L920) introduces the `${X[]}` syntax for "expanding an environment variable into a list of values". The spec says the syntax is "only supported for environment variables and not system properties or path expressions", but does not specify the behaviour when `X` is *also* defined as a config key in the same source. Two plausible readings:
+
+- **(a) Config wins, suffix is no-op** — `${X[]}` resolves to whatever `X` is bound to in config (string, list, etc.); the env vars `X_0`, `X_1`, ... are ignored.
+- **(b) Error** — `[]` on a non-env-var path is unsupported syntax; should error.
+
+**o3co convention**: reading (a). When NAME has a config-level assignment in the same source, the `[]` suffix is stripped and the resolution proceeds as a normal `${NAME}` substitution. Env vars `NAME_0`, `NAME_1`, ... are not consulted. This matches the principle "config provided by the user always wins" that runs through HOCON (e.g. the `${?...}` optional-substitution semantics).
+
+**Why an E-item rather than an S-item**: the spec text is silent on the config-key conflict case. We are establishing a convention to keep the three impls aligned and to make user expectations predictable; tightening to reading (b) is a defensible alternative that the spec also allows.
+
+| Impl | Status | Test | Notes |
+| --- | --- | --- | --- |
+| ts.hocon | 🤷 | `env-var-list/ev05-config-defined-wins.conf` (to be loaded in Phase 2/3 impl PR) | Per-impl substitution resolver applies same precedence as `${X}`. |
+| rs.hocon | 🤷 | same fixture | Same convention as ts. |
+| go.hocon | 🤷 | same fixture | Same convention as ts. |
+
+**Fixture**: `testdata/hocon/env-var-list/ev05-config-defined-wins.conf` + `expected/hocon/env-var-list/ev05-config-defined-wins-expected.json`. Generator pre-expansion uses `EnvVarListExpander.isDefinedInConfig` to detect the config-defined case before falling through to env-var lookup.
+
+<a id="e7"></a>
+
+### E7 — Whitespace between path expression and `[]` is allowed in `${X []}` / `${?X []}`
+
+**Source**: implicit-by-absence + cross-impl convention. HOCON.md L902–L920 introduces `${X[]}` without specifying tokenizer behaviour for whitespace between the path expression and the `[]` suffix. Substitution body tokenization (HOCON.md L1410–L1450) generally allows whitespace inside `${...}` body (e.g. `${ X }` is equivalent to `${X}`), so allowing `${X []}` matches that general permissiveness. Per-impl tokenizers can each decide independently, but uniform handling avoids cross-impl friction.
+
+**o3co convention**: any number (including zero) of horizontal whitespace characters between the path expression and `[]` is accepted and treated identically to no-whitespace. The substitution body up to and including the `[]` is a single token sequence at the tokenizer level.
+
+**Why an E-item rather than an S-item**: HOCON.md does not enumerate this tokenizer cell. We are not tightening or loosening — we are picking the lenient side of an unspecified degree of freedom.
+
+| Impl | Status | Test | Notes |
+| --- | --- | --- | --- |
+| ts.hocon | 🤷 | `env-var-list/ev09-whitespace-before-suffix.conf` (Phase 2/3 impl PR) | Tokenizer skips inner whitespace before `[]` consumption. |
+| rs.hocon | 🤷 | same fixture | Same as ts. |
+| go.hocon | 🤷 | same fixture | Same as ts. |
+
+**Fixture**: `testdata/hocon/env-var-list/ev09-whitespace-before-suffix.conf` + `expected/hocon/env-var-list/ev09-whitespace-before-suffix-expected.json`. Generator regex permits `\s*` between path expression and `[]`.
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -120,3 +159,4 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 2026-05-16 — file created; E1 (NEL) added.
 2026-05-16 — E2 (leading-zero key), E3 (leading `+` key), E4 (leading `-` key incl. `-0`) added as part of S15 numerically-indexed-object → array work (Phase 6 #2).
 2026-05-17 — E5 (trailing scalar in object/array concat) added as part of S10 concat type-check tightening work (Phase 6 #3b).
+2026-05-17 — E6 (`${X[]}` config-defined wins), E7 (whitespace before `[]` allowed) added as part of S13c env-var-list fixture work (Phase 6 #3a).

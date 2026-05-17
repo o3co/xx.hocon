@@ -37,6 +37,21 @@ public class EnvVarListExpander {
         .create();
 
     /**
+     * Placeholder path used to substitute ${X[]} / ${?X[]} when the env var list is empty.
+     *
+     * The required-empty path emits ${NEVER_DEFINED_PLACEHOLDER} so Lightbend's resolver
+     * fails with UnresolvedSubstitution (the failure is the assertion of "${X[]} requires
+     * at least one element"). The optional-empty path emits ${?NEVER_DEFINED_PLACEHOLDER}
+     * so Lightbend drops the key.
+     *
+     * The name is intentionally distinctive (double underscore + ALL_CAPS + "DO_NOT_SET")
+     * to avoid collision with any user config key, system property, or environment var.
+     * Combined with {@code setUseSystemEnvironment(false)} on the resolve options in
+     * {@link #generateJson}, this is defense-in-depth against host-environment leakage.
+     */
+    static final String NEVER_DEFINED_PLACEHOLDER = "__hocon_gen_NEVER_DEFINED_DO_NOT_SET__";
+
+    /**
      * Parses a .env sidecar file and returns a map of key=value pairs.
      * Blank lines and lines starting with '#' are skipped.
      */
@@ -91,7 +106,14 @@ public class EnvVarListExpander {
             ConfigParseOptions parseOpts = ConfigParseOptions.defaults()
                 .setOriginDescription(confPath.getFileName().toString())
                 .setSyntax(ConfigSyntax.CONF);
-            Config config = ConfigFactory.parseFile(tmpConfPath.toFile(), parseOpts).resolve();
+            // Hermeticity: env-var-list fixtures depend ONLY on the .env sidecar.
+            // Disable Lightbend's system-environment fallback so accidental host env vars
+            // (e.g. someone exporting S13C_EV03_MY_LIST in their shell) cannot influence
+            // generator output. The .env sidecar values are baked into the source via
+            // expandListSubstitutions; nothing should fall back through to System.getenv.
+            ConfigResolveOptions resolveOpts = ConfigResolveOptions.defaults()
+                .setUseSystemEnvironment(false);
+            Config config = ConfigFactory.parseFile(tmpConfPath.toFile(), parseOpts).resolve(resolveOpts);
             ConfigObject root = config.root();
             return toSortedJson(root) + "\n";
         } finally {
@@ -112,10 +134,11 @@ public class EnvVarListExpander {
      *    a no-op — config wins. We strip the [] and let Lightbend resolve ${NAME} normally.
      * 2. If NAME is NOT defined in config, look up env vars NAME_0, NAME_1, ... stopping
      *    at the first absent key. Empty string IS a value (not "missing").
-     * 3. Required (${NAME[]}) with no env elements → replace with ${NAME} so Lightbend
-     *    throws an UnresolvedSubstitutionError.
-     * 4. Optional (${?NAME[]}) with no env elements → replace with a guaranteed-absent
-     *    optional substitution so Lightbend drops the key.
+     * 3. Required (${NAME[]}) with no env elements → replace with hermetic
+     *    ${NEVER_DEFINED_PLACEHOLDER} so Lightbend throws UnresolvedSubstitution
+     *    (NOT ${NAME}, which would fall back to host env / system props).
+     * 4. Optional (${?NAME[]}) with no env elements → replace with
+     *    ${?NEVER_DEFINED_PLACEHOLDER} so Lightbend drops the key.
      *
      * Limitation: see class-level note about quoted-string contexts.
      */
@@ -144,16 +167,14 @@ public class EnvVarListExpander {
             List<String> values = expandEnvVarList(env, name);
 
             if (values.isEmpty()) {
-                if (optional) {
-                    // No env elements, optional → undefined → drop key.
-                    // Substitute a guaranteed-absent placeholder so Lightbend treats it as missing.
-                    m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(
-                        "${?__S13C_UNDEFINED_PLACEHOLDER__}"));
-                } else {
-                    // No env elements, required → unresolved error.
-                    m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(
-                        "${" + name + "}"));
-                }
+                // Both required and optional empty paths use the same hermetic placeholder.
+                // The `?` controls whether Lightbend throws (required) or drops the key (optional);
+                // the path name is deliberately a never-defined sentinel so the resolution
+                // outcome cannot leak through to System.getenv / system properties / config.
+                // See NEVER_DEFINED_PLACEHOLDER doc.
+                String marker = optional ? "${?" : "${";
+                m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(
+                    marker + NEVER_DEFINED_PLACEHOLDER + "}"));
             } else {
                 // Expand to HOCON literal array: ["a","b"]
                 StringBuilder arr = new StringBuilder("[");

@@ -218,9 +218,12 @@ public class GenerateExpected {
             }
         }
 
-        // ENV_VAR_LIST_ERROR_CONFS: error fixtures that use ${X[]} syntax.
-        // Pre-process via EnvVarListExpander.expandListSubstitutions so that
-        // the expanded form can be evaluated by Lightbend; expect it to throw.
+        // ENV_VAR_LIST_ERROR_CONFS: error fixtures that use ${X[]} syntax. Pre-process via
+        // EnvVarListExpander.expandListSubstitutions so the expanded form can be evaluated
+        // by Lightbend; expect Lightbend to throw. Emits a plain-text .error sidecar (same
+        // format as SIDECAR_ERROR_CONFS) and applies the same UNEXPECTED-SUCCESS safety net.
+        // setUseSystemEnvironment(false) ensures the expanded fixture cannot leak through
+        // to host env / system properties — same hermeticity guarantee as EnvVarListExpander.
         for (String confName : ENV_VAR_LIST_ERROR_CONFS) {
             Path confPath = testdataDir.resolve(confName);
             if (!Files.exists(confPath)) {
@@ -232,26 +235,33 @@ public class GenerateExpected {
             Map<String, String> env = Files.exists(sidecarPath)
                 ? EnvVarListExpander.loadEnvSidecar(sidecarPath)
                 : new LinkedHashMap<>();
+            String source = Files.readString(confPath);
+            String processed = EnvVarListExpander.expandListSubstitutions(source, env);
+            ConfigParseOptions parseOpts = ConfigParseOptions.defaults()
+                .setOriginDescription(confName)
+                .setSyntax(ConfigSyntax.CONF);
+            ConfigResolveOptions resolveOpts = ConfigResolveOptions.defaults()
+                .setUseSystemEnvironment(false);
+            Exception caught = null;
             try {
-                // Pre-process source to expand ${X[]} patterns
-                String source = Files.readString(confPath);
-                String processed = EnvVarListExpander.expandListSubstitutions(source, env);
-                ConfigParseOptions parseOpts = ConfigParseOptions.defaults()
-                    .setOriginDescription(confName)
-                    .setSyntax(ConfigSyntax.CONF);
-                ConfigFactory.parseString(processed, parseOpts).resolve();
-                System.err.println("  UNEXPECTED SUCCESS (expected error): " + confName);
-                errCount++;
+                ConfigFactory.parseString(processed, parseOpts).resolve(resolveOpts);
             } catch (Exception e) {
-                JsonObject errObj = new JsonObject();
-                errObj.addProperty("error", true);
-                errObj.addProperty("type", e.getClass().getSimpleName());
-                errObj.addProperty("message", e.getMessage());
-                String outName = confName.replace(".conf", "-expected-error.json");
+                caught = e;
+            }
+            if (caught == null) {
+                throw new RuntimeException(
+                    "Expected error fixture " + confName + " did NOT throw — verify the .env sidecar "
+                    + "(missing keys?) or move to SUCCESS_CONFS per docs/fixture-conventions.md.");
+            }
+            {
+                Exception e = caught;
+                String sidecar = "Exception class: " + e.getClass().getName() + "\n"
+                               + "Message: " + e.getMessage() + "\n";
+                String outName = confName.replace(".conf", ".error");
                 Path outPath = expectedDir.resolve(outName);
                 Files.createDirectories(outPath.getParent());
-                Files.writeString(outPath, GSON.toJson(errObj) + "\n");
-                System.out.println("  OK (sidecar-error): " + confName + " -> " + outName);
+                Files.writeString(outPath, sidecar);
+                System.out.println("  OK (.error sidecar): " + confName + " -> " + outName);
                 okCount++;
             }
         }
