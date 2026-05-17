@@ -2,12 +2,11 @@ import com.typesafe.config.*;
 import com.google.gson.*;
 import java.nio.file.*;
 import java.util.*;
-import java.io.*;
 
 public class GenerateExpected {
 
     // Conf files that should parse successfully and produce expected JSON.
-    // Fixtures with a .env sidecar are processed via SubprocessExpectedWriter
+    // Fixtures with a .env sidecar are processed via EnvVarListExpander
     // (which expands ${X[]} patterns using the sidecar env vars before Lightbend parses).
     static final String[] SUCCESS_CONFS = {
         "test01.conf",
@@ -67,7 +66,7 @@ public class GenerateExpected {
         // concat-errors success fixtures (regression guards: ce09 S15 bridge, ce15 optional-omission)
         "concat-errors/ce09-numeric-obj-still-works.conf",
         "concat-errors/ce15-optional-missing-suppresses-pair.conf",
-        // env-var-list fixtures (S13c): processed via SubprocessExpectedWriter with .env sidecar
+        // env-var-list fixtures (S13c): processed via EnvVarListExpander with .env sidecar
         // because typesafe-config 1.4.3 does not natively support ${X[]} syntax.
         "env-var-list/ev01-basic.conf",
         "env-var-list/ev02-stops-at-gap.conf",
@@ -161,15 +160,15 @@ public class GenerateExpected {
                 continue;
             }
 
-            // Check for .env sidecar — use SubprocessExpectedWriter if present
+            // Check for .env sidecar — use EnvVarListExpander if present
             Path sidecarPath = testdataDir.resolve(confName.replace(".conf", ".env"));
             boolean hasSidecar = Files.exists(sidecarPath);
 
             try {
                 String json;
                 if (hasSidecar) {
-                    Map<String, String> env = SubprocessExpectedWriter.loadEnvSidecar(sidecarPath);
-                    json = SubprocessExpectedWriter.generateJson(confPath, env);
+                    Map<String, String> env = EnvVarListExpander.loadEnvSidecar(sidecarPath);
+                    json = EnvVarListExpander.generateJson(confPath, env);
                 } else {
                     ConfigParseOptions parseOpts = ConfigParseOptions.defaults()
                         .setOriginDescription(confName);
@@ -220,7 +219,7 @@ public class GenerateExpected {
         }
 
         // ENV_VAR_LIST_ERROR_CONFS: error fixtures that use ${X[]} syntax.
-        // Pre-process via SubprocessExpectedWriter.expandListSubstitutions so that
+        // Pre-process via EnvVarListExpander.expandListSubstitutions so that
         // the expanded form can be evaluated by Lightbend; expect it to throw.
         for (String confName : ENV_VAR_LIST_ERROR_CONFS) {
             Path confPath = testdataDir.resolve(confName);
@@ -231,12 +230,12 @@ public class GenerateExpected {
             }
             Path sidecarPath = testdataDir.resolve(confName.replace(".conf", ".env"));
             Map<String, String> env = Files.exists(sidecarPath)
-                ? SubprocessExpectedWriter.loadEnvSidecar(sidecarPath)
+                ? EnvVarListExpander.loadEnvSidecar(sidecarPath)
                 : new LinkedHashMap<>();
             try {
                 // Pre-process source to expand ${X[]} patterns
                 String source = Files.readString(confPath);
-                String processed = SubprocessExpectedWriter.expandListSubstitutions(source, env);
+                String processed = EnvVarListExpander.expandListSubstitutions(source, env);
                 ConfigParseOptions parseOpts = ConfigParseOptions.defaults()
                     .setOriginDescription(confName)
                     .setSyntax(ConfigSyntax.CONF);

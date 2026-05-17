@@ -5,45 +5,36 @@ import java.util.*;
 import java.io.*;
 
 /**
- * Entry point for subprocess-based expected JSON generation for env-var-list fixtures.
+ * In-process expander for env-var-list (S13c) fixtures.
  *
- * Invoked by GenerateExpected when a .env sidecar exists alongside a .conf fixture.
+ * Lightbend typesafe-config 1.4.3 does not natively support the ${X[]} list-expansion
+ * syntax. This helper pre-processes .conf source by expanding ${X[]} / ${?X[]} patterns
+ * using env vars from a .env sidecar before handing the result to Lightbend.
  *
- * Because Lightbend typesafe-config 1.4.3 does not natively support the ${X[]} list-expansion
- * syntax, this writer pre-processes the .conf source by expanding ${X[]} / ${?X[]} patterns
- * using env vars from the .env sidecar before handing the resulting HOCON to Lightbend.
+ * Called by GenerateExpected via the static helpers (loadEnvSidecar, generateJson,
+ * expandListSubstitutions) — there is no command-line entry point.
  *
- * Args:
- *   args[0] = absolute path to the .conf file
- *   args[1] = absolute path to the .env sidecar file
- *
- * Outputs resolved JSON to stdout, exits 0 on success, 1 on error (unresolved substitution, etc.).
+ * Scope/limitations (documented for fixture authors):
+ *   - Pre-expansion happens textually before HOCON parsing. The regex in
+ *     {@link #expandListSubstitutions} does not know about HOCON lexical context,
+ *     so `${X[]}` inside a quoted string (`"${X[]}"`) is still expanded — which
+ *     deviates from spec (substitutions inside quotes are literals). No current
+ *     fixture exercises this case; add a fixture before relying on quoted-string
+ *     behavior.
+ *   - {@link #isDefinedInConfig} uses a line-start regex; it does NOT detect
+ *     keys defined via nested object syntax (`parent { child = ... }`), quoted
+ *     keys, or path expressions (`a.b.c = ...`). Single-segment top-level
+ *     assignments only.
+ *   - {@link #generateJson} pre-expands every .conf in the fixture's directory
+ *     so `include "sibling"` works. Cross-directory includes are NOT
+ *     pre-expanded — keep multi-file env-var-list fixtures in one directory.
  */
-public class SubprocessExpectedWriter {
+public class EnvVarListExpander {
 
     static final Gson GSON = new GsonBuilder()
         .setPrettyPrinting()
         .disableHtmlEscaping()
         .create();
-
-    public static void main(String[] args) {
-        if (args.length < 2) {
-            System.err.println("Usage: SubprocessExpectedWriter <conf-path> <env-path>");
-            System.exit(1);
-        }
-        try {
-            Path confPath = Path.of(args[0]);
-            Path envPath = Path.of(args[1]);
-            Map<String, String> env = loadEnvSidecar(envPath);
-
-            String result = generateJson(confPath, env);
-            System.out.print(result);
-            System.exit(0);
-        } catch (Exception e) {
-            System.err.println("ERROR: " + e.getMessage());
-            System.exit(1);
-        }
-    }
 
     /**
      * Parses a .env sidecar file and returns a map of key=value pairs.
@@ -76,16 +67,14 @@ public class SubprocessExpectedWriter {
      * Generates expected JSON for a .conf file, resolving ${X[]} / ${?X[]} list-expansion
      * substitutions using the provided env map.
      *
-     * Strategy: pre-process all .conf files in the fixture's directory, writing expanded
-     * versions to a temp directory. Lightbend loads from the temp directory so that
-     * include directives resolve correctly. The expansion handles include-context correctly
-     * because included files are also pre-processed using the same env map.
+     * Pre-processes every .conf in the same directory into a temp dir, then loads the
+     * target from the temp dir so `include "sibling"` directives resolve to pre-expanded
+     * versions. See class-level scope/limitations note for cross-directory caveat.
      */
     static String generateJson(Path confPath, Map<String, String> env) throws Exception {
         Path confDir = confPath.getParent();
         Path tmpDir = Files.createTempDirectory("hocon-ev-gen-");
         try {
-            // Pre-process all .conf files in the fixture directory into tmpDir
             try (var stream = Files.list(confDir)) {
                 stream.filter(p -> p.toString().endsWith(".conf")).forEach(p -> {
                     try {
@@ -106,7 +95,6 @@ public class SubprocessExpectedWriter {
             ConfigObject root = config.root();
             return toSortedJson(root) + "\n";
         } finally {
-            // Clean up temp files
             try (var stream = Files.list(tmpDir)) {
                 stream.forEach(p -> {
                     try { Files.delete(p); } catch (IOException ignored) {}
@@ -128,6 +116,8 @@ public class SubprocessExpectedWriter {
      *    throws an UnresolvedSubstitutionError.
      * 4. Optional (${?NAME[]}) with no env elements → replace with a guaranteed-absent
      *    optional substitution so Lightbend drops the key.
+     *
+     * Limitation: see class-level note about quoted-string contexts.
      */
     static String expandListSubstitutions(String source, Map<String, String> env) {
         // Match ${?NAME []} or ${NAME []} — whitespace before [] is optional.
@@ -151,18 +141,16 @@ public class SubprocessExpectedWriter {
                 continue;
             }
 
-            // Env-var list expansion (spec normative pseudocode)
             List<String> values = expandEnvVarList(env, name);
 
             if (values.isEmpty()) {
                 if (optional) {
-                    // No env elements, optional → undefined → drop key
-                    // Use an env var that cannot possibly be set
+                    // No env elements, optional → undefined → drop key.
+                    // Substitute a guaranteed-absent placeholder so Lightbend treats it as missing.
                     m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(
                         "${?__S13C_UNDEFINED_PLACEHOLDER__}"));
                 } else {
-                    // No env elements, required → unresolved error
-                    // Replace with ${NAME} (which Lightbend will fail to resolve)
+                    // No env elements, required → unresolved error.
                     m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(
                         "${" + name + "}"));
                 }
@@ -200,8 +188,12 @@ public class SubprocessExpectedWriter {
     }
 
     /**
-     * Checks if a key name is defined as a config assignment in the source text.
-     * Simple heuristic: NAME followed by = or { at start of a line or after whitespace.
+     * Checks if a key name is defined as a top-level config assignment in the source text.
+     * Line-start regex match for `NAME =` or `NAME {`.
+     *
+     * Known limitations (see class-level note): does not match keys inside nested
+     * object blocks, quoted keys, or path-expression assignments. Sufficient for the
+     * S13c.5 "config-defined wins" fixtures which all use top-level single-segment keys.
      */
     static boolean isDefinedInConfig(String source, String name) {
         java.util.regex.Pattern p = java.util.regex.Pattern.compile(
