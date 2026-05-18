@@ -142,7 +142,7 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 | Impl | Status | Test | Notes |
 | --- | --- | --- | --- |
 | ts.hocon | ✅ | `tests/env-var-list.test.ts` (ev09) + `tests/lexer.test.ts` (NBSP/CR rejection regressions) — [ts.hocon#100](https://github.com/o3co/ts.hocon/pull/100) | Tokenizer accumulates pending whitespace; at `[` arm validates ASCII space/tab only (I2 multi-agent-review fix). Other Unicode whitespace (NBSP, CR, Zs) errors with `HOCON extra-spec E7`. |
-| rs.hocon | ✅ | `tests/env_var_list_test.rs` (ev09) + lexer unit tests — [rs.hocon#88](https://github.com/o3co/rs.hocon/pull/88) | Same: `pending_ws` allow-list restricted to `0x20`/`0x09` (I2 fix). |
+| rs.hocon | ✅ | `tests/env_var_list_test.rs` (ev09) + `tests/lexer_test.rs` (NBSP/CR rejection regressions) — [rs.hocon#88](https://github.com/o3co/rs.hocon/pull/88) | Same: `pending_ws` allow-list restricted to `0x20`/`0x09` (I2 fix). |
 | go.hocon | ✅ | `s13c_env_var_list_test.go` (ev09) + `internal/lexer/lexer_test.go` sub-tests — [go.hocon#86](https://github.com/o3co/go.hocon/pull/86) | Same: ASCII strict check on `pendingWs` at `[` arm (I2 fix). |
 
 **Fixture**: `testdata/hocon/env-var-list/ev09-whitespace-before-suffix.conf` + `expected/hocon/env-var-list/ev09-whitespace-before-suffix-expected.json`. Generator regex permits `[ \t]*` (ASCII space or tab) between path expression and `[]`.
