@@ -123,9 +123,9 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 
 | Impl | Status | Test | Notes |
 | --- | --- | --- | --- |
-| ts.hocon | 🤷 | `env-var-list/ev05-config-defined-wins.conf` (to be loaded in Phase 2/3 impl PR) | Per-impl substitution resolver applies same precedence as `${X}`. |
-| rs.hocon | 🤷 | same fixture | Same convention as ts. |
-| go.hocon | 🤷 | same fixture | Same convention as ts. |
+| ts.hocon | ✅ | `tests/env-var-list.test.ts` (ev05) loaded in [ts.hocon#100](https://github.com/o3co/ts.hocon/pull/100) | Resolver checks config presence before delegating to `resolveEnvList`; matches `${X}` precedence. |
+| rs.hocon | ✅ | `tests/env_var_list_test.rs` (ev05) loaded in [rs.hocon#88](https://github.com/o3co/rs.hocon/pull/88) | Same: config lookup wins; `resolve_env_list` consulted only when path is not config-defined. |
+| go.hocon | ✅ | `s13c_env_var_list_test.go` (ev05) loaded in [go.hocon#86](https://github.com/o3co/go.hocon/pull/86) | Same; `resolveEnvList` runs only when relativized-path config lookup fails. **Known limitation** (tracked in [xx.hocon#22](https://github.com/o3co/xx.hocon/issues/22)): include-scope `${X[]}` does NOT currently fall back to original-path config when root has `X` — `${X}` non-list does. Cross-impl scope, fix planned. |
 
 **Fixture**: `testdata/hocon/env-var-list/ev05-config-defined-wins.conf` + `expected/hocon/env-var-list/ev05-config-defined-wins-expected.json`. Generator pre-expansion uses `EnvVarListExpander.isDefinedInConfig` to detect the config-defined case before falling through to env-var lookup.
 
@@ -141,9 +141,9 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 
 | Impl | Status | Test | Notes |
 | --- | --- | --- | --- |
-| ts.hocon | 🤷 | `env-var-list/ev09-whitespace-before-suffix.conf` (Phase 2/3 impl PR) | Tokenizer skips inner whitespace before `[]` consumption. |
-| rs.hocon | 🤷 | same fixture | Same as ts. |
-| go.hocon | 🤷 | same fixture | Same as ts. |
+| ts.hocon | ✅ | `tests/env-var-list.test.ts` (ev09) + `tests/lexer.test.ts` (NBSP/CR rejection regressions) — [ts.hocon#100](https://github.com/o3co/ts.hocon/pull/100) | Tokenizer accumulates pending whitespace; at `[` arm validates ASCII space/tab only (I2 multi-agent-review fix). Other Unicode whitespace (NBSP, CR, Zs) errors with `HOCON extra-spec E7`. |
+| rs.hocon | ✅ | `tests/env_var_list_test.rs` (ev09) + `tests/lexer_test.rs` (NBSP/CR rejection regressions) — [rs.hocon#88](https://github.com/o3co/rs.hocon/pull/88) | Same: `pending_ws` allow-list restricted to `0x20`/`0x09` (I2 fix). |
+| go.hocon | ✅ | `s13c_env_var_list_test.go` (ev09) + `internal/lexer/lexer_test.go` sub-tests — [go.hocon#86](https://github.com/o3co/go.hocon/pull/86) | Same: ASCII strict check on `pendingWs` at `[` arm (I2 fix). |
 
 **Fixture**: `testdata/hocon/env-var-list/ev09-whitespace-before-suffix.conf` + `expected/hocon/env-var-list/ev09-whitespace-before-suffix-expected.json`. Generator regex permits `[ \t]*` (ASCII space or tab) between path expression and `[]`.
 
@@ -217,3 +217,4 @@ Lightbend 1.4.3 enforces this rule only for the bare form (`include = 1`, `inclu
 2026-05-17 — E8 (S8.6 strict unquoted-starts; Lightbend fallback divergences for us02/us03/us13) added as part of Phase 6 #3c.
 2026-05-17 — E9 (`include` reserved at start of key path; Lightbend silent-accept for dotted form ir03/ir04) added as part of Phase 6 #3e.
 2026-05-18 — ev12a/ev12b/ev13 follow-up fixtures landed (Phase 6 #3g). ev12a/ev12b are the canonical pins for S13c.5 (list suffix suppresses scalar-env fallback — the resolver must NOT consult bare scalar `X` when `listSuffix=true` and no `X_0` is present). ev13 isolates the optional-list-with-elements path (`${?X[]}` as entire value, not inside concat). These complement the ev01-ev11 set; no new E-items introduced (ev12 covers a spec-normative behavior, not an extra-spec convention).
+2026-05-18 — E6 and E7 flipped 🤷 → ✅ in all 3 impls after Phase 6 #3g impl PRs landed ([ts.hocon#100](https://github.com/o3co/ts.hocon/pull/100), [rs.hocon#88](https://github.com/o3co/rs.hocon/pull/88), [go.hocon#86](https://github.com/o3co/go.hocon/pull/86)). E7 enforcement narrowed via multi-agent-review (I2 fix): only ASCII space (0x20) / tab (0x09) accepted between path and `[]`; broader Unicode whitespace (NBSP, CR, Zs) errors. E6 known limitation (cross-impl: include-scope `${X[]}` does not fall back to original-path config) tracked at [xx.hocon#22](https://github.com/o3co/xx.hocon/issues/22) — Copilot review on go.hocon#86 surfaced the issue; cross-impl scope (also affects ts + rs).
