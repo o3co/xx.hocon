@@ -6,9 +6,9 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **78.5%** | **88.2%** | 162 | 4 | 20 | 0 | 23 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **79.9%** | **88.8%** | 164 | 6 | 18 | 0 | 21 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **77.0%** | **86.1%** | 158 | 6 | 23 | 0 | 22 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **80.9%** | **90.9%** | 167 | 4 | 15 | 0 | 23 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **82.3%** | **91.5%** | 169 | 6 | 13 | 0 | 21 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **79.4%** | **88.8%** | 163 | 6 | 18 | 0 | 22 |
 
 Where:
 
@@ -73,7 +73,6 @@ Items where the test or implementation behavior contradicts the spec:
 | S13a.3 | ts | ⚠️ | Self-reference before any prior value (`a = ${a}`) raises a cycle error, but the error type / message classifies this as a generic substitution error rather than the "undefined" path the spec describes at L795. rs/go ✅ (correct error class). |
 | S13a.12 | go | ❌ | Self-ref in a path expression (`${foo.a}` where `foo.a` is being defined) does not resolve to the "below" value per L831; the looked-up sub-object is discarded in the merge. ts/rs ✅. |
 | S13a.13 | ts, rs, go | ❌ | `a = ${?a}foo` with no prior `a` resolves to `"foofoo"` not `"foo"` — the self-ref look-back picks up the trailing literal as its prior value per L841 ([ts#84](https://github.com/o3co/ts.hocon/issues/84), [rs#76](https://github.com/o3co/rs.hocon/issues/76), [go#68](https://github.com/o3co/go.hocon/issues/68)) (fixtures: `testdata/hocon/self-ref-lookback/` sr01-sr11 — Phase 6 #3f; Lightbend-spec-conformant, per-impl bug only) |
-| S13c.1–S13c.5 | ts, rs, go | ❌ | `${X[]}` env-var list not implemented; each implementation's lexer rejects `[` / `]` inside `${...}` body |
 | S14a.10 | go | ❌ | Unquoted include argument (e.g. `include foo.conf`) is silently accepted instead of rejected with a parse error per L958. ts/rs ✅. |
 | S14c.2 | rs | ❌ | Non-relativized substitution path fallback not implemented ([#44](https://github.com/o3co/rs.hocon/issues/44)) |
 | S17.6 | ts | ⚠️ | `getString()` on null silently returns the string `"null"` instead of throwing per L1252; other typed accessors throw, but *incidentally* (no explicit `valueType==='null'` guard in `requireScalar`) ([ts#88](https://github.com/o3co/ts.hocon/issues/88)). rs/go ✅. |
@@ -97,6 +96,32 @@ Spec items with no test coverage in **any** of the three implementations. These 
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the three impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### Cleared in Phase 6 #3g (2026-05-18)
+
+S13c env-var list expansion `${X[]}` / `${?X[]}` (HOCON.md L893–L917) landed in all 3 impls via [ts.hocon#100](https://github.com/o3co/ts.hocon/pull/100), [rs.hocon#88](https://github.com/o3co/rs.hocon/pull/88), and [go.hocon#86](https://github.com/o3co/go.hocon/pull/86). xx.hocon ground truth was pinned earlier by ev01–ev11 fixtures and extended by [xx.hocon#21](https://github.com/o3co/xx.hocon/pull/21) (ev12a/ev12b/ev13) covering S13c.5 scalar-fallback suppression and the isolated optional-list-direct path.
+
+- **S13c.1** (3-way ❌ → ✅) — `${X[]}` looks up `X_0`, `X_1`, … env vars (L900).
+- **S13c.2** (3-way ❌ → ✅) — Scan stops at the first missing index (L905); empty-string element values are preserved (stop = key absent, not empty).
+- **S13c.3** (3-way ❌ → ✅) — Required form (`${X[]}`) with no elements raises `ResolveError` (L910).
+- **S13c.4** (3-way ❌ → ✅) — Optional form (`${?X[]}`) with no elements removes the field (L912).
+- **S13c.5** (3-way ❌ → ✅) — `[]` suffix is supported only for environment variables (L902); when `listSuffix=true` and no `X_0` is present, the resolver does NOT fall through to the bare scalar env var.
+
+Architecture (uniform across 3 impls): `SubstPayload.listSuffix` bool threaded through lexer → AST → resolver; new `resolveEnvList` / `resolve_env_list` helper that scans the relativized base first (when `prefixLen > 0`) then the bare base. The `[` arm in `parseSubstBody` gates on `!curStarted` so `${X.[]}` (empty segment before suffix) errors instead of being silently accepted, and validates `pendingWs` against ASCII space/tab only.
+
+Cross-impl extra-spec convergence — [E6](extra-spec-conventions.md#e6) (config-defined wins) and [E7](extra-spec-conventions.md#e7) (whitespace before `[]`) both flipped 🤷 → ✅ in all 3 impls. E7 was narrowed during multi-agent-review: the initial implementations accepted broader Unicode whitespace (NBSP, CR, Zs); the I2 fix restricts to ASCII space (0x20) / tab (0x09), errors with `HOCON extra-spec E7` for other forms.
+
+Cache-key disambiguation (ts + rs only; go's cache architecture is self-ref-recovery only and immune by construction) — `${X}` and `${X[]}` resolve via different code paths (scalar fallback vs `resolveEnvList`) but were initially keyed identically in the substitution cache. The C1 fix appends `[]` to the cache key when `listSuffix=true`. A round-2 follow-up on rs.hocon also taught `segments_to_key` to quote bracket-containing text so `${"X[]"}` (quoted segment whose text is literally `X[]`) does not collide with `${X[]}` either. ts.hocon's stricter `/[^a-zA-Z0-9\-_]/` quote trigger made it immune to the round-2 case by accident; the regression is pinned by tests in both repos.
+
+Go-only — `ev08-self-append` (`x = ["x"]; x = ${?x} ${?LIST[]}`) was originally classified as a `t.Skip` tripwire pending cluster 3f (S13a.13 self-ref-lookback). A multi-impl probe during implementation showed all 3 impls pass naturally because `x = ["x"]` provides a clear prior value, distinguishing this case from S13a.13's "no prior value" tripwire. Promoted to SUCCESS in all 3 impls; tripwire test path removed.
+
+Rs-only (BREAKING, documented in CHANGELOG) — `SubstPayload`, `ScalarPayload`, and `AstNode` are now `#[non_exhaustive]` so future field additions (e.g. the planned include-scope fallback work for [xx.hocon#22](https://github.com/o3co/xx.hocon/issues/22)) are non-breaking. Migration: external code that constructed these types directly must add `..Default::default()` or use builder helpers.
+
+Rate change (in-scope) — uniform +2.7pp across all 3 impls (5 items × 3 impls = 15 cells flipped ❌ → ✅): ts 88.2% → 90.9% (+2.7pp), rs 88.8% → 91.5% (+2.7pp), go 86.1% → 88.8% (+2.7pp). Spec-total +2.4pp each: ts 78.5% → 80.9%, rs 79.9% → 82.3%, go 77.0% → 79.4%.
+
+What remains deferred to [xx.hocon#22](https://github.com/o3co/xx.hocon/issues/22) — in include scope, `${X[]}` does NOT currently fall back to original-path config (the listSuffix branch runs before the relativized-path original-path config lookup). This diverges from `${X}` non-list which does fall back. Cross-impl scope (also affects ts + rs); fix requires a new ev12c-style fixture, the resolver re-ordering in go.hocon, and a parallel decision in rs.hocon (which currently lacks any original-path *config* fallback). Surfaced by Copilot review on go.hocon#86; left as a `discuss` thread there.
+
+Multi-agent-review observations during Phase 6 #3g — Claude + Codex (file-pipe `codex exec < INPUT > OUTPUT`) caught 2 cross-impl convergent issues independently on each branch before PR creation: **I1** (`${X.[]}` silently accepted because the `[` arm only checked `len(segments) == 0`, missing the trailing-dot case; fixed via `!curStarted` uniform with the `.` arm), and **I2** (E7 whitespace allow-list too broad, fixed by tightening to ASCII space/tab). The convergence — each reviewer flagging the same issue on each independent branch — confirmed both as real correctness gaps rather than per-impl edge cases. Subsequent Copilot rounds on rs#88 and go#86 caught one Critical each (cache collision round-2 on rs, include-scope ordering on go — the latter deferred to xx.hocon#22), validating the layered review approach.
 
 ### Cleared in Phase 6 #3c-followup (2026-05-18)
 
@@ -286,9 +311,14 @@ Multi-reviewer convergence observed during Phase 5: Copilot review on go.hocon #
 3. This matrix is rebuilt by counting statuses in each per-repo file:
 
 ```bash
+# Count only S-prefixed (spec) items, not E-prefixed (extra-spec) items.
+# Some per-impl files have started listing E6/E7/etc. as `- **E<n>**` blocks
+# with their own `status:` lines; those belong in extra-spec-conventions.md
+# and must not double-count toward the S-spec rate.
 for repo in ts.hocon rs.hocon go.hocon; do
   for g in ✅ ⚠️ ❌ 🤷 ➖; do
-    n=$(grep -c "^  status: $g" /path/to/$repo/docs/spec-compliance.md)
+    n=$(awk '/^- \*\*S/{in_s=1; next} /^- \*\*[^S]/{in_s=0} in_s && /^  status:/' \
+        /path/to/$repo/docs/spec-compliance.md | grep -c "^  status: $g")
     echo "$repo $g $n"
   done
 done
@@ -298,6 +328,8 @@ done
 5. When the template gains or loses an item, **all three per-repo files must be synced** before this matrix is rebuilt; otherwise the totals will be inconsistent.
 
 ## Last verified
+
+2026-05-18 (Phase 6 #3g) — re-rolled-up after the S13c env-var-list expansion impl PRs landed in all three impls ([ts.hocon#100](https://github.com/o3co/ts.hocon/pull/100), [rs.hocon#88](https://github.com/o3co/rs.hocon/pull/88), [go.hocon#86](https://github.com/o3co/go.hocon/pull/86)) plus xx.hocon ground-truth follow-up fixtures ev12a/ev12b/ev13 ([xx.hocon#21](https://github.com/o3co/xx.hocon/pull/21)). S13c.1–S13c.5 cleared from "Top spec violations" in all 3 (5 items × 3 impls = 15 cells flipped ❌ → ✅); E6 and E7 flipped 🤷 → ✅ in `extra-spec-conventions.md` for all 3. Rate lift per impl (in-scope, uniform): ts 88.2% → 90.9% (+2.7pp), rs 88.8% → 91.5% (+2.7pp), go 86.1% → 88.8% (+2.7pp). Multi-agent-review (Claude + Codex via mandatory `codex exec < INPUT > OUTPUT` file pipe) on all 3 impl branches caught 2 cross-impl convergent issues (I1: empty-segment guard, I2: E7 whitespace allow-list tightening). Subsequent Copilot rounds caught one Critical-class issue each on rs.hocon#88 (cache-key collision for `${"X[]"}` vs `${X[]}` — fixed by adding bracket-quoting to `segments_to_key`) and go.hocon#86 (include-scope `${X[]}` does not fall back to original-path config — left as `discuss` and deferred to [xx.hocon#22](https://github.com/o3co/xx.hocon/issues/22) since it requires cross-impl coordination + new ev12c-style fixture). Architecture-divergence note: rs.hocon additionally marked `SubstPayload`/`ScalarPayload`/`AstNode` `#[non_exhaustive]` (BREAKING; CHANGELOG documents migration) so future field additions (including the planned xx.hocon#22 fix) remain non-breaking. go.hocon's cache architecture (self-ref-recovery only) is structurally immune to the C1 cache-collision class that affected ts + rs; verified empirically before review. Go-specific test bookkeeping: `ev08-self-append` promoted from `t.Skip` tripwire to SUCCESS in all 3 impls after multi-impl probe confirmed the prior-value distinction from S13a.13.
 
 2026-05-18 (Phase 6 #3c-followup) — re-rolled-up after [go.hocon#84](https://github.com/o3co/go.hocon/pull/84) landed (closes [go.hocon#81](https://github.com/o3co/go.hocon/issues/81)). go-only follow-up to Phase 6 #3c that adds parser-level numeric-key support (TokenFloat as key start, TokenInt/TokenFloat + adjacent unquoted/keyword tail concat, gated to prevent quoted-key re-split). S11.3 (`1.2.3 = x` → `["1","2","3"]`) and S11.4 (`10.0foo = x` → `["10","0foo"]`) closed as side effects — both rows removed from "Top spec violations" since all 3 impls are now ✅ on those items. S8.6 narrative tightened: us08/us09 now pass; status remains ⚠️ in all 3 because us13/us15 strict lex-time rejection is still a known gap. Rate change (in-scope) — go only: 85.0% → 86.1% (+1.1pp; +2 cells flipped ❌ → ✅). ts/rs unchanged. Multi-reviewer cycle (3 rounds Claude + Codex via mandatory `codex exec < INPUT > OUTPUT` file pipe) caught one Critical-class regression (quoted-key concat re-split — `"a.b"c = 1` was silently accepted as path `["a","bc"]` in round 1, fixed via `prevKeyTokenIsNumeric` gate) and two Important-class asymmetries (keyword-tail tokens not in concat predicate — round 2, fixed; signed-numeric multi-tail `123-456 = 1` — round 3, deferred to [go.hocon#83](https://github.com/o3co/go.hocon/issues/83)). Each finding was a real correctness issue that single-reviewer review would have missed.
 
