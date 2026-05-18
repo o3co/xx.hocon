@@ -6,9 +6,9 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **82.8%** | **93.0%** | 171 | 4 | 11 | 0 | 23 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **84.7%** | **94.1%** | 174 | 6 | 8 | 0 | 21 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **81.6%** | **91.2%** | 168 | 5 | 14 | 0 | 22 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **83.7%** | **94.1%** | 173 | 4 | 9 | 0 | 23 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **86.8%** | **94.5%** | 179 | 5 | 8 | 0 | 17 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **83.3%** | **93.0%** | 172 | 4 | 11 | 0 | 22 |
 
 Where:
 
@@ -28,22 +28,23 @@ Both numbers are shown side by side so neither over-claims nor under-claims. See
 | 🤷 | No test — implementation claim only, unverified |
 | ➖ | Out of scope (rationale required). May be **globally out of scope** (excluded by all three impls — see [Globally out-of-scope items](#globally-out-of-scope-items-21)) or **per-impl out of scope** (one impl excludes for language-natural reasons that don't apply to siblings, e.g. ts S1.1 because JS strings are pre-decoded Unicode at the I/O boundary). |
 
-## Globally out-of-scope items (21)
+## Globally out-of-scope items (17)
 
-These 21 items are marked `➖` in **all three** implementations, by policy. Some impls also mark additional items `➖` for language-natural reasons (e.g. ts S1.1, ts/go S13a.10) — those are noted in the impl's own `spec-compliance.md`, not here.
+These 17 items are marked `➖` in **all three** implementations, by policy. Some impls also mark additional items `➖` for language-natural reasons (e.g. ts S1.1, ts/go S13a.10, **ts/go S20.1–S20.4 since Phase 6 #3d**) — those are noted in the impl's own `spec-compliance.md`, not here.
 
 | Items | Rationale class |
 |---|---|
 | S14a.4, S14f.5 | classpath resources are a JVM-only concept |
 | S16.1 | MIME Type is set by HTTP servers, not parsers |
 | S17.5 | `"null"` → null when null requested — none of the three implementations has a `getNull()`-equivalent typed accessor; spec L1244 is structurally inapplicable to their API models (added in Phase 4) |
-| S20.1–S20.4 | Period Format mirrors `java.time.Period`, a Java-specific type |
 | S23.5, S23.6 | `.properties` multi-line + Unicode escapes; documented simplification in each README |
 | S24.1, S24.2 | reference.conf / application.conf are JVM conventions |
 | S25.1 | System properties override is a JVM mechanism |
 | S26.3 | `SecurityException` is a JVM-specific exception type |
 | S1.2.6 | Unpaired surrogate codepoint — intentional language-natural divergence (Java accepts, Rust/Go reject) |
 | S14a.2, S14e.4, S14e.5, S14f.1, S14f.6, S14f.8 | URL include unsupported by design across all three READMEs |
+
+**Note: S20.1–S20.4 (Period Format)** moved from globally-OOS to **per-impl OOS** in Phase 6 #3d: rs.hocon implemented a `Period { years: i32, months: i32, days: i32 }` struct + `get_period` / `get_period_option` accessors via [rs.hocon#91](https://github.com/o3co/rs.hocon/pull/91), so rs is ✅ on S20.1–S20.4. ts and go still mark these ➖ per-impl (no `getPeriod` / `GetPeriod` API). This drops globally-OOS count from 21 to 17 and reduces rs's per-impl ➖ count from 21 to 17 (denominator 188 → 192).
 
 See each item's `out-of-scope:` line in [`spec-checklist.md`](spec-checklist.md) for the full rationale.
 
@@ -71,16 +72,11 @@ Items where the test or implementation behavior contradicts the spec:
 | S13a.13 | ts, rs, go | ❌ | `a = ${?a}foo` with no prior `a` resolves to `"foofoo"` not `"foo"` — the self-ref look-back picks up the trailing literal as its prior value per L841 ([ts#84](https://github.com/o3co/ts.hocon/issues/84), [rs#76](https://github.com/o3co/rs.hocon/issues/76), [go#68](https://github.com/o3co/go.hocon/issues/68)) (fixtures: `testdata/hocon/self-ref-lookback/` sr01-sr11 — Phase 6 #3f; Lightbend-spec-conformant, per-impl bug only) |
 | S14c.2 | rs | ❌ | Non-relativized substitution path fallback not implemented ([#44](https://github.com/o3co/rs.hocon/issues/44)) |
 | S17.6 | ts | ⚠️ | `getString()` on null silently returns the string `"null"` instead of throwing per L1252; other typed accessors throw, but *incidentally* (no explicit `valueType==='null'` guard in `requireScalar`) ([ts#88](https://github.com/o3co/ts.hocon/issues/88)). rs/go ✅. |
-| S18.1 | ts | ❌ | Number value taken as default unit not implemented — bare-number duration values are not interpreted with the impl's default unit per L1280. rs/go ✅. |
-| S18.4 | ts, rs, go | ❌ / ⚠️ / ❌ | String value with no unit should be interpreted with the default unit per L1294. ts/go: `getDuration("500")` errors instead of producing 500 ms. rs ⚠️: some forms work, others error (partial). (fixtures: `testdata/hocon/units-default/` ud01–ud08, up01–up05, ub01–ub06, un01–un03 — Phase 6 #3d) |
 | S17.7, S17.8 | go | ⚠️ | Non-Option accessors panic correctly per L1254-1255; Option accessors return `None` instead of error — partial violation ([go#72](https://github.com/o3co/go.hocon/issues/72)). ts/rs ✅. |
-| S19.1 | go | ⚠️ | Nanosecond units: `ns` / `nanosecond` / `nanoseconds` work; `nano` / `nanos` aliases missing per L1310. ts/rs ✅. |
-| S19.2 | go | ❌ | Microsecond units (`us` / `micro` / `micros` / `microsecond` / `microseconds`) all missing from `parseDuration`; `getDurationOption` returns `None`. ts/rs ✅. |
 | S19.8 | ts, rs | ❌ | Duration unit names should be case-sensitive (lowercase only) per L1304; both impls accept `MS`, `Seconds`, `NS`, etc. (rs `parse_duration` calls `.to_lowercase()` before matching at `src/config.rs:417`; ts has the same shape). go ✅. |
 | S22.2 | ts | ❌ | Intermediate non-object hides earlier object across files per L1430; ts merges across the non-object barrier. rs/go ✅. |
 | S23.4 | ts, go | ❌ | When a `.properties` key conflicts with an object path (leaf-vs-parent), the object should win per L1462; ts/go keep the leaf string instead. rs ✅. |
 | S21.4 | ts, go | ❌ | Single-letter byte abbreviations (`K`/`M`/`G`/…) not recognized — spec L1385 / java `-Xmx` convention. rs ✅ ([ts#89](https://github.com/o3co/ts.hocon/issues/89), [go#73](https://github.com/o3co/go.hocon/issues/73)). |
-| S21.5 | go | ❌ | Fractional byte values (`0.5KB`, `1.5MiB`, …) rejected — `parseBytes` uses `ParseInt`. ts/rs ✅ ([go#74](https://github.com/o3co/go.hocon/issues/74)). |
 
 ## Shared test debt
 
@@ -91,6 +87,49 @@ Spec items with no test coverage in **any** of the three implementations. These 
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the three impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### Cleared in Phase 6 #3d (2026-05-18)
+
+S18 duration/bytes accessors-with-no-unit (HOCON.md L1290) landed in all 3 impls via [ts.hocon#103](https://github.com/o3co/ts.hocon/pull/103), [rs.hocon#91](https://github.com/o3co/rs.hocon/pull/91), and [go.hocon#89](https://github.com/o3co/go.hocon/pull/89). xx.hocon ground truth pinned by 22 fixtures in `testdata/hocon/units-default/` ud01–ud08 (duration) + up01–up05 (period) + ub01–ub06 (bytes) + un01–un03 (negative edge cases). **NO expected sidecars** — per-impl tests carry the assertion burden against hardcoded Lightbend-faithful expected values per spec §Test strategy.
+
+- **S18.4** (3-way → ✅) — `getDuration("500")` / `getBytes("1024")` / `getPeriod("7")` (rs-only) now interpret a unit-less string as the family default (ms / bytes / days). ts/go were ❌; rs was ⚠️ (bytes worked, duration didn't due to missing `""` arm). Spec HOCON.md L1290.
+- **S18.1** (ts ❌ → ✅, free rider) — Number-value default unit. Same `parseDuration`/`parseBytes` fix site as S18.4 because ts.hocon's `getDuration` routes through `v.raw` for both number and string types. rs/go were already ✅.
+- **S19.1** (go ⚠️ → ✅) — `nano` / `nanos` aliases added to the existing `ns` case in `parseDuration` (same switch as the S18.4 fix). ts/rs were already ✅.
+- **S19.2** (go ❌ → ✅) — Microsecond units `us` / `micro` / `micros` / `microsecond` / `microseconds` added as a new case in `parseDuration`. ts/rs were already ✅.
+
+Architecture (uniform across 3 impls): per-family string-parse helper (`parseDuration`, `parsePeriod`, `parseBytes`) gains an empty-unit fallthrough returning the family default. HOCON_WS predicate (Phase 6 #1 spec) replaces stdlib `.trim()` / `unicode.IsSpace` for leading/trailing/between-token whitespace. Integer pre-classification regex `^[+-]?[0-9]+$` (Lightbend `SimpleConfig.isWholeNumber` pattern) distinguishes integer fast-path from fractional fallback. Lightbend-faithful per-family fractional handling: **duration** integer→`Long.parseLong` * ms / fractional→`Double.parseDouble` scaled to nanos; **period** integer-only via `Integer.parseInt` (fractional rejected); **bytes** integer→`BigInteger` * mult / fractional→`BigDecimal.toBigInteger()` truncate-toward-zero. **Bytes negative-accessor rejection** at `getBytes` / `GetBytes` matches Lightbend `getBytesBigInteger` signum check; bytes parse layer allows negative for downstream flexibility.
+
+Per-impl notes:
+
+- **ts.hocon**: localized fix in `src/coerce.ts`. `trimHoconWs` inlines the full lexer HOCON_WS codepoint set (verified byte-for-byte against `src/internal/lexer/lexer.ts`). `Math.trunc` for bytes fractional truncation. `+` sign accepted in scanner. Period (S20) remains ➖ — `getPeriod` not implemented.
+- **rs.hocon**: significant API addition — **`Period { years: i32, months: i32, days: i32 }` struct** (`#[non_exhaustive]`) + `get_period` / `get_period_option` accessors. No `chrono` dependency. `is_hocon_whitespace` exposed `pub(crate)` from `src/lexer.rs`. Negative-accessor guard covers BOTH numeric (`b = -1`) and string (`b = "-1"`) paths post-review-fix. **rs-specific limitation**: `std::time::Duration` is unsigned, so `parse_duration("-500")` returns `Err` (Lightbend's `java.time.Duration` is signed); documented in CHANGELOG.
+- **go.hocon**: `isHoconWS` inlined in `config.go` (no new lexer export). UTF-8 rune decoding (`utf8.DecodeRuneInString`) for HOCON_WS scanning between number/unit and trailing-after-unit (NBSP, EM space, etc. previously broke the byte-indexed loop). Bytes fractional × unit truncates AFTER multiply (`int64(f * float64(mult))`) — caught by Codex review.
+
+Cross-impl side effects:
+
+- **S21.5** (go ❌ → ✅, side-cleared) — Fractional byte values with multi-letter units (`0.5KB`, `1.5MiB`) now accepted via the same `int64(f * float64(mult))` rewrite. Single-letter byte abbreviations (`0.5K`, `1.5M`) remain blocked by S21.4 (#73). ts/rs were already ✅.
+
+E-namespace updates:
+
+- **S20.1–S20.4 moved from globally-OOS to per-impl OOS** — rs.hocon implemented `get_period`; ts/go remain ➖. The "Globally out-of-scope items" count drops from 21 to 17. rs's per-impl ➖ count drops from 21 to 17, increasing its denominator from 188 to 192. No new E-entry needed since `Period` follows Lightbend's `java.time.Period` named-getter contract (rs uses a `#[non_exhaustive]` struct rather than chrono dependency).
+
+Rate change (in-scope):
+
+- ts: 93.0% → 94.1% (+1.1pp; +2 cells = S18.1/S18.4 flipped ❌ → ✅).
+- rs: 94.1% → 94.5% (+0.4pp net; +1 cell S18.4 ⚠→✅, +4 cells S20.1–S20.4 ➖→✅ for rs-only; denominator 188 → 192 dampens the rate lift).
+- go: 91.2% → 93.0% (+1.8pp; +4 cells = S18.4 ❌→✅, S19.1 ⚠→✅ at +0.5 weight, S19.2 ❌→✅, S21.5 ❌→✅ side-clear).
+
+Spec-total: ts 82.8% → 83.7%, rs 84.7% → 86.8%, go 81.6% → 83.3%.
+
+Multi-agent-review observations during Phase 6 #3d — 6 reviewers (Claude × 3 + Codex × 3) caught **3 cross-impl convergent issues** independently flagged on multiple branches:
+
+1. **Fixture path tracking** (Codex P1 on ts + rs): ts.hocon test read from sibling-repo path `../../xx.hocon/...` which breaks in clean CI checkout; rs.hocon relies on `make testdata` (works in CI but panics in clean local). Fixed: ts.hocon Makefile extended to also sync `testdata/hocon/units-default/` from xx.hocon archive (parallel to existing `expected/hocon/` sync) + fixture files committed directly; rs.hocon pattern validated via CI green.
+2. **`get_bytes` bare-numeric negative bypass** (Codex P2 + Claude C2 on rs): the negative-accessor guard fired only on the string path; bare unquoted `b = -1` (ScalarType::Number) returned `Ok(-1)`. Convergent → must-fix; guard moved to cover both paths.
+3. **`Period` tuple vs struct** (author flag + Claude I1 on rs): initial impl used `(i32, i32, i32)` tuple for `parse_period`/`get_period` return. User-confirmed: switched to `#[non_exhaustive] pub struct Period { pub years, pub months, pub days: i32 }` for future extensibility, named-field readability, and Lightbend `java.time.Period` named-getter parity.
+
+Plus single-reviewer-flagged Important fixes addressed in-PR: ts `trimHoconWs` doc/code mismatch (codepoint set narrower than comment claimed) + unused `WHOLE_NUMBER_RE` export; rs `spec-compliance.md` S20.1–S20.4 stale "None of the three" narrative; go bytes fractional × unit truncation order (`"1.5KB"` returned 1000 instead of 1500) + multi-byte UTF-8 HOCON_WS in byte-indexed loop (NBSP/EM space broke the scanner) + `t.Logf` not `t.Skipf` for period skip (unconditional-pass anti-pattern). One Codex single-reviewer P1 on rs (fixture-tracking) dismissed with verified-empirical rationale: matches existing `concat_errors_test.rs` pattern, `make testdata` cache-aware early-exit correctly fetches fresh fixtures; CI confirmed (all rs.hocon#91 checks SUCCESS).
+
+CI followups: go.hocon required 3 extra commits beyond the initial review-fix batch: (a) remove unused `specIssueS21_5` const after S21.5 test was un-skipped (`golangci-lint unused`); (b) gofmt alignment on the new `config_internal_test.go` exhaustive `isHoconWS` test; (c) `parseDuration`/`parseBytes` trailing-WS-then-garbage tests to clear codecov patch threshold (84.76% → ≥85.56%). All 24 CI checks across ts#103 / rs#91 / go#89 landed SUCCESS pre-merge.
 
 ### Cleared in Phase 6 #3e (2026-05-18)
 
@@ -386,6 +425,8 @@ done
 5. When the template gains or loses an item, **all three per-repo files must be synced** before this matrix is rebuilt; otherwise the totals will be inconsistent.
 
 ## Last verified
+
+2026-05-18 (Phase 6 #3d) — re-rolled-up after the S18 string-with-no-unit + Lightbend per-family fractional impl PRs landed in all three impls ([ts.hocon#103](https://github.com/o3co/ts.hocon/pull/103), [rs.hocon#91](https://github.com/o3co/rs.hocon/pull/91), [go.hocon#89](https://github.com/o3co/go.hocon/pull/89)). S18.4 (3-way → ✅), S18.1 (ts ❌→✅ free rider), S19.1 (go ⚠→✅), S19.2 (go ❌→✅), and S21.5 (go ❌→✅ side-clear) all cleared from "Top spec violations". S20.1–S20.4 moved from globally-OOS to per-impl OOS (rs.hocon implemented `Period { years, months, days }` struct + `get_period`/`get_period_option` accessors; ts/go remain ➖); globally-OOS count drops from 21 to 17 and rs's denominator increases from 188 to 192. Rate lift per impl (in-scope): ts 93.0% → 94.1% (+1.1pp; 2 cells), rs 94.1% → 94.5% (+0.4pp net; 5 cells flipped but +4 ➖→✅ are denominator-dampened), go 91.2% → 93.0% (+1.8pp; 4 cells). Spec-total: ts 82.8% → 83.7%, rs 84.7% → 86.8%, go 81.6% → 83.3%. Multi-agent-review (Claude + Codex × 3 branches = 6 reviewers) caught 3 cross-impl convergent issues — **fixture path tracking** (Codex P1 on ts + rs), **`get_bytes` bare-numeric negative bypass** (Codex P2 + Claude C2 on rs, must-fix per convergence rule), and **`Period` tuple → `#[non_exhaustive]` struct** (author flag + Claude I1 on rs, user-confirmed before fix). Plus single-reviewer-flagged Important fixes in-PR: ts `trimHoconWs` doc/code mismatch + unused `WHOLE_NUMBER_RE` export, rs `spec-compliance.md` S20 stale narrative, go bytes fractional × unit truncation order + multi-byte UTF-8 HOCON_WS in byte-indexed loop + `t.Logf` not `t.Skipf` for period skip. go required 3 CI follow-up commits (unused const removal, gofmt alignment on new test file, trailing-WS-then-garbage tests to clear codecov patch threshold 84.76%→85.71%); all 24 CI checks across the 3 PRs landed SUCCESS pre-merge. Architecture summary: per-family `parseDuration`/`parsePeriod`/`parseBytes` helpers gain empty-unit fallthrough → family default (ms/days/bytes). Integer pre-classification regex `^[+-]?[0-9]+$` distinguishes integer fast-path from fractional fallback per Lightbend `SimpleConfig.isWholeNumber`. Bytes accessor rejects negative per Lightbend `getBytesBigInteger` signum check. HOCON_WS predicate replaces stdlib whitespace functions throughout the unit-parse paths.
 
 2026-05-18 (Phase 6 #3e) — re-rolled-up after the S12.5 `include`-reservation impl PRs landed in all three impls ([ts.hocon#102](https://github.com/o3co/ts.hocon/pull/102), [rs.hocon#90](https://github.com/o3co/rs.hocon/pull/90), [go.hocon#88](https://github.com/o3co/go.hocon/pull/88)). S12.5 (3-way ❌→✅) + S14a.10 (go ❌→✅, side-cleared) cleared from "Top spec violations". E9 in `extra-spec-conventions.md` flipped ❌ → ✅ in all 3 impls (Lightbend silently accepts dotted `include.foo` due to tokenizer-then-PathParser quirk; o3co strict-spec tightens via per-impl override list for ir03/ir04 fixtures). Rate lift per impl (in-scope): ts 92.5% → 93.0% (+0.5pp; 1 cell), rs 93.6% → 94.1% (+0.5pp; 1 cell), go 90.1% → 91.2% (+1.1pp; 2 cells: S12.5 + S14a.10). Spec-total: ts 82.3% → 82.8%, rs 84.2% → 84.7%, go 80.6% → 81.6%. Architecture (uniform across 3 impls): **post-PathParser detection** on the constructed path-element list (not raw token stream), with per-element wasQuoted provenance captured **locally** in the field-parser before parseKey advances the cursor — no struct changes to AstField / FieldNode, no public-API broadening. Multi-agent-review caught one Important on go.hocon#88 (misleading error message for the S14a.10 unquoted-arg case — `include foo.conf` was getting the S12.5 reservation message instead of the spec-aligned "include argument must be a quoted string" message); fixed in-PR via spec-aligned error-message split (commit 7b5c80a). One Codex P1 on rs.hocon#90 (fixture-tracking concern) was dismissed with verified-empirical rationale — the pattern matches existing concat_errors_test.rs and CI's `make testdata` early-exit logic correctly detects remote-vs-local SHA divergence; all 8 CI checks PASS on rs#90 confirming the dismiss. Total 17 CI checks across the 3 PRs all SUCCESS pre-merge.
 
