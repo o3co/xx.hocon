@@ -97,8 +97,9 @@ text is run through `EnvVarListExpander.expandListSubstitutions` (with
 matches `SIDECAR_ERROR_CONFS` (`<name>.error` plain text). Same UNEXPECTED
 SUCCESS safety-net throw.
 
-Currently: `ev03-required-no-elements.conf`. Add new entries to the
-`ENV_VAR_LIST_ERROR_CONFS` array in `GenerateExpected.java`.
+Currently: `ev03-required-no-elements.conf`,
+`ev12a-list-suffix-suppresses-scalar-fallback-required.conf`. Add new
+entries to the `ENV_VAR_LIST_ERROR_CONFS` array in `GenerateExpected.java`.
 
 ### SIDECAR_ERROR_CONFS — `.error` sidecar (NORMATIVE for clusters 3b, 3c, 3e, 3f)
 
