@@ -79,6 +79,14 @@ public class GenerateExpected {
         "env-var-list/ev09-whitespace-before-suffix.conf",
         "env-var-list/ev10-empty-string-element.conf",
         "env-var-list/ev11-include-context.conf",
+        // ev12b: S13c.5 — list suffix suppresses scalar env-var fallback (optional form).
+        // S13C_EV12_X=scalar in env (no _0), ${?S13C_EV12_X[]} → key removed → {}.
+        // Companion to ev12a (required form → error in ENV_VAR_LIST_ERROR_CONFS below).
+        "env-var-list/ev12b-list-suffix-suppresses-scalar-fallback-optional.conf",
+        // ev13: S13c — optional list expansion, direct (not inside concat).
+        // Isolates ${?S13C_EV13_MY_LIST[]} with _0=a set → {"x": ["a"]}.
+        // Complements ev06/ev07 (which embed ${?X[]} inside concat expressions).
+        "env-var-list/ev13-optional-list-direct.conf",
         // S8.6 unquoted-string-starts strict-spec fixtures (cluster 3c). The strict spec
         // says: leading 0-9 must trigger number-lex; leading `-` must trigger number-lex
         // with required digit (lex error if absent). Per-impl conformance asserts the
@@ -202,6 +210,11 @@ public class GenerateExpected {
     static final String[] ENV_VAR_LIST_ERROR_CONFS = {
         // ev03: required ${X[]} with no env elements → UnresolvedSubstitution error
         "env-var-list/ev03-required-no-elements.conf",
+        // ev12a: S13c.5 — list suffix suppresses scalar env-var fallback (required form).
+        // S13C_EV12_X=scalar in env (no _0), ${S13C_EV12_X[]} → ResolveError.
+        // Pins that the bare scalar S13C_EV12_X must NOT be consulted as fallback
+        // when listSuffix=true and no _0 is present.
+        "env-var-list/ev12a-list-suffix-suppresses-scalar-fallback-required.conf",
     };
 
     static final Gson GSON = new GsonBuilder()

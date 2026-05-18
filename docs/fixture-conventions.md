@@ -237,6 +237,8 @@ parser (text after `include` is not a valid include argument); these live in
 | `st-err01`–`st-err11` | `subst-tokenize/` | Substitution tokenization errors (Phase 4) |
 | `na01`–`na12` | `numeric-obj-array/` | Numeric-object-to-array conversion (Phase 6 #2, S15) |
 | `ev01`–`ev11` | `env-var-list/` | S13c env-var list expansion `${X[]}` / `${?X[]}` (cluster 3a) |
+| `ev12a`–`ev12b` | `env-var-list/` | S13c.5 — list suffix suppresses scalar env-var fallback (cluster 3g follow-up) |
+| `ev13` | `env-var-list/` | S13c — optional list expansion in isolation, not inside concat (cluster 3g follow-up) |
 | `us01`–`us16` | `unquoted-starts/` | S8.6 strict-spec unquoted-string-starts (cluster 3c) |
 | `ir01`–`ir14` | `include-reservation/` | S12.5 strict-spec `include` reservation at key-path start (cluster 3e) |
 | `sr01`–`sr11` | `self-ref-lookback/` | S13a.13 optional self-ref in value concatenation look-back (cluster 3f) |
