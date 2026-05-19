@@ -6,9 +6,9 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **84.2%** | **94.6%** | 174 | 4 | 8 | 0 | 23 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **87.3%** | **95.1%** | 180 | 5 | 7 | 0 | 17 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **83.7%** | **93.6%** | 173 | 4 | 10 | 0 | 22 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **85.6%** | **96.2%** | 177 | 4 | 5 | 0 | 23 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **87.6%** | **95.3%** | 181 | 4 | 7 | 0 | 17 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **85.2%** | **95.2%** | 176 | 4 | 7 | 0 | 22 |
 
 Where:
 
@@ -55,7 +55,6 @@ Items where the test or implementation behavior contradicts the spec:
 | Item | Impl | Status | Description |
 |---|---|---|---|
 | S1.1 | go | ❌ | Invalid UTF-8 (e.g. `string([]byte{0xff})` via `ParseString`) is silently substituted with U+FFFD instead of rejected; spec L117 requires rejection. Go `string` is `[]byte` and is not language-guaranteed UTF-8. ts ➖ (JS string is pre-decoded Unicode at the I/O boundary; the parser cannot observe raw bytes — see ts.hocon S1.1 entry). rs ✅ (Rust `&str` is language-guaranteed valid UTF-8; verified positively via `tests/testdata/hocon/bom.conf` fixture). |
-| S3.1 | ts, rs, go | ❌ / ⚠️ / ❌ | Empty file accepted. rs returns empty object; ts/go return `nil` error. Spec L130 says empty is invalid. |
 | S8.2 | go | ❌ | `//` inside an unquoted run without preceding whitespace is treated as literal content; spec L248 says `//` starts a comment anywhere outside a quoted string. ts/rs ✅. |
 | S3.4 | ts | ❌ | Unbraced root + stray `}` accepted ([#55](https://github.com/o3co/ts.hocon/issues/55)) |
 | S8.1 | ts | ⚠️ | Lexer allows backtick in unquoted strings, contrary to spec L245 forbidden set |
@@ -74,8 +73,6 @@ Items where the test or implementation behavior contradicts the spec:
 | S17.7, S17.8 | go | ⚠️ | Non-Option accessors panic correctly per L1254-1255; Option accessors return `None` instead of error — partial violation ([go#72](https://github.com/o3co/go.hocon/issues/72)). ts/rs ✅. |
 | S19.8 | ts, rs | ❌ | Duration unit names should be case-sensitive (lowercase only) per L1304; both impls accept `MS`, `Seconds`, `NS`, etc. (rs `parse_duration` calls `.to_lowercase()` before matching at `src/config.rs:417`; ts has the same shape). go ✅. |
 | S22.2 | ts | ❌ | Intermediate non-object hides earlier object across files per L1430; ts merges across the non-object barrier. rs/go ✅. |
-| S23.4 | ts, go | ❌ | When a `.properties` key conflicts with an object path (leaf-vs-parent), the object should win per L1462; ts/go keep the leaf string instead. rs ✅. |
-| S21.4 | ts, go | ❌ | Single-letter byte abbreviations (`K`/`M`/`G`/…) not recognized — spec L1385 / java `-Xmx` convention. rs ✅ ([ts#89](https://github.com/o3co/ts.hocon/issues/89), [go#73](https://github.com/o3co/go.hocon/issues/73)). |
 
 ## Shared test debt
 
@@ -86,6 +83,62 @@ Spec items with no test coverage in **any** of the three implementations. These 
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the three impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### Cleared in Phase 6 #3h (2026-05-19)
+
+S3.1 (empty file rejection, HOCON.md L130), S21.4 (single-letter byte abbreviations binary, HOCON.md L1385), and S23.4 (`.properties` object-wins, HOCON.md L1485) landed in all 3 impls via [ts.hocon#106](https://github.com/o3co/ts.hocon/pull/106), [rs.hocon#94](https://github.com/o3co/rs.hocon/pull/94), and [go.hocon#93](https://github.com/o3co/go.hocon/pull/93). xx.hocon ground truth pinned by 19 fixtures across 3 new groups in [xx.hocon#29](https://github.com/o3co/xx.hocon/pull/29): `empty-file/ef01–ef06`, `byte-single-letter/bsl01–bsl09`, `properties-conflict/pc01–pc04`. **Two pre-existing mis-classifications corrected in rs.hocon** (see Mis-classification audit below).
+
+- **S3.1** (ts ❌ → ✅, rs ⚠️ → ✅, go ❌ → ✅) — Empty document (`""`, whitespace-only, comments-only, BOM-only, mixed) now raises `ParseError` per HOCON.md L130. Detection runs post-tokenize on the token stream excluding skip-tokens (EOF, Newline, BOM, comments — all consumed by each impl's lexer). Each impl additionally applies the guard inside its include-loader path (caught by multi-agent review as cross-impl convergent gap).
+- **S21.4** (ts ❌ → ✅, **rs BREAKING** ✅-misclassified → ✅-correct, go ❌ → ✅) — Single-letter `K/k/M/m/G/g/T/t/P/p/E/e` byte abbreviations as powers of two per spec L1385 (java `-Xmx` convention). Lightbend typesafe-config 1.4.3 verified ground truth: `1K=1024`, `1M=2^20`, ..., `1E=2^60`. Multi-letter forms (`KB`/`MB`/`GB`/`TB`) remain SI decimal. `Z`/`Y` deferred (spec L1383 lists them but byte counts overflow i64 — separate cluster). Overflow-checked multiplication added on all 3 impls; fractional path uses precision-safe boundary (`math.Exp2(63)` in go, `2f64.powi(63)` in rs, `Number.MAX_SAFE_INTEGER` in ts).
+- **S23.4** (ts ❌ → ✅, **rs ✅-misclassified → ✅-correct**, go ❌ → ✅) — `.properties` dotted-key conflict applies object-wins per spec L1485. Each impl's properties loader now: (a) sorts keys before iteration (for input-order independence), (b) replaces scalar with empty Object on non-leaf conflicts (scalar discarded per L1487), (c) skips overwrite at leaf when existing value is already an Object. Cross-impl convergent fix shape.
+
+Architecture (uniform across 3 impls):
+
+- **S3.1**: shared empty-token-stream helper called from both top-level parse entry AND include-loader path. Each impl's helper takes a source descriptor so include-path errors mention the included file.
+- **S21.4**: single-letter entries added to the byte multiplier map as powers of two. Overflow guards: i64 / int64 `checked_mul` (rs) or `result/mult != n` (go) or `MAX_SAFE_INTEGER` boundary (ts) on integer path; precision-safe float64 boundary (`2^63` exact value) on fractional path.
+- **S23.4**: `parseProperties` / `properties_to_hocon` / `propsToObjectVal` rewritten with sorted-key iteration + object-wins at both leaf and non-leaf segments. Conflict resolution is deterministic regardless of input line order.
+
+Per-impl placement:
+
+- **ts.hocon**: `src/internal/parser/empty-check.ts` (new shared helper `assertNonEmptyDocument`); `src/parse.ts buildResolveContext()` and `src/internal/resolver/include-loader.ts` both call it. `src/coerce.ts BYTE_UNITS` map gains K/k/M/m/G/g/T/t/P/p/E/e (powers of two); MAX_SAFE_INTEGER overflow guard on BOTH unit-less and with-unit paths. `src/internal/properties/properties.ts parseProperties` sorts collected pairs by key before calling `setNested`; `setNested` last-segment write guards on existing-object presence.
+- **rs.hocon**: `src/lib.rs assert_non_empty_document` private helper called from `parse_with_env`, `parse_file_with_env`, AND `resolver/include_loader.rs`. `src/config.rs parse_bytes` multiplier match: `"K" | "k" => 1_024`, `"M" | "m" => 1_048_576`, ..., `"E" | "e" => 1_152_921_504_606_846_976`; multi-letter `"KB"`, `"MB"`, etc. remain in separate match arms (SI decimal). `tests/units_default_test.rs ub05_bytes_with_unit` updated `1_024_000 → 1_048_576` (load-bearing mis-classification correction signal). `src/properties.rs set_nested` rewritten: leaf-Object skip + non-leaf scalar-replace-with-Object; `properties_to_hocon` sorts keys via `Vec<&String>` + `.sort()` before iteration.
+- **go.hocon**: `internal/parser/parser.go parseRoot` rejects when only `TokenEOF`/`TokenNewline` remain post-lex. `config.go multipliers` map gains single-letter K-E entries; overflow check uses `result/mult != n` on integer path; fractional path uses `prod >= math.Exp2(63)` (the exact float64 value of 2^63, precision-safe vs `> math.MaxInt64` which rounds up in float64). `internal/resolver/resolver.go propsToObjectVal` rewritten: non-leaf scalar conflict replaces scalar with new `ObjectVal` and descends; leaf existing-object skip.
+
+Mis-classification audit (surfaced during spec drafting + Codex spec review + multi-agent review):
+
+1. **rs.hocon S21.4** — prior ✅ status cited `get_bytes_no_space` test that exercised `512MB` (multi-letter SI), never single-letter K/M/G/T. Underlying `parse_bytes` mapped single-letter `K` to `1_000` (SI decimal) contradicting spec L1385 (powers of two). **BREAKING fix landed in #3h** (`1K` was 1000, is now 1024); CHANGELOG.md has migration table. Matrix cell remains ✅ post-fix (behavior corrected).
+2. **rs.hocon S23.4** — prior ✅ status cited `converts_to_hocon_value` test using `a.b=1\nc=hello` (no conflict). Underlying `set_nested` silently dropped data on conflict (leaf unconditional overwrite + non-leaf scalar conflict silently skipped). **Non-BREAKING correction landed in #3h** (corrects silent-data-loss bug; no reasonable consumer relied on the prior behavior). Matrix cell remains ✅ post-fix.
+
+Spec ★1 decision deferrals:
+
+- `Z`/`Y` single-letter byte units deferred to a future cluster pending uniform overflow policy and potential BigInt accessor design.
+- Lightbend-strict case rejection (`KB` upper+upper, `mb` lower+lower — Lightbend errors but all 3 impls currently accept) deferred — separate spec-strictness issue, doesn't affect the S21.4 matrix cell.
+
+E-namespace updates:
+
+- **E10** added to [`extra-spec-conventions.md`](extra-spec-conventions.md) documenting Lightbend's silent-accept-empty quirk (parse `""` → `SimpleConfigObject({})`) and the o3co strict-spec posture (parse error per L130). Per-impl override list on ef01–ef06 fixtures (same pattern as E5 ce05 / E8 us02/us03/us13 / E9 ir03/ir04).
+
+Rate change (in-scope):
+
+- ts: 94.6% → 96.2% (+1.6pp; +3 cells = S3.1/S21.4/S23.4 flipped ❌ → ✅).
+- rs: 95.1% → 95.3% (+0.2pp net; +1 cell = S3.1 ⚠→✅; S21.4/S23.4 mis-class corrections preserve ✅ count but change underlying behavior).
+- go: 93.6% → 95.2% (+1.6pp; +3 cells = S3.1/S21.4/S23.4 flipped ❌ → ✅).
+
+Spec-total: ts 84.2% → **85.6%**, rs 87.3% → **87.6%**, go 83.7% → **85.2%**. **All three impls now ≥85% spec-total** — the cluster goal.
+
+Multi-agent review observations during Phase 6 #3h:
+
+1. **Convergent issue #1 — Empty-file guard not applied to included files** (ts Codex + rs Codex): the initial S3.1 fix guarded only the top-level parse entry; `IncludeLoader` / `include_loader` bypassed the check, so `include "empty.conf"` silently accepted. Convergent across 2 impls + 2 reviewers → must-fix per convergence rule. Fix: shared helper called from both entry and include paths.
+2. **Convergent issue #2 — Fractional byte overflow at float64 boundary** (go Claude + go Codex + rs Claude): on go specifically, `prod > math.MaxInt64` is `2^63 > 2^63 = false` because `float64(math.MaxInt64)` rounds up to exactly `2^63`. `"8.0E"` slipped through silently, `int64(prod)` corrupted to `MaxInt64`. Rs had the same logical ordering issue (overflow check ran AFTER lossy `as i64` cast). 3 reviewers, 2 impls → must-fix. Fix: precision-safe boundary (`math.Exp2(63)` in go, hoisted check + tightened comparison in rs).
+3. **ts unit-less byte overflow asymmetry** (ts Codex single-reviewer Important): `parseBytes('9007199254740993')` (unit-less, default-bytes path) silently rounded while `parseBytes('9007199254740993B')` (with-unit path) threw — inconsistent invariant. Fixed by applying same overflow guard to unit-less path.
+
+Pre-existing bugs filed as follow-up (out of scope, per "unrelated issues → separate PR" rule):
+
+- **rs.hocon parse_duration overflow** ([rs.hocon#95](https://github.com/o3co/rs.hocon/issues/95)) — same overflow-guard-missing pattern as the fixed `parse_bytes`, but on the duration path. Out of #3h scope (cluster targets S3/S21/S23, not duration). Surfaced by Claude rs.hocon #94 review (Important #2).
+
+Cross-impl review feedback loop: 6 reviewers (3 Claude general-purpose Opus + 3 Codex) caught **3 issues** (2 convergent, 1 single-reviewer); all 3 addressed in-PR before merge. The convergent finding pattern (same shape flagged across 2 impls independently) again validates the multi-reviewer convergence rule's "default to must-fix" treatment — both fixes landed.
+
+CI: all 22 required CI checks across the 3 impl PRs SUCCESS. go.hocon shows `codecov/project` FAILURE (-0.21pp from baseline drift); codecov is non-required per branch protection, `codecov/patch` is SUCCESS, same pattern as Phase 6 #3f. rs.hocon required one extra commit beyond the initial review-fix batch (`3cbc3b4`) to normalize Windows path separators in the new pc conformance test (HOCON tokenizer treats `\` in quoted strings as escape — Windows-only failure).
 
 ### Cleared in Phase 6 #3f (2026-05-19)
 
@@ -468,6 +521,8 @@ done
 5. When the template gains or loses an item, **all three per-repo files must be synced** before this matrix is rebuilt; otherwise the totals will be inconsistent.
 
 ## Last verified
+
+2026-05-19 (Phase 6 #3h) — re-rolled-up after S3.1 (empty file rejection) + S21.4 (single-letter byte abbreviations binary) + S23.4 (`.properties` object-wins) impl PRs landed in all three impls ([ts.hocon#106](https://github.com/o3co/ts.hocon/pull/106), [rs.hocon#94](https://github.com/o3co/rs.hocon/pull/94), [go.hocon#93](https://github.com/o3co/go.hocon/pull/93)). All 3 rows cleared from "Top spec violations". **Two rs.hocon mis-classifications corrected** (S21.4 decimal→binary BREAKING, S23.4 silent-data-loss → deterministic object-wins). E10 added to `extra-spec-conventions.md` for Lightbend's silent-accept-empty quirk. Rate lift per impl (in-scope): ts 94.6% → 96.2% (+1.6pp; 3 cells), rs 95.1% → 95.3% (+0.2pp net; 1 cell S3.1 ⚠→✅, 2 mis-class corrections preserve ✅ count), go 93.6% → 95.2% (+1.6pp; 3 cells). Spec-total: ts 84.2% → 85.6%, rs 87.3% → 87.6%, go 83.7% → 85.2% — **all three impls now ≥85% spec-total**, the cluster goal. Multi-agent-review (Claude × 3 + Codex × 3 = 6 reviewers across 3 branches) caught 3 cross-impl convergent issues independently: **include-path empty guard** (ts Codex + rs Codex, both impls' S3.1 fix only guarded top-level parse, not include path — must-fix per convergence rule), **fractional byte overflow at 2^63 float64 boundary** (go Claude + go Codex + rs Claude, `float64(math.MaxInt64)` rounds up to 2^63 making `> math.MaxInt64` skip overflow at boundary; corrupted `"8.0E"` to silent MaxInt64 saturation), and **ts unit-less byte overflow asymmetry** (Codex single-reviewer, default-bytes path skipped the overflow check). All 3 addressed in-PR. Pre-existing bug filed as follow-up: rs.hocon parse_duration overflow (rs.hocon#95). Architecture summary: shared empty-token-stream helper called from both top-level parse AND include loader; single-letter K-E entries as powers of two with overflow-checked multiplication (precision-safe float64 boundary via `math.Exp2(63)` in go / `2f64.powi(63)` in rs / `Number.MAX_SAFE_INTEGER` in ts); properties loader sort-then-iterate with object-wins at both leaf and non-leaf segments. `Z`/`Y` single-letter units explicitly deferred pending uniform overflow policy.
 
 2026-05-18 (Phase 6 #3d) — re-rolled-up after the S18 string-with-no-unit + Lightbend per-family fractional impl PRs landed in all three impls ([ts.hocon#103](https://github.com/o3co/ts.hocon/pull/103), [rs.hocon#91](https://github.com/o3co/rs.hocon/pull/91), [go.hocon#89](https://github.com/o3co/go.hocon/pull/89)). S18.4 (3-way → ✅), S18.1 (ts ❌→✅ free rider), S19.1 (go ⚠→✅), S19.2 (go ❌→✅), and S21.5 (go ❌→✅ side-clear) all cleared from "Top spec violations". S20.1–S20.4 moved from globally-OOS to per-impl OOS (rs.hocon implemented `Period { years, months, days }` struct + `get_period`/`get_period_option` accessors; ts/go remain ➖); globally-OOS count drops from 21 to 17 and rs's denominator increases from 188 to 192. Rate lift per impl (in-scope): ts 93.0% → 94.1% (+1.1pp; 2 cells), rs 94.1% → 94.5% (+0.4pp net; 5 cells flipped but +4 ➖→✅ are denominator-dampened), go 91.2% → 93.0% (+1.8pp; 4 cells). Spec-total: ts 82.8% → 83.7%, rs 84.7% → 86.8%, go 81.6% → 83.3%. Multi-agent-review (Claude + Codex × 3 branches = 6 reviewers) caught 3 cross-impl convergent issues — **fixture path tracking** (Codex P1 on ts + rs), **`get_bytes` bare-numeric negative bypass** (Codex P2 + Claude C2 on rs, must-fix per convergence rule), and **`Period` tuple → `#[non_exhaustive]` struct** (author flag + Claude I1 on rs, user-confirmed before fix). Plus single-reviewer-flagged Important fixes in-PR: ts `trimHoconWs` doc/code mismatch + unused `WHOLE_NUMBER_RE` export, rs `spec-compliance.md` S20 stale narrative, go bytes fractional × unit truncation order + multi-byte UTF-8 HOCON_WS in byte-indexed loop + `t.Logf` not `t.Skipf` for period skip. go required 3 CI follow-up commits (unused const removal, gofmt alignment on new test file, trailing-WS-then-garbage tests to clear codecov patch threshold 84.76%→85.71%); all 24 CI checks across the 3 PRs landed SUCCESS pre-merge. Architecture summary: per-family `parseDuration`/`parsePeriod`/`parseBytes` helpers gain empty-unit fallthrough → family default (ms/days/bytes). Integer pre-classification regex `^[+-]?[0-9]+$` distinguishes integer fast-path from fractional fallback per Lightbend `SimpleConfig.isWholeNumber`. Bytes accessor rejects negative per Lightbend `getBytesBigInteger` signum check. HOCON_WS predicate replaces stdlib whitespace functions throughout the unit-parse paths.
 
