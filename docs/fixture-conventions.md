@@ -227,6 +227,49 @@ ir10 `include += [1]`, ir12 `include` + newline + `foo.conf`, ir13
 parser (text after `include` is not a valid include argument); these live in
 `SIDECAR_ERROR_CONFS` with `.error` sidecars produced.
 
+### ef01–ef06 (cluster 3h, S3.1 strict-spec divergence)
+
+Six fixtures encode strict-HOCON-spec behaviour where Lightbend silently
+accepts empty documents as `{}`:
+
+- `ef01-empty.conf` — fully empty file
+- `ef02-whitespace-only.conf` — three spaces
+- `ef03-newlines-only.conf` — newlines only
+- `ef04-comment-only.conf` — only `# only a comment\n`
+- `ef05-bom-only.conf` — only the UTF-8 BOM (`ef bb bf`)
+- `ef06-mixed-ws-comment.conf` — whitespace + comment + blank lines
+
+HOCON.md L130-132 says empty files are invalid documents; Lightbend's
+`ConfigFactory.parseString("")` returns `SimpleConfigObject({})` instead of
+throwing — verified across all 6 variants.
+
+**Conformance test treatment:** all 6 are processed as `SUCCESS_CONFS` so the
+generator emits `expected/hocon/empty-file/<name>-expected.json = {}` matching
+Lightbend's silent-accept output. Per the o3co strict-HOCON-spec posture
+(see [extra-spec-conventions.md E10](extra-spec-conventions.md#e10)),
+**implementations MUST reject these fixtures** per HOCON.md L130 — load them
+via each impl's per-impl override list, asserting a parse error rather than
+matching `{}`. Same pattern as ce05 / ir03 / ir04 / us02 / us03 / us13.
+
+### properties-conflict/pc01–pc04 (cluster 3h, S23.4)
+
+Four `.properties` fixtures encode the L1485 "object wins" rule for dotted
+keys that conflict with scalar keys:
+
+- `pc01-forward.properties` — `a=hello\na.b=world` → `{a:{b:"world"}}` (object wins)
+- `pc02-reverse.properties` — same content, reverse order → same result (order-independent)
+- `pc03-deep-forward.properties` — `a.b.c=v1\na.b=v2` → `{a:{b:{c:"v1"}}}` (object wins at deeper level)
+- `pc04-deep-reverse.properties` — `a.b=v1\na.b.c=v2` → `{a:{b:{c:"v2"}}}`
+
+**Generator note**: these are processed via `PROPERTIES_CONFS` (a new
+fixture class), running through Lightbend's direct `ConfigFactory.parseFile(.properties)`
+path — NOT via a wrapping `.conf` with `include "...properties"`. Lightbend's
+include path is order-dependent (insertion order leaks through) and silently
+violates the L1485 rule for pc02/pc03. The direct `parseFile(.properties)`
+path is spec-compliant; per-impl conformance tests should match that contract
+by calling each impl's `parseProperties()` / `propsToObjectVal()` / etc.
+function directly on the `.properties` file, NOT via `include`.
+
 ---
 
 ## Fixture naming convention
@@ -243,6 +286,9 @@ parser (text after `include` is not a valid include argument); these live in
 | `us01`–`us16` | `unquoted-starts/` | S8.6 strict-spec unquoted-string-starts (cluster 3c) |
 | `ir01`–`ir14` | `include-reservation/` | S12.5 strict-spec `include` reservation at key-path start (cluster 3e) |
 | `sr01`–`sr11` | `self-ref-lookback/` | S13a.13 optional self-ref in value concatenation look-back (cluster 3f) |
+| `ef01`–`ef06` | `empty-file/` | S3.1 strict-spec empty file rejection (cluster 3h) — Lightbend silently accepts; impls must reject |
+| `bsl01`–`bsl09` | `byte-single-letter/` | S21.4 binary single-letter K/M/G/T/P/E byte abbreviations (cluster 3h) — per-impl `getBytes()` assertion |
+| `pc01`–`pc04` | `properties-conflict/` | S23.4 `.properties` object-wins conflict (cluster 3h) — direct `.properties` parse, no `.conf` wrapper |
 
 ### Sibling include-target files
 

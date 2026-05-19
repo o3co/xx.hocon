@@ -201,6 +201,26 @@ Lightbend 1.4.3 enforces this rule only for the bare form (`include = 1`, `inclu
 
 **Fixtures**: `testdata/hocon/include-reservation/ir03-include-dot-foo-equals.conf`, `ir04-include-nested-object.conf`. No `.error` sidecars (Lightbend silent-accept; see `fixture-conventions.md` "Lightbend quirks"). The remaining S12.5 negative fixtures (ir01, ir02, ir10, ir12, ir13) live in `SIDECAR_ERROR_CONFS` with generator-produced `.error` sidecars (Lightbend's include-statement parser rejects each).
 
+### E10 — Empty file is invalid (Lightbend silently accepts as `{}`)
+
+**Source**: cross-impl convention. HOCON.md §Omit root braces L130-132 states:
+
+> Empty files are invalid documents, as are files containing only a non-array non-object value such as a string.
+
+Lightbend 1.4.3 silently accepts empty input as `SimpleConfigObject({})`. Verified: `ConfigFactory.parseString("")`, `parseString("   ")`, `parseString("\n\n")`, `parseString("# only comment\n")`, `parseString("﻿")` (BOM only), `parseString("  # x \n  \n")` — all return empty config, no exception.
+
+**o3co convention**: each of ts.hocon / rs.hocon / go.hocon MUST reject empty documents at the parser entry. "Empty" includes any combination of whitespace, newlines, BOM, and comments with no other content. Detection runs post-tokenize on the token stream, excluding skip-tokens (EOF, Newline, and any whitespace/comment tokens the lexer emits) — uniform across all "comments-only" / "whitespace-only" / "BOM-only" variants.
+
+**Why an E-item rather than purely S12.5-style**: HOCON.md L130 IS the canonical spec rule; the matrix marks S3.1 as ❌/⚠️/❌ in ts/rs/go. E10 documents the specific Lightbend divergence pattern (silent accept) and the per-fixture treatment, parallel to E5/E8/E9.
+
+| Impl | Status | Test | Notes |
+| --- | --- | --- | --- |
+| ts.hocon | ❌ → ✅ | `empty-file/ef01–ef06.conf` loaded by `tests/conformance/empty-file.test.ts` with per-impl `IMPL_OVERRIDE_ERRORS` (no xx.hocon `.error` sidecar; Lightbend doesn't throw) | (cluster 3h target) Empty-check inside `buildResolveContext()` after `tokenize()`, before `parseTokens()` |
+| rs.hocon | ⚠️ → ✅ | `empty-file/ef01–ef06.conf` loaded by `tests/conformance_empty_file.rs` with per-impl override | (cluster 3h target) Empty-token-stream check at `lib.rs::parse_with_env` after `tokenize()` |
+| go.hocon | ❌ → ✅ | `empty-file/ef01–ef06.conf` loaded by `s3_1_empty_file_test.go` with per-impl override | (cluster 3h target) Empty-content check inside `internal/parser/parser.go:Parse()` |
+
+**Fixtures**: `testdata/hocon/empty-file/ef01-empty.conf`, `ef02-whitespace-only.conf`, `ef03-newlines-only.conf`, `ef04-comment-only.conf`, `ef05-bom-only.conf`, `ef06-mixed-ws-comment.conf`. All 6 ship `-expected.json` sidecars containing `{}` (Lightbend's silent-accept output). Per-impl conformance tests apply the override list to assert error.
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
