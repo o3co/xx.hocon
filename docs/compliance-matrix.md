@@ -6,9 +6,9 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **83.7%** | **94.1%** | 173 | 4 | 9 | 0 | 23 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **86.8%** | **94.5%** | 179 | 5 | 8 | 0 | 17 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **83.3%** | **93.0%** | 172 | 4 | 11 | 0 | 22 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **84.2%** | **94.6%** | 174 | 4 | 8 | 0 | 23 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **87.3%** | **95.1%** | 180 | 5 | 7 | 0 | 17 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **83.7%** | **93.6%** | 173 | 4 | 10 | 0 | 22 |
 
 Where:
 
@@ -69,7 +69,6 @@ Items where the test or implementation behavior contradicts the spec:
 | S13.11 | go | ⚠️ | Lenient mode drops optional substitutions in nested-include scope ([#45](https://github.com/o3co/go.hocon/issues/45)) |
 | S13a.3 | ts | ⚠️ | Self-reference before any prior value (`a = ${a}`) raises a cycle error, but the error type / message classifies this as a generic substitution error rather than the "undefined" path the spec describes at L795. rs/go ✅ (correct error class). |
 | S13a.12 | go | ❌ | Self-ref in a path expression (`${foo.a}` where `foo.a` is being defined) does not resolve to the "below" value per L831; the looked-up sub-object is discarded in the merge. ts/rs ✅. |
-| S13a.13 | ts, rs, go | ❌ | `a = ${?a}foo` with no prior `a` resolves to `"foofoo"` not `"foo"` — the self-ref look-back picks up the trailing literal as its prior value per L841 ([ts#84](https://github.com/o3co/ts.hocon/issues/84), [rs#76](https://github.com/o3co/rs.hocon/issues/76), [go#68](https://github.com/o3co/go.hocon/issues/68)) (fixtures: `testdata/hocon/self-ref-lookback/` sr01-sr11 — Phase 6 #3f; Lightbend-spec-conformant, per-impl bug only) |
 | S14c.2 | rs | ❌ | Non-relativized substitution path fallback not implemented ([#44](https://github.com/o3co/rs.hocon/issues/44)) |
 | S17.6 | ts | ⚠️ | `getString()` on null silently returns the string `"null"` instead of throwing per L1252; other typed accessors throw, but *incidentally* (no explicit `valueType==='null'` guard in `requireScalar`) ([ts#88](https://github.com/o3co/ts.hocon/issues/88)). rs/go ✅. |
 | S17.7, S17.8 | go | ⚠️ | Non-Option accessors panic correctly per L1254-1255; Option accessors return `None` instead of error — partial violation ([go#72](https://github.com/o3co/go.hocon/issues/72)). ts/rs ✅. |
@@ -87,6 +86,50 @@ Spec items with no test coverage in **any** of the three implementations. These 
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the three impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### Cleared in Phase 6 #3f (2026-05-19)
+
+S13a.13 self-referential look-back no-prior short-circuit (HOCON.md L841) landed in all 3 impls via [ts.hocon#105](https://github.com/o3co/ts.hocon/pull/105), [rs.hocon#93](https://github.com/o3co/rs.hocon/pull/93), and [go.hocon#92](https://github.com/o3co/go.hocon/pull/92). xx.hocon ground truth pinned by 11 fixtures in `testdata/hocon/self-ref-lookback/` sr01–sr11 (10 `-expected.json` sidecars + sr05 `.error`). Includes regression guards for nested paths (sr09/sr10), array variant (sr07/sr08), required-vs-optional boundary (sr05/sr06), and mutual-ref non-self-ref boundary (sr11 forward-ref).
+
+- **S13a.13** (3-way ❌ → ✅) — `a = ${?a}foo` with no prior `a` now resolves to `"foo"`, not `"foofoo"`. The self-ref look-back short-circuits when no prior value exists: optional → undefined (concat-fold omits); required → resolve error. The previous buggy fall-through re-resolved the current Concat (which contains `${?a}` and the literal `foo`), producing `"foo"` for the substitution and `"foofoo"` for the outer concat. Spec HOCON.md L841.
+
+Architecture (uniform algorithm, divergent per-impl mechanism — see "Spec ★1 deviation" below): in `resolveSubst`, when the looked-up value at the substitution's path is detected as self-referential, check the `priorValues` map. If a prior exists, look-back returns it (unchanged regression behavior). If no prior, short-circuit: optional substitution yields nothing (concat-fold elides it via the existing Phase 6 #3b optional-omission rule); required substitution raises `ResolveError`. The two-spec interaction (S13a.13 short-circuit + S10.3b optional-omission) is mutually reinforcing.
+
+Per-impl placement:
+
+- **ts.hocon**: `src/internal/resolver/substitution-resolver.ts` — added a `WeakSet<ConcatPlaceholder> resolvingConcats` tracking which Concat nodes are currently being iterated by `resolveConcat` (push on entry, delete on finally). The `isSelfRef` short-circuit fires only when `found === a concat in resolvingConcats`. External lookups (`b = ${a}` where `a = ${?a}foo`) don't mark `a`'s concat as iterating → fall through to normal `resolveVal(found)` where the cycle guard handles inner self-refs correctly. Conformance test uses `existsSync` skip-guard matching the pattern in `tests/concat-errors.test.ts` / `tests/include-reservation.test.ts`.
+- **rs.hocon**: `src/resolver/substitution_resolver.rs` — added a `resolving_field_path: Vec<String>` stack on the resolver. `resolve_res_obj` pushes leaf key before each `resolve_val` call and pops after (3 sites, balanced; Result-aware so `?` propagation doesn't leak). The `is_owner` guard requires `resolving_field_path == s.segments` (text-equal) before the self-ref short-circuit fires. Multi-segment prior lookup uses `lookup_path(prior_obj, &s.segments[1..])` to navigate nested object priors; nested-object-literal form (`foo { a = "x"; a = ${?foo.a}bar }`) has a leaf-segment fallback after root-segment lookup fails (caught by Copilot review).
+- **go.hocon**: `internal/resolver/resolver.go` — two-pronged fix: (a) fast-path cache check at top of `resolveSubst` returns cached value immediately when `!r.resolving[key]` and the cache has the path (handles forward declaration order `a = ${?a}foo; b = ${a}`); (b) `isSelfRef` detection replaces structural path-equality (`slices.Equal(segTexts(...), segStrs)`) with AST-node pointer-identity (`sp == s`), firing only when the found value literally contains the substitution node being resolved (handles reverse declaration order via the existing `r.resolving` cycle guard). Removed the `r.priorValues[segmentsToKey(segments)] = existing` write in nested `setPath` base case to avoid bare-leaf-key collisions with top-level same-named fields (caught by Copilot review).
+
+Cross-impl side effects:
+
+- **Cycle-detection branch alignment** (ts.hocon): the cycle-detection branch's prior-lookup criterion was migrated from `s.prefixLen > 0` to `s.segments.length > 1` to match the new short-circuit branch. Both branches now consistently handle dotted-path-at-root cases (e.g. `${foo.a}` with `prefixLen=0` but `segments.length=2`). Convergent with Claude r2 review I2.
+
+Spec ★1 deviation:
+
+The S13a.13 design spec (`.claude/superpowers/specs/2026-05-17-s13a-self-ref-lookback-design.md`) ★1 Resolved Decision #1 declared *"Self-ref detection via path-equality is preserved... the existing detection mechanism is correct."* Round-2 multi-agent-review found this was wrong: structural path-equality detection misfires when an external field references a self-ref'd field's value (`a = ${?a}foo; b = ${a}` — `b`'s required `${a}` would error). All 3 impls independently arrived at 3 strictly-narrower mechanisms (ts WeakSet-of-iterating-concats / rs path-stack `is_owner` guard / go AST-node pointer-identity). All three are correct; choosing one canonical mechanism is deferred to a spec amendment in a follow-up xx.hocon PR (tracked in [xx.hocon#27](https://github.com/o3co/xx.hocon/issues/27) alongside 4 newly-surfaced pre-existing resolver bugs).
+
+Rate change (in-scope):
+
+- ts: 94.1% → 94.6% (+0.5pp; +1 cell = S13a.13 flipped ❌ → ✅).
+- rs: 94.5% → 95.1% (+0.5pp; +1 cell).
+- go: 93.0% → 93.6% (+0.5pp; +1 cell).
+
+Spec-total: ts 83.7% → 84.2%, rs 86.8% → 87.3%, go 83.3% → 83.7%.
+
+Multi-agent-review observations during Phase 6 #3f — this cluster surfaced the **most reviewer-found issues to date** in a single Phase 6 cluster:
+
+1. **Round-1 convergent regression** (Codex P1 on go.hocon + Codex P2 on rs.hocon, **independently**): the round-1 fix's `isSelfRef` structural path-equality detection misfired on external lookups. ts.hocon's Codex review missed it (cache shielded the symptom on forward order) but Claude r2 review confirmed the same shape was present in ts. All 3 impls were re-fixed in round 2 with the divergent narrower mechanisms documented above. This is the **first Phase 6 cluster to require a round-2 multi-agent-review** after fix discovery, validating the convergence rule's "default to must-fix" treatment.
+2. **Multi-segment self-ref latent bug** (subagent-discovered during round-1 TDD on all 3 impls): the spec described `sr09`/`sr10` as straightforward regression guards, but each impl independently found that the existing prior-value lookup didn't traverse nested object structure correctly. Path-traversal additions in all 3 impls. Subagent reports surface this as deviations from plan that were validated as real correctness fixes.
+3. **Spec ★1 decision #1 inadequate**: convergent finding from Claude r2 reviews on ts + go + Copilot reviews; the spec's "path-equality is preserved" decision was the wrong abstraction. Deferred amendment to xx.hocon#27.
+
+Copilot single-reviewer-flagged fixes addressed in-PR (round 3): ts conformance-test `existsSync` skip-guard + cycle-detection criterion alignment; rs nested-object-literal self-ref leaf-segment fallback + error-fixture path existence assertion + misleading cache-claim comment; go error-fixture gate separation + nested-leaf-key collision fix.
+
+One pre-existing dismiss (verified-empirical): Copilot flagged go.hocon's S13a.13 conformance test as silently-skipping in clean local checkout; dismissed because CI's `make testdata` syncs expected JSON via `cp -R "$tmpdir/expected/hocon/."` recursively, matching the established pattern from all prior Phase 6 clusters (CI-green confirmed across all 6 OS×runtime matrix entries).
+
+Pre-existing bugs surfaced (out of scope, see [xx.hocon#27](https://github.com/o3co/xx.hocon/issues/27)): nested external ref crash (`foo.a = ${?foo.a}bar; foo.b = ${foo.a}`); cache pollution on prior-with-external-ref (`a = "x"; a = ${?a}foo; b = ${a}` returns `"x"` not `"xfoo"`); same-field double-self-ref crash (`a = ${?a}1; a = ${?a}2`); order-dependent ref-before-self-ref (`b = ${a}; a = ${?a}foo`). These were filed for a future cluster; not addressed in this PR per the project's "unrelated issues → separate PR" rule.
+
+CI followups: go.hocon shows `codecov/project` -0.38pp drop vs develop baseline (84.95% vs 85.33%) — codecov is non-required per branch protection, `codecov/patch` is SUCCESS (all modified lines covered), no functional blocker. Drop is from baseline drift, documented in the PR description for transparency.
 
 ### Cleared in Phase 6 #3d (2026-05-18)
 
@@ -334,7 +377,7 @@ The following items were cleared from shared test debt by [ts.hocon#85](https://
 - **S13.13** — optional undefined in string concat → empty string (✅ in all 3)
 - **S13.14** — optional undefined in obj/array concat (✅ in go; ⚠️ in ts/rs — array variant broken, see Top spec violations above)
 - **S13.16** — substitutions only in field values / array elements (✅ in all 3)
-- **S13a.13** — `a = ${?a}foo` resolves to `"foo"` (now verified ❌ in all 3 — see Top spec violations above)
+- **S13a.13** — `a = ${?a}foo` resolves to `"foo"` (was verified ❌ in all 3 in Phase 3; cleared ✅ in Phase 6 #3f — see "Cleared in Phase 6 #3f" section above)
 - **S14a.6** — unquoted `include` at non-start-of-key is literal (✅ in all 3)
 - **S14a.8** — no value concatenation on include argument (✅ in all 3)
 - **S14a.9** — no substitutions in include argument (✅ in all 3)
