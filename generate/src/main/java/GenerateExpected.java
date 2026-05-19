@@ -134,6 +134,46 @@ public class GenerateExpected {
         "self-ref-lookback/sr09-nested-no-prior.conf",
         "self-ref-lookback/sr10-nested-with-prior.conf",
         "self-ref-lookback/sr11-mutual-ref-forward.conf",
+        // S3.1 empty-file fixtures (cluster 3h). Lightbend silently accepts empty
+        // documents as `{}`, contradicting spec L130. Documented as E10 in
+        // docs/extra-spec-conventions.md. Per-impl conformance tests load these and
+        // assert parse error (override list pattern, matching E9/ir03-ir04).
+        "empty-file/ef01-empty.conf",
+        "empty-file/ef02-whitespace-only.conf",
+        "empty-file/ef03-newlines-only.conf",
+        "empty-file/ef04-comment-only.conf",
+        "empty-file/ef05-bom-only.conf",
+        "empty-file/ef06-mixed-ws-comment.conf",
+        // S21.4 single-letter byte abbreviation fixtures (cluster 3h). Lightbend
+        // ground truth is binary (powers of two): K=1024, M=1048576, etc.
+        // Per-impl tests call getBytes("b") and assert numeric byte counts;
+        // the -expected.json sidecars pin only the raw string value preserved
+        // through parse (the byte-count assertion is at the accessor layer).
+        "byte-single-letter/bsl01-1K.conf",
+        "byte-single-letter/bsl02-1k.conf",
+        "byte-single-letter/bsl03-1M.conf",
+        "byte-single-letter/bsl04-1G.conf",
+        "byte-single-letter/bsl05-1T.conf",
+        "byte-single-letter/bsl06-1P.conf",
+        "byte-single-letter/bsl07-1E.conf",
+        "byte-single-letter/bsl08-1024K.conf",
+        "byte-single-letter/bsl09-05K.conf",
+    };
+
+    // S23.4 properties-conflict fixtures (cluster 3h). Lightbend's direct
+    // ConfigFactory.parseFile(...properties) applies the spec L1485 "object wins"
+    // rule correctly (within a single .properties file, dotted keys always win
+    // over scalar conflicts regardless of input order). Lightbend's `include`
+    // code path through a wrapping .conf is order-dependent and does NOT match
+    // spec — we deliberately bypass `include` here and parse the .properties
+    // directly to obtain spec-compliant ground truth. Per-impl tests load the
+    // .properties via each impl's parseProperties() / propsToObjectVal()
+    // equivalent (NOT via include), asserting the resulting nested object.
+    static final String[] PROPERTIES_CONFS = {
+        "properties-conflict/pc01-forward.properties",
+        "properties-conflict/pc02-reverse.properties",
+        "properties-conflict/pc03-deep-forward.properties",
+        "properties-conflict/pc04-deep-reverse.properties",
     };
 
     // Conf files expected to produce a parse/resolve error and have a plain-text
@@ -272,6 +312,32 @@ public class GenerateExpected {
                 okCount++;
             } catch (Exception e) {
                 System.err.println("  ERROR (unexpected): " + confName + ": " + e.getMessage());
+                errCount++;
+            }
+        }
+
+        // PROPERTIES_CONFS: .properties fixtures parsed directly (no .conf wrapper).
+        // Lightbend's direct parseFile(.properties) is spec-compliant for the L1485
+        // "object wins" rule, unlike the order-dependent `include "..properties"` path.
+        for (String propsName : PROPERTIES_CONFS) {
+            Path propsPath = testdataDir.resolve(propsName);
+            if (!Files.exists(propsPath)) {
+                System.err.println("SKIP (not found): " + propsName);
+                skipCount++;
+                continue;
+            }
+            try {
+                Config config = ConfigFactory.parseFile(propsPath.toFile());
+                ConfigObject root = config.root();
+                String json = toSortedJson(root) + "\n";
+                String outName = propsName.replace(".properties", "-expected.json");
+                Path outPath = expectedDir.resolve(outName);
+                Files.createDirectories(outPath.getParent());
+                Files.writeString(outPath, json);
+                System.out.println("  OK (.properties): " + propsName + " -> " + outName);
+                okCount++;
+            } catch (Exception e) {
+                System.err.println("  ERROR (unexpected): " + propsName + ": " + e.getMessage());
                 errCount++;
             }
         }
