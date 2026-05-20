@@ -16,6 +16,13 @@ application {
     mainClass.set("GenerateExpected")
 }
 
+tasks.register<JavaExec>("probeIssue31") {
+    group = "verification"
+    description = "Probe Lightbend behavior for xx.hocon issue #31 matrix"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("ProbeIssue31")
+}
+
 java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(21))
