@@ -174,31 +174,41 @@ scalar `x` is discarded, yielding `{"b": 1}`.
 
 Other S10.13 coverage runs through ce03 (`[1, 2] 3`), ce04 (`3 [1, 2]`), ce06 (`x { b: 1 }`), and ce12/ce13 for resolved-substitution variants — Lightbend errors on all of these (sidecars produced).
 
-### us02 / us03 / us13 (cluster 3c, S8.6 strict-spec divergence)
+### us02 / us03 / us13 (cluster 3c, formerly strict-spec divergence — re-aligned with Lightbend 2026-05-20)
 
-Three S8.6 fixtures encode strict-HOCON-spec behaviour where Lightbend silently
-accepts spec-violating input:
+**Historical context:** these three S8.6 fixtures previously encoded a strict
+xx.hocon reading of HOCON.md L270-276 ("an unquoted string may not begin with
+`-` or digits") that diverged from Lightbend's pragmatic interpretation. They
+were excluded from `SUCCESS_CONFS` and from `SIDECAR_ERROR_CONFS` (Lightbend
+accepts them silently), with per-impl override lists pinning them to error.
 
-- `us02-hyphen-no-digit` (`a = -foo`) — spec says lex error (`-` must be followed
-  by a digit per HOCON.md L270-276); Lightbend tokenizes as
-  `unquoted("-") + unquoted("foo")` and produces `{"a":"-foo"}`.
-- `us03-hyphen-alone` (`a = -`) — spec says lex error; Lightbend produces `{"a":"-"}`.
-- `us13-leading-zero` (`a = 01`) — strict JSON-number grammar (HOCON.md L270-276)
-  forbids leading zeros on non-zero ints, so the spec tokenizes as
-  `number(0) + unquoted("1")` → string `"01"`. Lightbend calls
-  `Long.parseLong("01")` → number `1` and produces `{"a":1}`.
+**Re-alignment:** xx.hocon issue [#31](https://github.com/o3co/xx.hocon/issues/31)
+(2026-05-20, @cgordon) surfaced `b = ${a}-bar` rejected by the same strict
+reading extended into concat-continuation. Investigation determined this was a
+spec-interpretation difference, not a Lightbend divergence to preserve. E8 was
+rewritten to adopt Lightbend's reading (see
+[extra-spec-conventions.md E8](extra-spec-conventions.md#e8)), and us02/us03/us13
+moved into `SUCCESS_CONFS` with their Lightbend-produced `-expected.json`
+sidecars:
 
-**Conformance test treatment:** all three are EXCLUDED from `SUCCESS_CONFS` and
-`SIDECAR_ERROR_CONFS` (the safety net would fire on Lightbend's silent accept).
-The `.conf` files are kept on disk for per-impl test loading. Per the o3co
-strict-HOCON-spec posture (see [extra-spec-conventions.md E8](extra-spec-conventions.md#e8)),
-**implementations MUST reject `us02`/`us03` and produce string `"01"` for `us13`**
-per HOCON.md L270-276 — a deliberate Lightbend divergence.
+- `us02-hyphen-no-digit` (`a = -foo`) → `{"a":"-foo"}` — `-` not followed by a
+  digit is treated as the start of an unquoted run.
+- `us03-hyphen-alone` (`a = -`) → `{"a":"-"}` — same rule.
+- `us13-leading-zero` (`a = 01`) → `{"a":1}` — value-start digit-led runs use
+  Java numeric semantics (`Long.parseLong` accepts the leading zero).
 
-Other S8.6 coverage runs through us01/us04-us12/us14/us16 (Lightbend
-value-layer-equivalent to strict spec; safe in `SUCCESS_CONFS`) and us15
-(`a = 1e+x`) which both Lightbend and strict-spec reject — Lightbend on reserved
-`+`, strict-spec lex on the same (`.error` sidecar produced).
+Per-impl override entries (`IMPL_OVERRIDE_ERRORS` in ts, `KNOWN_LIGHTBEND_QUIRKS`
+in rs, `implErrors` in go) are removed as part of the per-impl E8 amendment PRs.
+
+**New concat-continuation fixtures (us17–us30)** were added alongside the E8
+rewrite to pin the broader rule across the probe matrix (groups A/B/D/E):
+`${a}-bar`, `${a}--bar`, `${a}-1`, `${a}1bar`, `${a}.bar`, `${a}_bar`,
+`"foo"-bar`, `"foo".bar`, `"foo"1bar`, `${a}-${a}`, `${a}-${b}`, `foo-${a}`,
+`"foo"-${a}`. All ship with `-expected.json` sidecars from Lightbend output.
+
+Other S8.6 coverage: us01/us04-us12/us14/us16 (Lightbend value-layer-equivalent;
+in `SUCCESS_CONFS`), us15 (`a = 1e+x`) — `+` reservation, error in both Lightbend
+and impl (`.error` sidecar in `SIDECAR_ERROR_CONFS`).
 
 ### ir03 / ir04 (cluster 3e, S12.5 strict-spec divergence)
 

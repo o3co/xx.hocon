@@ -149,35 +149,61 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 
 <a id="e8"></a>
 
-### E8 — Unquoted-string-starts are strict per HOCON.md L270-276 (Lightbend tolerates fallback)
+### E8 — Leading `-` / digit handling: strict at value-start, pragmatic at concat-continuation (aligned with Lightbend)
 
-**Source**: cross-impl convention. HOCON.md §Unquoted strings L270-276 states:
+**Source**: cross-impl convention, aligned with the spec-author reference implementation (Lightbend 1.4.3). HOCON.md §Unquoted strings L270-276 states:
 
 > An unquoted string may not *begin* with the digits 0-9 or with a hyphen (`-`, 0x002D) because those are valid characters to begin a JSON number. The initial number character, plus any valid-in-JSON number characters that follow it, must be parsed as a number value.
 
-Lightbend 1.4.3's `Tokenizer.pullNumber` does NOT enforce this strictly. Its actual behaviour (verified empirically against fixture group `unquoted-starts/`):
+**Reading of L270-276 "begin"**: read as *value-position begin* (the first component of a concatenation), not as *token-begin at any lexer position*. Justifications:
 
-1. Consumes a maximal run of number-like chars (`0123456789eE+-.`).
-2. Tries `Long.parseLong` then `Double.parseDouble`.
-3. **Falls back to unquoted-text on parse failure** (provided no reserved chars are present).
+1. **Reference-implementation disambiguation rule**: Lightbend at value-start enters number-lex only when `-` is followed by a digit; otherwise `-` is treated as the start of an unquoted run. The quoted HOCON text names `-` as "a valid character to begin a JSON number" (consistent with RFC 8259's `number = [minus] int [frac] [exp]` production), but a bare `-` or `-foo` is not a *complete* JSON-number prefix, so Lightbend's disambiguator does not classify it as a number-lex entry point. This is the empirically-observed behavior across the probe matrix (F1/F2).
+2. **Concatenation continuation**: when a value-token (`${...}`, `"..."`, a prior unquoted run, etc.) has already been emitted, the next unquoted run is a *continuation of the same value*, not the *begin* of a new unquoted string. L270's "begin" applies to the start of a value-position unquoted run, not to every lexer offset within a concatenation.
+3. **Reference-implementation authority**: HOCON.md and Lightbend's reference implementation are maintained by the same project. Where xx.hocon's prior strict reading and Lightbend's pragmatic reading both derive from the spec text, we adopt the reference-implementation reading.
 
-This produces three observable divergences from the strict spec:
+**o3co convention**: each of ts.hocon / rs.hocon / go.hocon MUST implement the following behavior, which matches Lightbend 1.4.3 empirically (probe matrix at [`generate/src/main/java/ProbeIssue31.java`](../generate/src/main/java/ProbeIssue31.java), groups A–F):
 
-- **`a = -foo`** (us02): Lightbend → `unquoted("-") + unquoted("foo")` → `{"a":"-foo"}`. Spec → lex error (`-` not followed by digit).
-- **`a = -`** (us03): Lightbend → `unquoted("-")` → `{"a":"-"}`. Spec → lex error.
-- **`a = 01`** (us13): Lightbend → `Long.parseLong("01") = 1` → `{"a":1}`. Spec → `number(0) + unquoted("1")` → `{"a":"01"}` (strict JSON-number grammar forbids leading zeros on non-zero ints; only `0` alone is a valid leading-zero number).
+| Position | Leading character | Behavior |
+| --- | --- | --- |
+| **value-start** | digit `0-9` | greedy number-lex via Java numeric semantics: `Long.parseLong` first, `Double.parseDouble` second; fall back to unquoted text on parse failure. `01` → `1` (number, not `"01"` string). |
+| **value-start** | `-` followed by digit | greedy number-lex as above (e.g. `-1`, `-0.5`). |
+| **value-start** | `-` not followed by digit (`-foo`, lone `-`) | emit as unquoted text (no number-lex attempt, since not a valid JSON-number prefix). |
+| **value-start** | `+` | **reject** — HOCON `+=` operator reservation, distinct from number-lex. |
+| **concat-continuation** (after `${...}`, `"..."`, prior unquoted, etc.) | any unquoted-permissible character except `+` | continue the unquoted run; no number-lex attempted. `${a}-bar` → `"foo-bar"`. Characters that would terminate an unquoted token (`}`, `]`, `,`, `=`, `:`, whitespace, comment markers, etc.) still terminate it as usual. |
+| **concat-continuation** | `+` | **reject** (same operator-reservation reason as value-start). |
 
-**o3co convention**: each of ts.hocon / rs.hocon / go.hocon MUST implement the strict spec algorithm — leading `0-9` triggers number-lex (always succeeds with ≥1 digit); leading `-` triggers number-lex with required digit (lex error if absent, NO fallback to unquoted). Number lex uses greedy-with-backtrack-to-last-valid-prefix per the algorithm in the design spec (`docs/superpowers/specs/2026-05-17-s8-unquoted-starts-design.md` §HOCON number grammar).
+**Notes on characters not listed above**: characters outside L270's `0-9` / `-` / `+` set (e.g. `.`, `_`, letters) follow the spec's normal unquoted-string rules in both positions. Example: `a = .5` → `".5"` (string, since `.` is not in L270's disallow list); `${a}.bar` → `"foo.bar"` (concat-continuation extends with `.bar`).
 
-**Why an E-item rather than an S-item**: HOCON.md L270-276 IS the canonical spec rule; the matrix already marks S8.6 as ❌ in all 3 impls. E8 tracks the *specific Lightbend divergence pattern* and the per-fixture treatment, parallel to E5 for the S10.13 ce05 quirk. The S8.6 matrix row will flip ❌→✅ as each impl PR merges.
+**Value-start number-lex algorithm** (informative; matches Lightbend `Tokenizer.pullNumber`):
+
+1. **Eligibility**: attempt number-lex only if the first character is `0-9` or `-` followed by a digit. `+` is rejected up front (operator reservation).
+2. **Greedy consume**: consume the maximal run of characters in the class `[0-9.eE+-]` (Lightbend's `pullNumber` character set; adopted for compatibility).
+3. **Parse**: try `Long.parseLong` first, then `Double.parseDouble`, on the consumed run. On success, emit a number token.
+4. **Parse-failure handling**:
+    - If the consumed run contains `+`, emit a reserved-character error (matches `us15` `a = 1e+x`: consumes `1e+x`, parsing fails, `+` triggers reserved-character error — does *not* fall back to unquoted).
+    - Otherwise, emit the consumed characters as the start of an unquoted run and continue lexing in the unquoted state (matches `a = 1.2.3` → unquoted `"1.2.3"`).
+
+The side effect: `+` in number-lex position is always an error (either rejected by eligibility, or by parse-failure handling). The same `+` rejection applies in concat-continuation position per the behavior table.
+
+**History**: E8 was originally added 2026-05-17 with a strict reading — leading `-` always errored when no digit followed, and `01` lexed as `number(0) + unquoted("1")` → `"01"` string. External issue [#31](https://github.com/o3co/xx.hocon/issues/31) (2026-05-20, reported by @cgordon) surfaced the `b = ${a}-bar` case, which the strict reading rejected by extending the same `-` rule into concat-continuation positions. Investigation (recorded in the issue reply and the probe matrix) determined this is a spec-interpretation difference, not a Lightbend divergence to preserve. E8 was rewritten 2026-05-20 to adopt the reference-implementation reading; us02/us03/us13 fixtures moved from per-impl error overrides to `SUCCESS_CONFS` with `-expected.json`.
+
+**Why an E-item rather than (just) an S-item**: HOCON.md L270-276 is the canonical spec rule (S8.6 in [`spec-checklist.md`](spec-checklist.md)). E8 records (a) the project's chosen reading of "begin" (value-position vs token-position), (b) the concat-continuation handling rule which HOCON.md does not explicitly enumerate, and (c) the `+` exception (HOCON operator reservation, not number-lex). The S8.6 matrix row will flip ❌→✅ as each impl PR merges this amendment.
 
 | Impl | Status | Test | Notes |
 | --- | --- | --- | --- |
-| ts.hocon | ❌ | `unquoted-starts/us02`, `us03`, `us13` loaded by per-impl test (no xx.hocon `.error` sidecar; Lightbend doesn't throw) | Will flip to ✅ after Phase 6 #3c impl PR merges; lexer removes the unquoted-fallback for leading `-` and emits strict `number(0) + unquoted("1")` for `01` |
-| rs.hocon | ❌ | same fixtures | Will flip to ✅ after Phase 6 #3c impl PR merges |
-| go.hocon | ❌ | same fixtures | Will flip to ✅ after Phase 6 #3c impl PR merges |
+| ts.hocon | ❌ → ✅ | `unquoted-starts/us02`, `us03`, `us13` move to `SUCCESS_CONFS` with `-expected.json`; new concat-continuation fixtures (numbering TBD) | Lexer removes strict-no-fallback for leading `-`, switches leading-zero handling to Java numeric semantics, retains `+` rejection. Allows concat-continuation runs after value-tokens. |
+| rs.hocon | ❌ → ✅ | same fixtures | Same lexer changes. |
+| go.hocon | ❌ → ✅ | same fixtures | Same lexer changes. |
 
-**Fixtures**: `testdata/hocon/unquoted-starts/us02-hyphen-no-digit.conf`, `us03-hyphen-alone.conf`, `us13-leading-zero.conf`. No `.error` sidecars (Lightbend silent-accept; see `fixture-conventions.md` "Lightbend quirks"). The remaining S8.6 fixtures (us01, us04-us12, us14, us16) are Lightbend-value-layer-equivalent and live in `SUCCESS_CONFS`; us15 (`a = 1e+x`) errors in both Lightbend and strict spec and lives in `SIDECAR_ERROR_CONFS`.
+**Fixtures**:
+
+- **Existing (move to `SUCCESS_CONFS`)**: `testdata/hocon/unquoted-starts/us02-hyphen-no-digit.conf` → `{"a":"-foo"}`, `us03-hyphen-alone.conf` → `{"a":"-"}`, `us13-leading-zero.conf` → `{"a":1}`. All gain `-expected.json` sidecars reflecting Lightbend output.
+- **New (concat-continuation, to be added in the amendment PR)**: cases from probe groups A/B/D/E — `${a}-bar`, `${a}--bar`, `${a}-1`, `${a}1bar`, `${a}.bar`, `"foo"-bar`, `"foo".bar`, `"foo"1bar`, `${a}-${a}`, `foo-${a}`, etc. All in `SUCCESS_CONFS` with `-expected.json` matching Lightbend output. Exact filenames + numbering decided at PR time.
+- **`+` rejection (unchanged)**: any `+` in a value position outside `+=` (e.g. probe cases A8 `${a}+bar`, F5 `a = +foo`) remains an error; new error fixtures may be added if not already covered by existing `+=`-related tests.
+
+**Note on cross-file consistency**: the migration of us02/us03/us13 to `SUCCESS_CONFS` requires synchronized updates to [`fixture-conventions.md`](fixture-conventions.md) (the "us02 / us03 / us13 (cluster 3c)" section under "Lightbend quirks") and [`generate/src/main/java/GenerateExpected.java`](../generate/src/main/java/GenerateExpected.java) (the `SUCCESS_CONFS` array + the related code comments). Both currently document the prior strict-reject treatment. These updates ship in the same PR as this E8 rewrite to avoid a divergent intermediate state.
+
+**Downstream BREAKING note**: the F3 change (`a = 01` → `1` number, was `"01"` string) is a value-type-change for the specific leading-zero literal case. All other changes are additive (expand the set of inputs that parse successfully). Each impl PR should call this out in its CHANGELOG / release notes.
 
 <a id="e9"></a>
 
@@ -240,3 +266,4 @@ Lightbend 1.4.3 silently accepts empty input as `SimpleConfigObject({})`. Verifi
 2026-05-18 — E9 flipped ❌ → ✅ in all 3 impls after Phase 6 #3e impl PRs landed ([ts.hocon#102](https://github.com/o3co/ts.hocon/pull/102), [rs.hocon#90](https://github.com/o3co/rs.hocon/pull/90), [go.hocon#88](https://github.com/o3co/go.hocon/pull/88)). Each impl rejects `include.foo = 1` (and `a = { include.bar = 1 }`) via its post-PathParser path-element check on the constructed key list, with quoted-vs-unquoted provenance captured locally in the field-parser before `parseKey` / `parse_key` advances the cursor. The ir03/ir04 fixtures remain without xx.hocon `.error` sidecars — Lightbend's tokenizer joins `include.foo` into a single unquoted token before `isIncludeKeyword` runs, so it silently accepts. Each impl's conformance test maintains a per-impl override list (`IMPL_OVERRIDE_ERRORS` in ts, `KNOWN_LIGHTBEND_QUIRKS` in rs, `implErrors` in go) pinning ir03/ir04 to error. **Side-clear**: go.hocon S14a.10 (#80) also flipped ❌ → ✅ via the same PR — `parseInclude` now requires the include argument to be a quoted TokenString; unquoted `include foo.conf` raises `*parser.Error`. Spec-aligned error-message split applied in go.hocon (S14a.10 case → "include argument must be a quoted string"; S12.5 case → "'include' is reserved as a key name") per Claude multi-agent-review Important finding fixed in-PR (commit 7b5c80a). ts/rs were already ✅ on S14a.10 pre-fix so their flips are S12.5-only.
 2026-05-18 — E5 flipped ❌ → ✅ in all 3 impls after Phase 6 #3b impl PRs landed ([ts.hocon#101](https://github.com/o3co/ts.hocon/pull/101), [rs.hocon#89](https://github.com/o3co/rs.hocon/pull/89), [go.hocon#87](https://github.com/o3co/go.hocon/pull/87)). Each impl rejects the `{object} scalar`, `scalar {object}`, `[array] scalar`, `scalar [array]` constructs via its pairwise-fold `joinPair` / `join_pair` type-mismatch branch — same code path that closes S10.4/S10.13/S10.19 in the canonical matrix. go.hocon merge is **BREAKING** (prior permissive `[1, 2] 3 → [1, 2, 3]` removed); ts and rs were already error on the construct pre-fix so their flips are non-breaking. The ce05 fixture remains without an xx.hocon `.error` sidecar — Lightbend silently accepts the construct, so the generator omits the sidecar; each impl's conformance test maintains a per-impl override list pinning ce05 (and other E-marked Lightbend-quirk fixtures) to error.
 2026-05-18 — E6 and E7 flipped 🤷 → ✅ in all 3 impls after Phase 6 #3g impl PRs landed ([ts.hocon#100](https://github.com/o3co/ts.hocon/pull/100), [rs.hocon#88](https://github.com/o3co/rs.hocon/pull/88), [go.hocon#86](https://github.com/o3co/go.hocon/pull/86)). E7 enforcement narrowed via multi-agent-review (I2 fix): only ASCII space (0x20) / tab (0x09) accepted between path and `[]`; broader Unicode whitespace (NBSP, CR, Zs) errors. E6 known limitation (cross-impl: include-scope `${X[]}` does not fall back to original-path config) tracked at [xx.hocon#22](https://github.com/o3co/xx.hocon/issues/22) — Copilot review on go.hocon#86 surfaced the issue; cross-impl scope (also affects ts + rs).
+2026-05-20 — E8 **rewritten** to adopt Lightbend's pragmatic reading of HOCON.md L270-276 "begin" as value-position (not token-position at any lexer offset). Driven by external issue [xx.hocon#31](https://github.com/o3co/xx.hocon/issues/31) (@cgordon, first external issue), which surfaced `b = ${a}-bar` rejected under the strict reading. Concat-continuation cases (`${a}-bar`, `${a}--bar`, `${a}-1`, `${a}1bar`, `${a}.bar`, `"foo"-bar`, etc.) now accepted; us02 (`a = -foo`) / us03 (`a = -`) / us13 (`a = 01`) moved from per-impl error overrides to `SUCCESS_CONFS`. **BREAKING for downstream**: F3 (`a = 01` → `1` number, was `"01"` string) is a value-type change; other changes are additive. `+` rejection retained in both value-start and concat-continuation positions (HOCON `+=` operator reservation, distinct from number-lex). Lightbend probe matrix recorded at [`generate/src/main/java/ProbeIssue31.java`](../generate/src/main/java/ProbeIssue31.java) (groups A–F). Project principle established alongside this amendment: where xx.hocon and Lightbend differ and both behaviors derive from a reasonable reading of the spec, xx.hocon is the side that needs correcting (E5/E9/E10 to be re-audited under this principle as separate follow-ups; E10 may be a genuine Lightbend spec violation rather than an interpretation difference and will be raised upstream).
