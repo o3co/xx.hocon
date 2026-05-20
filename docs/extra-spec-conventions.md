@@ -191,14 +191,14 @@ The side effect: `+` in number-lex position is always an error (either rejected 
 
 | Impl | Status | Test | Notes |
 | --- | --- | --- | --- |
-| ts.hocon | ❌ → ✅ | `unquoted-starts/us02`, `us03`, `us13` move to `SUCCESS_CONFS` with `-expected.json`; new concat-continuation fixtures (numbering TBD) | Lexer removes strict-no-fallback for leading `-`, switches leading-zero handling to Java numeric semantics, retains `+` rejection. Allows concat-continuation runs after value-tokens. |
+| ts.hocon | ❌ → ✅ | `unquoted-starts/us02`, `us03`, `us13` move to `SUCCESS_CONFS` with `-expected.json`; new concat-continuation fixtures `us17`–`us30` (covering probe matrix groups A/B/D/E) | Lexer removes strict-no-fallback for leading `-`, switches leading-zero handling to Java numeric semantics, retains `+` rejection. Allows concat-continuation runs after value-tokens. |
 | rs.hocon | ❌ → ✅ | same fixtures | Same lexer changes. |
 | go.hocon | ❌ → ✅ | same fixtures | Same lexer changes. |
 
 **Fixtures**:
 
 - **Existing (move to `SUCCESS_CONFS`)**: `testdata/hocon/unquoted-starts/us02-hyphen-no-digit.conf` → `{"a":"-foo"}`, `us03-hyphen-alone.conf` → `{"a":"-"}`, `us13-leading-zero.conf` → `{"a":1}`. All gain `-expected.json` sidecars reflecting Lightbend output.
-- **New (concat-continuation, to be added in the amendment PR)**: cases from probe groups A/B/D/E — `${a}-bar`, `${a}--bar`, `${a}-1`, `${a}1bar`, `${a}.bar`, `"foo"-bar`, `"foo".bar`, `"foo"1bar`, `${a}-${a}`, `foo-${a}`, etc. All in `SUCCESS_CONFS` with `-expected.json` matching Lightbend output. Exact filenames + numbering decided at PR time.
+- **New (concat-continuation, added in this amendment as `us17`–`us30`)**: cases from probe groups A/B/D/E — `${a}-bar`, `${a}-`, `${a}--bar`, `${a}-1`, `${a}1bar`, `${a}.bar`, `${a}_bar`, `"foo"-bar`, `"foo".bar`, `"foo"1bar`, `${a}-${a}`, `${a}-${b}`, `foo-${a}`, `"foo"-${a}`. All in `SUCCESS_CONFS` with `-expected.json` matching Lightbend output.
 - **`+` rejection (unchanged)**: any `+` in a value position outside `+=` (e.g. probe cases A8 `${a}+bar`, F5 `a = +foo`) remains an error; new error fixtures may be added if not already covered by existing `+=`-related tests.
 
 **Note on cross-file consistency**: the migration of us02/us03/us13 to `SUCCESS_CONFS` requires synchronized updates to [`fixture-conventions.md`](fixture-conventions.md) (the "us02 / us03 / us13 (cluster 3c)" section under "Lightbend quirks") and [`generate/src/main/java/GenerateExpected.java`](../generate/src/main/java/GenerateExpected.java) (the `SUCCESS_CONFS` array + the related code comments). Both currently document the prior strict-reject treatment. These updates ship in the same PR as this E8 rewrite to avoid a divergent intermediate state.

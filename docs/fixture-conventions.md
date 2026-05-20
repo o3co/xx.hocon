@@ -202,7 +202,7 @@ in rs, `implErrors` in go) are removed as part of the per-impl E8 amendment PRs.
 
 **New concat-continuation fixtures (us17–us30)** were added alongside the E8
 rewrite to pin the broader rule across the probe matrix (groups A/B/D/E):
-`${a}-bar`, `${a}--bar`, `${a}-1`, `${a}1bar`, `${a}.bar`, `${a}_bar`,
+`${a}-bar`, `${a}-`, `${a}--bar`, `${a}-1`, `${a}1bar`, `${a}.bar`, `${a}_bar`,
 `"foo"-bar`, `"foo".bar`, `"foo"1bar`, `${a}-${a}`, `${a}-${b}`, `foo-${a}`,
 `"foo"-${a}`. All ship with `-expected.json` sidecars from Lightbend output.
 

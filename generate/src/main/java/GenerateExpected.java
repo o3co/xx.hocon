@@ -98,8 +98,9 @@ public class GenerateExpected {
         //   - us13 (`a = 01`)   → {"a":1}       (Java numeric semantics, leading-zero handled)
         //
         // New concat-continuation fixtures (us17–us30, added with E8 rewrite — probe matrix
-        // groups A/B/D/E): cover ${a}-bar, ${a}--bar, ${a}-1, ${a}1bar, ${a}.bar, ${a}_bar,
-        // "foo"-bar, "foo".bar, "foo"1bar, ${a}-${a}, ${a}-${b}, foo-${a}, "foo"-${a}.
+        // groups A/B/D/E): cover ${a}-bar, ${a}-, ${a}--bar, ${a}-1, ${a}1bar, ${a}.bar,
+        // ${a}_bar, "foo"-bar, "foo".bar, "foo"1bar, ${a}-${a}, ${a}-${b}, foo-${a},
+        // "foo"-${a}.
         //
         // SIDECAR_ERROR_CONFS still handles us15 (`a = 1e+x`) — `+` is reserved (HOCON `+=`
         // operator), error in both value-start and concat-continuation positions.
