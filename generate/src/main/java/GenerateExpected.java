@@ -87,17 +87,26 @@ public class GenerateExpected {
         // Isolates ${?S13C_EV13_MY_LIST[]} with _0=a set → {"x": ["a"]}.
         // Complements ev06/ev07 (which embed ${?X[]} inside concat expressions).
         "env-var-list/ev13-optional-list-direct.conf",
-        // S8.6 unquoted-string-starts strict-spec fixtures (cluster 3c). The strict spec
-        // says: leading 0-9 must trigger number-lex; leading `-` must trigger number-lex
-        // with required digit (lex error if absent). Per-impl conformance asserts the
-        // token stream. Lightbend-quirk fixtures EXCLUDED here:
-        //   - us02 (`-foo`), us03 (`-`): Lightbend silently accepts as unquoted; strict
-        //     spec errors. See E8.
-        //   - us13 (`01`): Lightbend parses as number 1 (Long.parseLong drops leading
-        //     zero); strict spec emits number(0) + unquoted("1") → string "01". See E8.
-        // SIDECAR_ERROR_CONFS handles us15 (`1e+x`) since Lightbend errors on the
-        // reserved `+` character (strict-spec lex also errors but for a different reason).
+        // S8.6 unquoted-string-starts fixtures (cluster 3c, E8 rewritten 2026-05-20).
+        // E8 now adopts Lightbend's pragmatic reading of HOCON.md L270-276 "begin" as
+        // value-position begin (not token-position at any lexer offset). See
+        // docs/extra-spec-conventions.md#e8 and xx.hocon issue #31.
+        //
+        // Lightbend-aligned fixtures (us02/us03/us13 moved here from per-impl error overrides):
+        //   - us02 (`a = -foo`) → {"a":"-foo"}  (`-` not followed by digit → unquoted)
+        //   - us03 (`a = -`)    → {"a":"-"}     (same)
+        //   - us13 (`a = 01`)   → {"a":1}       (Java numeric semantics, leading-zero handled)
+        //
+        // New concat-continuation fixtures (us17–us30, added with E8 rewrite — probe matrix
+        // groups A/B/D/E): cover ${a}-bar, ${a}-, ${a}--bar, ${a}-1, ${a}1bar, ${a}.bar,
+        // ${a}_bar, "foo"-bar, "foo".bar, "foo"1bar, ${a}-${a}, ${a}-${b}, foo-${a},
+        // "foo"-${a}.
+        //
+        // SIDECAR_ERROR_CONFS still handles us15 (`a = 1e+x`) — `+` is reserved (HOCON `+=`
+        // operator), error in both value-start and concat-continuation positions.
         "unquoted-starts/us01-digit-prefix-with-tail.conf",
+        "unquoted-starts/us02-hyphen-no-digit.conf",
+        "unquoted-starts/us03-hyphen-alone.conf",
         "unquoted-starts/us04-hyphen-with-digit.conf",
         "unquoted-starts/us05-number-then-comment.conf",
         "unquoted-starts/us06-embedded-digits.conf",
@@ -107,8 +116,23 @@ public class GenerateExpected {
         "unquoted-starts/us10-greedy-backtrack-exp.conf",
         "unquoted-starts/us11-greedy-backtrack-frac.conf",
         "unquoted-starts/us12-hex-prefix.conf",
+        "unquoted-starts/us13-leading-zero.conf",
         "unquoted-starts/us14-multi-dot-version.conf",
         "unquoted-starts/us16-negative-with-tail.conf",
+        "unquoted-starts/us17-concat-subst-dash-text.conf",
+        "unquoted-starts/us18-concat-subst-dash-only.conf",
+        "unquoted-starts/us19-concat-subst-double-dash.conf",
+        "unquoted-starts/us20-concat-subst-dash-digit.conf",
+        "unquoted-starts/us21-concat-subst-digit-text.conf",
+        "unquoted-starts/us22-concat-subst-dot-text.conf",
+        "unquoted-starts/us23-concat-subst-underscore.conf",
+        "unquoted-starts/us24-concat-quoted-dash-text.conf",
+        "unquoted-starts/us25-concat-quoted-dot-text.conf",
+        "unquoted-starts/us26-concat-quoted-digit-text.conf",
+        "unquoted-starts/us27-concat-subst-dash-subst.conf",
+        "unquoted-starts/us28-concat-subst-dash-subst-other.conf",
+        "unquoted-starts/us29-concat-unquoted-dash-subst.conf",
+        "unquoted-starts/us30-concat-quoted-dash-subst.conf",
         // S12.5 include-reservation positive fixtures (cluster 3e). Negative fixtures
         // distributed between SIDECAR_ERROR_CONFS (Lightbend throws) and Lightbend-quirk
         // exclusions (Lightbend silently accepts dotted `include.foo`). See E9 in
