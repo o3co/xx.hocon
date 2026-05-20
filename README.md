@@ -2,6 +2,18 @@
 
 Shared test resources for HOCON parser conformance testing across [rs.hocon](https://github.com/o3co/rs.hocon), [ts.hocon](https://github.com/o3co/ts.hocon), and [go.hocon](https://github.com/o3co/go.hocon).
 
+## Implementation status
+
+All 3 reference implementations are at **v1.3.0** (2026-05-21 — simultaneous spec-compliance bugfix release rolling out the [#31](https://github.com/o3co/xx.hocon/issues/31) / [#32](https://github.com/o3co/xx.hocon/pull/32) E8 amendment, Lightbend's pragmatic reading of HOCON.md L270-276).
+
+| impl | release | package | spec-total | spec-applicable |
+| --- | --- | --- | --- | --- |
+| ts.hocon | [v1.3.0](https://github.com/o3co/ts.hocon/releases/tag/v1.3.0) | npm `@o3co/ts.hocon@1.3.0` | **85.9%** | **96.5%** |
+| rs.hocon | [v1.3.0](https://github.com/o3co/rs.hocon/releases/tag/v1.3.0) | crates.io `hocon-parser 1.3.0` | **87.8%** | **95.6%** |
+| go.hocon | [v1.3.0](https://github.com/o3co/go.hocon/releases/tag/v1.3.0) | GOPROXY `github.com/o3co/go.hocon@v1.3.0` | **85.4%** | **95.5%** |
+
+Full breakdown: [docs/compliance-matrix.md](docs/compliance-matrix.md).
+
 ## Structure
 
 - `testdata/hocon/` — Lightbend HOCON test suite `.conf` files (master copy)
