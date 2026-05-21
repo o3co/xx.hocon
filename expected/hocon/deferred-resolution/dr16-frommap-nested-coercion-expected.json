@@ -10,5 +10,6 @@
   "nested": {
     "inner": "deep"
   },
+  "nothing": null,
   "ratio": 3.14
 }

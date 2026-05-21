@@ -28,9 +28,14 @@ build:
 expect:
   outcome: success
   isResolved: true
+  # WithFallback merges the fallback's keys into the result; `KEY` therefore
+  # appears at top level alongside the receiver's `a`. Use ResolveWith if you
+  # want the source's keys suppressed — see dr11a.
   json: |-
     {
+      "KEY": "v",
       "a": "v"
     }
   getter:
     - { path: "a", expectString: "v" }
+    - { path: "KEY", expectString: "v" }

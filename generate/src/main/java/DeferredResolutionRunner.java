@@ -33,6 +33,8 @@ public class DeferredResolutionRunner {
     static final Gson GSON = new GsonBuilder()
         .setPrettyPrinting()
         .disableHtmlEscaping()
+        .serializeNulls() // Lightbend ConfigRenderOptions(json=true) emits null;
+                          // preserve it in the JSON ground truth (e.g. dr16 nested null).
         .create();
 
     // ---------------------------------------------------------------------------
@@ -141,7 +143,9 @@ public class DeferredResolutionRunner {
 
         // --- Pre-declare error tracking so source materialisation errors flow
         //     through the same caughtException path as build-step errors. ---
-        Integer errorAt = (Integer) expect.get("errorAt");
+        // Safe cast: SnakeYAML may produce Integer or Long depending on int size.
+        Object errorAtRaw = expect.get("errorAt");
+        Integer errorAt = (errorAtRaw instanceof Number) ? ((Number) errorAtRaw).intValue() : null;
         Exception caughtException = null;
         int errorStepIndex = -1;
         Object lastArtifact = null;
@@ -223,7 +227,7 @@ public class DeferredResolutionRunner {
                 return Result.unexpected(msg);
             }
             // Build threw as expected
-            return buildErrorResult(caughtException, errorStepIndex, expect, yamlFile);
+            return buildErrorResult(caughtException, errorStepIndex, errorAt, expect, yamlFile);
 
         } else {
             throw new RuntimeException("Unknown outcome '" + expectedOutcome + "' in " + yamlFile);
@@ -360,30 +364,53 @@ public class DeferredResolutionRunner {
         String renderedJson = resultConfig.root().render(
             ConfigRenderOptions.concise().setJson(true).setFormatted(true)
         );
-        // If the config is resolved, re-parse via Gson and pretty-print with sorted keys to
-        // match existing GenerateExpected style. If unresolved (AllowUnresolved=true), Lightbend's
-        // render emits non-JSON tokens for substitution placeholders (e.g. `${b}` literal), so
-        // we keep Lightbend's raw output and rely on per-impl tests to validate.
-        String sortedJson;
-        if (resultConfig.isResolved()) {
+        boolean actualIsResolved = resultConfig.isResolved();
+
+        // For resolved configs: re-parse via Gson and emit sorted-key JSON as the
+        // canonical ground truth at `<name>-expected.json`.
+        //
+        // For unresolved configs (AllowUnresolved=true): Lightbend's render emits
+        // non-JSON tokens for substitution placeholders (e.g. `${b}` literal). We
+        // preserve Lightbend's raw output but emit it under a different extension
+        // (`<name>-expected.unresolved-render.txt`) so consumers that load
+        // `*-expected.json` via standard parsers don't trip. Per-impl tests assert
+        // against the `-expected.txt` getter records + isResolved=false flag.
+        String sortedJson = null;
+        String unresolvedRender = null;
+        if (actualIsResolved) {
             JsonElement parsed = JsonParser.parseString(renderedJson);
             sortedJson = GSON.toJson(sortJsonElement(parsed)) + "\n";
         } else {
-            sortedJson = renderedJson.endsWith("\n") ? renderedJson : renderedJson + "\n";
+            unresolvedRender = renderedJson.endsWith("\n") ? renderedJson : renderedJson + "\n";
         }
 
-        // isResolved check
+        // isResolved verification (hard-fail on mismatch — Lightbend is the truth).
         Boolean expectIsResolved = (Boolean) expect.get("isResolved");
-        boolean actualIsResolved = resultConfig.isResolved();
+        if (expectIsResolved != null && expectIsResolved != actualIsResolved) {
+            return Result.unexpected(
+                "isResolved mismatch in " + yamlFile.getFileName()
+                    + ": scenario expected isResolved=" + expectIsResolved
+                    + " but Lightbend returned " + actualIsResolved);
+        }
 
-        // Warn if expected JSON mismatches Lightbend's output (but still write Lightbend truth)
-        String jsonWarn = null;
+        // JSON verification (hard-fail on mismatch — Lightbend is the truth).
+        // Only meaningful for resolved configs; unresolved scenarios MUST NOT set
+        // `expect.json` because Lightbend's unresolved render is not portable JSON.
         Object expectJson = expect.get("json");
         if (expectJson instanceof String) {
+            if (!actualIsResolved) {
+                return Result.unexpected(
+                    "expect.json is set on an unresolved scenario in " + yamlFile.getFileName()
+                        + " — unresolved configs cannot have a canonical JSON expectation. "
+                        + "Remove expect.json from this scenario and rely on `expect.getter` + isResolved=false.");
+            }
             String normalised = normaliseJson((String) expectJson);
             String actualNormalised = normaliseJson(sortedJson);
             if (!normalised.equals(actualNormalised)) {
-                jsonWarn = "JSON mismatch: scenario expected:\n" + expectJson + "\nLightbend produced:\n" + sortedJson;
+                return Result.unexpected(
+                    "JSON mismatch in " + yamlFile.getFileName()
+                        + ":\nscenario expected:\n" + expectJson
+                        + "\nLightbend produced:\n" + sortedJson);
             }
         }
 
@@ -407,36 +434,47 @@ public class DeferredResolutionRunner {
                 txt.append("  ").append(gr.path).append(": ").append(gr.result).append("\n");
             }
         }
-        if (expectIsResolved != null && expectIsResolved != actualIsResolved) {
-            txt.append("WARN: expected isResolved=").append(expectIsResolved)
-               .append(" but Lightbend returned ").append(actualIsResolved).append("\n");
-        }
-        if (jsonWarn != null) {
-            txt.append("WARN: ").append(jsonWarn).append("\n");
-        }
 
-        return Result.success(sortedJson, txt.toString());
+        return Result.success(sortedJson, unresolvedRender, txt.toString());
     }
 
-    private static Result buildErrorResult(Exception ex, int errorStepIndex,
+    private static Result buildErrorResult(Exception ex, int errorStepIndex, Integer expectedErrorAt,
                                            Map<String, Object> expect, Path yamlFile) {
         String category = mapExceptionToCategory(ex);
         String expectedCategory = (String) expect.get("errorCategory");
 
-        String categoryWarn = null;
+        // Lightbend = ground truth. Mismatches are fixture-authoring errors (not WARN — hard-fail).
         if (expectedCategory != null && !expectedCategory.equals(category)) {
-            categoryWarn = "Category mismatch: expected " + expectedCategory + ", Lightbend threw " + category
-                         + " (" + ex.getClass().getSimpleName() + ")";
+            return Result.unexpected(
+                "errorCategory mismatch in " + yamlFile.getFileName()
+                    + ": scenario expected " + expectedCategory
+                    + " but Lightbend threw " + category + " (" + ex.getClass().getSimpleName() + "). "
+                    + "Update the fixture's errorCategory to match Lightbend, or mark the scenario "
+                    + "lightbendSkip:true with rationale if the spec deliberately diverges (cf. dr11b).");
         }
 
-        // errorContains check (warn only)
-        String containsWarn = null;
+        // errorAt verification: if scenario pinned a specific step, verify Lightbend's actual step matches.
+        if (expectedErrorAt != null && expectedErrorAt != errorStepIndex) {
+            return Result.unexpected(
+                "errorAt mismatch in " + yamlFile.getFileName()
+                    + ": scenario expected step " + expectedErrorAt
+                    + " but error fired at step " + errorStepIndex + ". "
+                    + "Remove errorAt to accept any step, or update it to the actual step index. "
+                    + "(Step -1 = during source materialisation.)");
+        }
+
+        // errorContains: substring of Lightbend's actual error message. Mismatch = fixture bug.
         Object errorContains = expect.get("errorContains");
         if (errorContains instanceof String) {
             String sub = (String) errorContains;
             String msg = ex.getMessage() != null ? ex.getMessage() : "";
             if (!msg.contains(sub)) {
-                containsWarn = "errorContains '" + sub + "' not found in: " + firstLine(msg);
+                return Result.unexpected(
+                    "errorContains substring not found in Lightbend's error message in "
+                        + yamlFile.getFileName() + ":\n"
+                        + "  expected substring: " + sub + "\n"
+                        + "  actual message:    " + firstLine(msg) + "\n"
+                        + "Update the fixture's errorContains to match Lightbend's actual message.");
             }
         }
 
@@ -444,12 +482,6 @@ public class DeferredResolutionRunner {
         errorContent.append("Category: ").append(category).append("\n");
         errorContent.append("At: ").append(errorStepIndex).append("\n");
         errorContent.append("Message: ").append(firstLine(ex.getMessage())).append("\n");
-        if (categoryWarn != null) {
-            errorContent.append("WARN: ").append(categoryWarn).append("\n");
-        }
-        if (containsWarn != null) {
-            errorContent.append("WARN: ").append(containsWarn).append("\n");
-        }
 
         return Result.error(errorContent.toString());
     }
@@ -537,8 +569,21 @@ public class DeferredResolutionRunner {
             return;
         }
         if (result.isSuccess) {
-            Path jsonPath = outDir.resolve(scenarioName + "-expected.json");
-            Files.writeString(jsonPath, result.json);
+            // For resolved configs: emit canonical sorted-key JSON.
+            // For unresolved configs: emit Lightbend's raw render under a
+            // distinct extension so consumers that load `*-expected.json`
+            // never see non-JSON content (per /multi-agent-review feedback).
+            if (result.json != null) {
+                Path jsonPath = outDir.resolve(scenarioName + "-expected.json");
+                Files.writeString(jsonPath, result.json);
+                // Remove any stale unresolved-render artefact left by an earlier run.
+                Files.deleteIfExists(outDir.resolve(scenarioName + "-expected.unresolved-render.txt"));
+            } else if (result.unresolvedRender != null) {
+                Path renderPath = outDir.resolve(scenarioName + "-expected.unresolved-render.txt");
+                Files.writeString(renderPath, result.unresolvedRender);
+                // Remove any stale .json from earlier runs when this fixture was treated as resolved.
+                Files.deleteIfExists(outDir.resolve(scenarioName + "-expected.json"));
+            }
             Path txtPath = outDir.resolve(scenarioName + "-expected.txt");
             Files.writeString(txtPath, result.txt);
         } else {
@@ -687,7 +732,8 @@ public class DeferredResolutionRunner {
     public static class Result {
         // success path
         public final boolean isSuccess;
-        public final String json;
+        public final String json;             // populated only for resolved configs
+        public final String unresolvedRender; // populated only for unresolved configs
         public final String txt;
         // error path
         public final String errorContent;
@@ -698,11 +744,12 @@ public class DeferredResolutionRunner {
         public final boolean unexpected;
         public final String unexpectedMessage;
 
-        private Result(boolean isSuccess, String json, String txt,
+        private Result(boolean isSuccess, String json, String unresolvedRender, String txt,
                        String errorContent, boolean skipped, String skipReason,
                        boolean unexpected, String unexpectedMessage) {
             this.isSuccess = isSuccess;
             this.json = json;
+            this.unresolvedRender = unresolvedRender;
             this.txt = txt;
             this.errorContent = errorContent;
             this.skipped = skipped;
@@ -711,20 +758,20 @@ public class DeferredResolutionRunner {
             this.unexpectedMessage = unexpectedMessage;
         }
 
-        static Result success(String json, String txt) {
-            return new Result(true, json, txt, null, false, null, false, null);
+        static Result success(String json, String unresolvedRender, String txt) {
+            return new Result(true, json, unresolvedRender, txt, null, false, null, false, null);
         }
 
         static Result error(String errorContent) {
-            return new Result(false, null, null, errorContent, false, null, false, null);
+            return new Result(false, null, null, null, errorContent, false, null, false, null);
         }
 
         static Result skipped(String reason) {
-            return new Result(false, null, null, null, true, reason, false, null);
+            return new Result(false, null, null, null, null, true, reason, false, null);
         }
 
         static Result unexpected(String message) {
-            return new Result(false, null, null, null, false, null, true, message);
+            return new Result(false, null, null, null, null, false, null, true, message);
         }
     }
 

@@ -2,18 +2,4 @@ isResolved: true
 getter:
   version: 1.2.3-42
   variables.shortversion: 1.2.3
-WARN: JSON mismatch: scenario expected:
-{
-  "variables": { "shortversion": "1.2.3" },
-  "version": "1.2.3-42"
-}
-Lightbend produced:
-{
-  "CI_RUN_NUMBER": "42",
-  "shortversion": "1.2.3",
-  "variables": {
-    "shortversion": "1.2.3"
-  },
-  "version": "1.2.3-42"
-}
-
+  CI_RUN_NUMBER: 42

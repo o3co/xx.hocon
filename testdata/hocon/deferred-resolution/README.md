@@ -94,6 +94,7 @@ expect:
 | Op              | Args (other than `as`)                                        | Semantics                                                                                                |
 | --------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `take`          | `source: <id>`                                                | Make `<id>`'s source-artifact available under `as`.                                                      |
+| `extract`       | `this: <name>, path: <dotted.path>`                           | `this.getConfig(path)` — extract a subconfig as a new artifact. Used to promote a nested object into its own layer (e.g. dr01's `variables` subtree). |
 | `withFallback`  | `this: <name>, other: <id-or-name>`                           | `this.WithFallback(other)`. `other` may reference a source-id OR a previously-built named artifact.      |
 | `resolve`       | `this: <name>, allowUnresolved?, useSystemEnvironment?`       | `this.Resolve(ResolveOptions{...})`. Boolean options use spec defaults if omitted.                       |
 | `resolveWith`   | `this: <name>, source: <id-or-name>, allowUnresolved?, useSystemEnvironment?` | `this.ResolveWith(source, ResolveOptions{...})`. Source must be resolved (otherwise expect=error).       |
@@ -118,7 +119,7 @@ Per-impl conformance tests do:
 2. **Resolve sources** in declaration order:
    - `parseString` → impl's `ParseStringWithOptions` (or equivalent) with `ResolveSubstitutions: false` UNLESS `parseOptions.resolveSubstitutions = true` is set explicitly.
    - `fromMap` → impl's `FromMap`.
-   - `extractFrom` → after the referenced source is built, extract its subconfig at `path` (impl's `getConfig`-equivalent).
+   - `extract` → after the referenced artifact is available, extract its subconfig at `path` (impl's `getConfig`-equivalent).
 3. **Execute `build` steps** in order, maintaining a name→artifact map.
 4. **Validate `expect`**:
    - For `outcome: success`: the final artifact (named `result` if present, else the last step's output) must succeed all `getter` assertions and (if `json` provided) JSON-equal the expected.
@@ -128,9 +129,12 @@ Per-impl conformance tests do:
 
 The Java generator runs each `.yaml` through Lightbend Java and:
 
-- For `outcome: success` scenarios: emits `expected/hocon/deferred-resolution/<name>-expected.json` (resolved JSON only) AND `<name>-expected.txt` for human-readable assertion record (getter expectations, isResolved).
-- For `outcome: error` scenarios: emits `expected/hocon/deferred-resolution/<name>-expected.error` plain text with `Category: <cat>\nMessage: <msg>`.
-- Lightbend-non-applicable scenarios (e.g. those using `parseOptions.originDescription` with non-Java semantics) are skipped — listed in `LIGHTBEND_SKIP` array in the runner with rationale.
+- For `outcome: success` scenarios where the resulting Config is **resolved** (`isResolved=true`): emits `<name>-expected.json` (canonical sorted-key JSON) AND `<name>-expected.txt` (`isResolved` flag + getter assertion records). The `.json` file is Lightbend ground truth — per-impl tests JSON-compare against it.
+- For `outcome: success` scenarios where the resulting Config is **unresolved** (`isResolved=false`, expected when `AllowUnresolved=true` and substitutions remain): emits `<name>-expected.unresolved-render.txt` (Lightbend's raw render — contains non-JSON substitution placeholder literals like `${b}`, hence the distinct extension) AND `<name>-expected.txt`. Per-impl tests rely on the `.txt` getter records, NOT the raw render.
+- For `outcome: error` scenarios: emits `<name>-expected.error` plain text with `Category: <cat>\nAt: <step>\nMessage: <first-line>\n`.
+- For `lightbendSkip: true` scenarios: emits `<name>-expected.skip` with the YAML's `description` as rationale. No other expected file is produced for skipped scenarios.
+
+Mismatches between scenario YAML expectations and Lightbend's actual output (`expect.json` differs from rendered JSON, `expect.errorCategory` differs from Lightbend's exception class, `expect.errorAt` differs from actual step index, `expect.errorContains` substring missing from Lightbend's message, or `expect.isResolved` differs) are **hard failures** — the runner emits `<name>-expected.UNEXPECTED` and the build reports an error. This treats Lightbend as the cross-impl ground truth.
 
 ## Fixture index
 
@@ -141,9 +145,9 @@ See [design doc § "Fixture inventory"](../../../../.claude/superpowers/specs/20
 | dr01 | `dr01-basic-fallback.yaml` | success | Issue #99 example |
 | dr02 | `dr02-frommap-only-fallback.yaml` | success | FromMap-only fallback |
 | dr03 | `dr03-multi-layer-fallback.yaml` | success | 3+ fallback layers |
-| dr04 | `dr04-self-ref-with-fallback.yaml` | success | `a=${?a} extra` + fallback `a=base` |
+| dr04 | `dr04-self-ref-optional-with-fallback.yaml` | success | `a=${?a} extra` + fallback `a=base` |
 | dr05 | `dr05-required-self-ref-with-fallback-prior.yaml` | success | Required self-ref resolves via fallback prior |
-| dr06 | `dr06-required-self-ref-no-fallback.yaml` | error | Required self-ref no prior → ResolveError |
+| dr06 | `dr06-required-self-ref-no-fallback.yaml` | error | Required self-ref no prior → CycleError (Lightbend treats as cycle since substitution looks back at the value it defines) |
 | dr07 | `dr07-allow-unresolved-partial.yaml` | success | AllowUnresolved=true partial; getter assertions |
 | dr08 | `dr08-no-system-env.yaml` | error | UseSystemEnvironment=false; env-only sub → ResolveError |
 | dr09 | `dr09-getter-on-unresolved.yaml` | success | AllowUnresolved=true; specific getter → NotResolved |

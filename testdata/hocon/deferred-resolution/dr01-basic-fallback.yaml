@@ -30,11 +30,21 @@ build:
 expect:
   outcome: success
   isResolved: true
+  # All keys from all merged fallback layers appear in the result of
+  # WithFallback (only ResolveWith would suppress source keys — see dr11a).
+  # The runtime fallback contributes `CI_RUN_NUMBER`; the extracted `vars`
+  # contributes `shortversion`. The receiver contributes `variables` and
+  # `version`. After resolve, `version` is substituted.
   json: |-
     {
-      "variables": { "shortversion": "1.2.3" },
+      "CI_RUN_NUMBER": "42",
+      "shortversion": "1.2.3",
+      "variables": {
+        "shortversion": "1.2.3"
+      },
       "version": "1.2.3-42"
     }
   getter:
     - { path: "version", expectString: "1.2.3-42" }
     - { path: "variables.shortversion", expectString: "1.2.3" }
+    - { path: "CI_RUN_NUMBER", expectString: "42" }

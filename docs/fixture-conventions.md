@@ -436,6 +436,7 @@ directly to the step sequence.
 | `bsl01`–`bsl09` | `byte-single-letter/` | S21.4 binary single-letter K/M/G/T/P/E byte abbreviations (cluster 3h) — per-impl `getBytes()` assertion |
 | `pc01`–`pc04` | `properties-conflict/` | S23.4 `.properties` object-wins conflict (cluster 3h) — direct `.properties` parse, no `.conf` wrapper |
 | `ipk01`–`ipk14` | `include-package/` | E11 `include package(...)` qualifier — service-locator pattern; no Lightbend sidecars; per-impl registry-population model (see "Test-package registry fixtures" section above) |
+| `dr01`–`dr30` (with `dr11a`/`dr11b`) | `deferred-resolution/` | E12 deferred substitution resolution lifecycle — multi-step scenario YAML format (parse / withFallback / resolve); Lightbend ground truth via `DeferredResolutionRunner`; 2 `lightbendSkip` (dr11b, dr17) per "Scenario YAML fixtures (E12)" section above |
 
 ### Sibling include-target files
 
