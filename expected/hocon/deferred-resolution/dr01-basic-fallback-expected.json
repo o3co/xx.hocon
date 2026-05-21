@@ -1,0 +1,8 @@
+{
+  "CI_RUN_NUMBER": "42",
+  "shortversion": "1.2.3",
+  "variables": {
+    "shortversion": "1.2.3"
+  },
+  "version": "1.2.3-42"
+}

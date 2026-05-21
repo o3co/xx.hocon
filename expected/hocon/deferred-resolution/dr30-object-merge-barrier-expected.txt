@@ -1,0 +1,3 @@
+isResolved: true
+getter:
+  a: 42

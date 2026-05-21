@@ -10,6 +10,7 @@ repositories {
 dependencies {
     implementation("com.typesafe:config:1.4.3")
     implementation("com.google.code.gson:gson:2.11.0")
+    implementation("org.yaml:snakeyaml:2.2")
 }
 
 application {

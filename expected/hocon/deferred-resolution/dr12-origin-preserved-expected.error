@@ -1,0 +1,3 @@
+Category: ResolveError
+At: 1
+Message: scenario-dr12-input.conf: 1: Could not resolve substitution to a value: ${missing}

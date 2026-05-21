@@ -1,0 +1,3 @@
+Category: CycleError
+At: 1
+Message: receiver: 1: Could not resolve substitution to a value: ${a} was part of a cycle of substitutions involving ${a}, ${a}

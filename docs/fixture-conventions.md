@@ -331,6 +331,93 @@ always "E11 spec says X".
 
 ---
 
+## Scenario YAML fixtures (E12 — deferred substitution resolution)
+
+The `deferred-resolution/` fixture group is structurally different from all other
+groups because each scenario is **multi-step** (parse layer A, FromMap layer B,
+`withFallback` chain, then `resolve()` with options). A single `.conf` file
+cannot encode this structural information. Instead, each fixture is a YAML
+scenario file with explicit step sequencing.
+
+This group is normative for E12 cross-impl conformance. The Java generator
+**does** run these scenarios through Lightbend (with the exception of two
+fixtures marked `lightbendSkip: true`).
+
+### File layout
+
+```text
+testdata/hocon/deferred-resolution/
+  README.md                      — schema spec + per-impl test runner contract
+  dr01-basic-fallback.yaml       — scenario fixtures (dr01..dr30)
+  dr02-frommap-only-fallback.yaml
+  ...
+expected/hocon/deferred-resolution/
+  dr01-basic-fallback-expected.json  — Lightbend-resolved JSON (success cases)
+  dr01-basic-fallback-expected.txt   — getter assertions + isResolved (success cases)
+  dr06-required-self-ref-no-fallback-expected.error  — error category + message (error cases)
+  dr11b-resolve-with-unresolved-source-expected.skip — lightbendSkip rationale
+```
+
+### Schema overview
+
+Each scenario YAML has four top-level sections:
+
+1. `sources:` — input atoms keyed by id; each is either `parseString` (with optional `parseOptions`) or `fromMap`.
+2. `build:` — ordered list of operations (`take`, `extract`, `withFallback`, `resolve`, `resolveWith`) that produce intermediate named artifacts.
+3. `expect:` — expected outcome of the final artifact (`success` with `json` / `isResolved` / `getter`, or `error` with `errorCategory` and optional `errorAt` / `errorContains`).
+4. `lightbendSkip:` (optional) — when `true`, the Java generator skips the scenario and emits only a `.skip` file. Per-impl tests still run the scenario.
+
+Full schema reference: [`testdata/hocon/deferred-resolution/README.md`](../testdata/hocon/deferred-resolution/README.md).
+
+### Per-impl test runner contract
+
+Per-impl conformance tests:
+
+1. **Read scenario YAML**.
+2. **Materialise sources** in declaration order:
+   - `parseString` → impl's `ParseStringWithOptions` (or equivalent) with `ResolveSubstitutions: false` UNLESS `parseOptions.resolveSubstitutions = true` is set.
+   - `fromMap` → impl's `FromMap`.
+3. **Execute `build` steps** in order, maintaining a name→artifact map.
+4. **Validate `expect`**:
+   - `outcome: success`: the final artifact must succeed all `getter` assertions and (if `expected/.../<name>-expected.json` exists) JSON-equal it. The Lightbend-generated `.json` is the cross-impl ground truth.
+   - `outcome: error`: the build step at index `errorAt` (or any step if `errorAt` omitted) must raise an error mapped to `errorCategory`. `errorContains` is substring-matched against the error message.
+
+### Generator behaviour (DeferredResolutionRunner)
+
+`generate/src/main/java/DeferredResolutionRunner.java` runs each `.yaml` through
+Lightbend `com.typesafe.config` and emits:
+
+- `<name>-expected.json` — resolved JSON (success scenarios). For `isResolved=false` configs (AllowUnresolved=true), Lightbend's raw render is preserved as-is because unresolved substitutions are not valid JSON.
+- `<name>-expected.txt` — human-readable record of `isResolved` and per-getter assertion results (`<path>: <value>` or `<path>: ERROR: <category>`).
+- `<name>-expected.error` — `Category: <cat>\nAt: <step>\nMessage: <msg>` for error scenarios. WARN lines are appended when the fixture's expected category or `errorContains` does not match Lightbend's output — these indicate intentional Lightbend divergence (decision 10) or fixture-author mismatches that need review.
+- `<name>-expected.skip` — `lightbendSkip` rationale for skipped scenarios.
+
+The generator wires into the existing `GenerateExpected.main` pipeline; running
+`./gradlew run` produces all `dr*` outputs alongside the existing groups.
+
+### lightbendSkip mechanism
+
+Two fixtures are currently marked `lightbendSkip: true`:
+
+- **dr11b** (`ResolveWith with unresolved source`): intentional Lightbend divergence per E12 decision 10. Lightbend does NOT precondition-check the source; E12 deliberately strengthens this to `NotResolved`. Lightbend cannot produce ground truth here.
+- **dr17** (`E11 package include + deferred resolve`): Lightbend has no `package(...)` qualifier (E11 is non-JVM extension). Per-impl tests run with their registered package content; Lightbend skips.
+
+Marking a scenario `lightbendSkip: true` ALSO requires the runner to write a
+`.skip` file documenting the rationale. The fixture YAML's `description` field
+is used verbatim — fixture authors must explain WHY Lightbend cannot verify the
+scenario in the description.
+
+### Why YAML and not `.conf`?
+
+Multi-step scenarios cannot be encoded in a single `.conf`. Earlier fixture
+groups (subst-tokenize, env-var-list) encode multi-aspect behavior via paired
+sidecars (`.env`, `.error`); for E12 the structural complexity (parse with
+options → fromMap → multiple withFallback → resolve with options) exceeds what
+sidecars can express cleanly. YAML's named-key + structured-list shape maps
+directly to the step sequence.
+
+---
+
 ## Fixture naming convention
 
 | Prefix | Group | Coverage |

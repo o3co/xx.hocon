@@ -1,0 +1,14 @@
+{
+  "count": 42,
+  "flag": true,
+  "items": [
+    1,
+    2,
+    3
+  ],
+  "label": "hello",
+  "nested": {
+    "inner": "deep"
+  },
+  "ratio": 3.14
+}

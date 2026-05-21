@@ -1,0 +1,13 @@
+isResolved: true
+getter:
+  a: v
+WARN: JSON mismatch: scenario expected:
+{
+  "a": "v"
+}
+Lightbend produced:
+{
+  "KEY": "v",
+  "a": "v"
+}
+
