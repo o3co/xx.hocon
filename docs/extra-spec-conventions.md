@@ -227,6 +227,8 @@ Lightbend 1.4.3 enforces this rule only for the bare form (`include = 1`, `inclu
 
 **Fixtures**: `testdata/hocon/include-reservation/ir03-include-dot-foo-equals.conf`, `ir04-include-nested-object.conf`. No `.error` sidecars (Lightbend silent-accept; see `fixture-conventions.md` "Lightbend quirks"). The remaining S12.5 negative fixtures (ir01, ir02, ir10, ir12, ir13) live in `SIDECAR_ERROR_CONFS` with generator-produced `.error` sidecars (Lightbend's include-statement parser rejects each).
 
+<a id="e10"></a>
+
 ### E10 — Empty file is invalid (Lightbend silently accepts as `{}`)
 
 **Source**: cross-impl convention. HOCON.md §Omit root braces L130-132 states:
@@ -246,6 +248,8 @@ Lightbend 1.4.3 silently accepts empty input as `SimpleConfigObject({})`. Verifi
 | go.hocon | ❌ → ✅ | `empty-file/ef01–ef06.conf` loaded by `s3_1_empty_file_test.go` with per-impl override | (cluster 3h target) Empty-content check inside `internal/parser/parser.go:Parse()` |
 
 **Fixtures**: `testdata/hocon/empty-file/ef01-empty.conf`, `ef02-whitespace-only.conf`, `ef03-newlines-only.conf`, `ef04-comment-only.conf`, `ef05-bom-only.conf`, `ef06-mixed-ws-comment.conf`. All 6 ship `-expected.json` sidecars containing `{}` (Lightbend's silent-accept output). Per-impl conformance tests apply the override list to assert error.
+
+<a id="e11"></a>
 
 ### E11 — `include package(...)` qualifier: package-scoped include resolver (service-locator pattern)
 
@@ -337,6 +341,8 @@ No Lightbend `.error` sidecars (Lightbend has no concept of `package(...)`) — 
 - No existing non-JVM HOCON parser implements a `package(...)`-equivalent qualifier. E11 establishes the first such convention in the cross-impl o3co stack.
 
 **Tracking issue**: [#33](https://github.com/o3co/xx.hocon/issues/33).
+
+<a id="e12"></a>
 
 ### E12 — Deferred substitution resolution: Lightbend-aligned `parse / withFallback / resolve()` lifecycle
 
