@@ -247,6 +247,97 @@ Lightbend 1.4.3 silently accepts empty input as `SimpleConfigObject({})`. Verifi
 
 **Fixtures**: `testdata/hocon/empty-file/ef01-empty.conf`, `ef02-whitespace-only.conf`, `ef03-newlines-only.conf`, `ef04-comment-only.conf`, `ef05-bom-only.conf`, `ef06-mixed-ws-comment.conf`. All 6 ship `-expected.json` sidecars containing `{}` (Lightbend's silent-accept output). Per-impl conformance tests apply the override list to assert error.
 
+### E11 — `include package(...)` qualifier: package-scoped include resolver (service-locator pattern)
+
+**Source**: spec extension agreed by cross-impl convention. HOCON.md does not enumerate include qualifiers beyond `file(...)`, `url(...)`, and `classpath(...)`. `classpath(...)` is a JVM-host-specific qualifier (it relies on JVM classpath resource scanning), with no defined behavior in non-JVM HOCON parsers. E11 introduces a new host-neutral qualifier `package("<identifier>", "<file>")` for the non-JVM HOCON ecosystem, where compile-time embedding (Go `//go:embed`, Rust `include_str!`) or runtime module resolution (Node `require.resolve`) is the only way to ship and locate `.conf` files alongside library packages.
+
+**o3co convention**: each of ts.hocon / rs.hocon / go.hocon MUST recognize a new include qualifier `package("<identifier>", "<file>")` with the following abstract semantics:
+
+- A `package(...)` include resolves to a HOCON document body via an **impl-provided lookup**. The lookup maps the pair `(identifier, file)` to a string of HOCON source text (the "registered content").
+- The resolved string is then parsed as a HOCON document and merged into the including object per existing include semantics (HOCON.md §Includes).
+- The **concrete lookup mechanism is impl-defined** (see per-impl table below). Some impls maintain an explicit registry populated by the package's own code; others delegate to host-provided module resolution. The abstract `(identifier, file) -> content` contract is what's normative; the surface API and lifetime are per-impl.
+
+Closest existing analogy: JVM `ServiceLoader` / JNDI, **not** classpath. The qualifier does NOT auto-discover packages, does NOT auto-merge `reference.conf` files (no `ConfigFactory.load()` equivalent), and does NOT auto-resolve transitive packages.
+
+**Why an E-item rather than an S-item**: this is a project-introduced extension to HOCON syntax, not present in HOCON.md. By policy these live in the E-prefix namespace. Conceptually parallel to `classpath(...)` but with host-neutral, service-locator semantics in place of JVM resource scanning.
+
+#### Spec decisions
+
+The following decisions are normative for all three impls:
+
+1. **Identifier shape — interoperability convention**: identifiers used in *portable* `.conf` files (intended to work across ts.hocon / go.hocon / rs.hocon) SHOULD be Go-module-path-style strings `<host>/<org>/<name>` (e.g., `github.com/o3co/auth`). Parsers MUST NOT validate identifier shape beyond requiring it to be a non-empty HOCON string — identifiers are opaque registry keys at the parser layer. Rationale: a parser-level validator is hard to specify exactly across language ecosystems (npm scopes, internal naming, private registries), and would block legitimate impl-local use cases; cross-impl portability of `.conf` files is a *.conf-author* responsibility enforced by convention. TS-only `.conf` files MAY use npm-style names (`@scope/foo`) when the application is not intended to be cross-impl portable.
+
+2. **Two-arg form mandatory**: only `package("identifier", "file")` (two string arguments) is recognized. The one-arg form `package("identifier/file")` MUST be rejected as a parse error. Rationale: avoids longest-prefix-match ambiguity at the registry layer (e.g., distinguishing `github.com/o3co/auth` from `github.com/o3co/auth.policy`); the two-arg signature matches the multi-arg style HOCON already uses for `include required(...)` constructs and is unambiguous to tokenize.
+
+3. **Collision policy** (impl-scoped): for impls that maintain an explicit registry (go.hocon, rs.hocon), registering two **different** contents under the same `(identifier, file)` key MUST raise an error at registration time. Re-registering **byte-identical** content under the same key is allowed (idempotent — common during test re-init or hot-reload). For impls that delegate to host module resolution (ts.hocon via `require.resolve`), collision is resolved by the host's module resolution algorithm — ts.hocon does NOT detect collisions and app authors MUST NOT install conflicting packages. Rationale: silent last-wins in explicit registries creates debugging nightmares when package load order affects effective config; explicit failure surfaces the conflict at the source.
+
+4. **Lookup failure**: hard error at parse time. Encountering `include package("X", "Y")` where `("X", "Y")` cannot be resolved (registry miss in go.hocon / rs.hocon; `require.resolve` throws in ts.hocon) MUST raise a clear error indicating the missing entry (and, in Go's case, hinting at the likely-missing `_ "..."` import). No silent empty-include fallback. Rationale: forgotten registrations / missing dependencies should surface at the include site, not silently produce broken downstream config — this is also the lesson taken from `gurkankaymak/hocon` parsing `classpath(...)` as a silent filesystem fallback.
+
+   **Note on empty content**: registered-but-empty content (zero bytes, or content that parses to an empty HOCON document) is NOT a lookup failure. It succeeds and contributes an empty object (`{}`) to the merge, consistent with HOCON's existing handling of empty include targets.
+
+5. **Identifier and file equality**: both `<identifier>` and `<file>` arguments are compared **byte-exact, case-sensitive**, after HOCON string unescaping. Implementations MUST NOT apply Unicode normalization (NFC/NFD/NFKC/NFKD), case-folding, or path-separator canonicalization. Rationale: prevents cross-host divergence (Node, Cargo, and Go modules each have different default normalization stances); makes registry behavior predictable; matches how HOCON itself treats string keys elsewhere.
+
+6. **File argument constraints**: the `<file>` argument MUST satisfy the following at the parser layer (any violation is a parse error):
+   - non-empty string
+   - forward-slash separators only (backslash `\` rejected)
+   - no leading `/` (absolute paths rejected)
+   - no `.` or `..` segments (path traversal rejected)
+   - no consecutive `/` (e.g., `a//b.conf` rejected)
+   - no implicit percent-decoding at the parser layer
+
+   Allowed examples: `reference.conf`, `conf/reference.conf`, `subdir/nested/x.conf`.
+   Rejected examples: `""`, `/abs/path.conf`, `../escape.conf`, `./x.conf`, `conf\\x.conf`, `conf//x.conf`, `conf/./x.conf`.
+
+   Rationale: prevents host-asymmetric behavior between ts.hocon (which concatenates `identifier + "/" + file` into a module-resolution path) and go.hocon / rs.hocon (which use the pair as opaque registry keys). Forbids traversal patterns that could escape package boundaries in the TS host-resolution case.
+
+7. **Required form**: `include required(package("X", "Y"))` is supported and follows existing `required(...)` semantics — a lookup failure in this position is always an error regardless of any future "optional include" toggle.
+
+8. **Cycle detection**: `include package(...)` participates in the same include-cycle detection as `include file(...)` / `include url(...)`. The cycle-detection key for a `package(...)` include MUST include the qualifier kind plus the byte-exact pair, i.e., `("package", <identifier>, <file>)`. Self-includes and mutual-includes via `package(...)` MUST raise an include-cycle error consistent with existing include semantics.
+
+#### Non-goals (explicit)
+
+The following are out of scope for E11 and are NOT to be inferred from the qualifier's name:
+
+- **Auto-discovery of packages**: no implementation scans the installed package set on its own initiative. Resolution requires either (a) explicit registration (go.hocon, rs.hocon) or (b) the host's existing module-resolution surface (ts.hocon via Node). In all three cases, only packages reachable by these mechanisms can be resolved; the parser does not enumerate.
+- **Auto `reference.conf` merge**: no `ConfigFactory.load()` equivalent. Each `include package(...)` is its own explicit include statement in the consuming `.conf`.
+- **Transitive auto-resolution**: packages that include other packages' configs MUST cascade-register manually. A `register()` in Rust calling `dep_pkg::register()` is the recommended convention; in Go, transitive `_ "..."` imports propagate naturally via Go's import side-effects.
+- **Wildcard / glob lookups**: `include package("X", "*.conf")` or `include package("X", "conf/*")` is not supported. Each include statement targets exactly one registered file.
+- **Identifier shape validation at parse time**: see decision 1 — parser does not enforce Go-module-path syntax.
+
+| Impl | Status | Lookup mechanism | Registration / population | Notes |
+| --- | --- | --- | --- | --- |
+| ts.hocon | 🤷 | Host module resolution via Node `require.resolve(identifier + "/" + file, { paths: [path.dirname(includingConfFile)] })` by default | Implicit: any package whose tree contains the file at the resolved path is reachable. No explicit HOCON-level registration. App may override starting `paths` via parser option. | Collision semantics deferred to Node's module resolution (decision 3). Bundler/edge runtimes where `require.resolve` does not work raise a clear runtime error. |
+| rs.hocon | 🤷 | Explicit per-parser registry (`HashMap<(Identifier, File), String>`) populated by builder methods | `Parser::register_package(identifier, file, content)` called explicitly with `include_str!`-loaded content. Cascade convention for transitive deps: `pkg_a::register(p)` internally calls `pkg_b::register(p)`. | Registry lifetime = parser instance. Multiple parsers do not share registry. Test isolation trivial. |
+| go.hocon | 🤷 | Global registry (process-wide), parallel to `database/sql.Register` | `hocon.RegisterPackage(identifier, file, content)` called from the providing package's `init()` after `//go:embed`. App side: `_ "<module-path>"` import triggers `init()`. Test helper `hocon.ResetPackageRegistry()` provided for test isolation. | Registry lifetime = process. App authors must include `_ "..."` imports for each config-providing dep. Idempotent re-registration of byte-equal content allowed (decision 3). |
+
+**Fixtures** (planned, to be added under `testdata/hocon/include-package/`):
+
+- `ipk01-basic.conf` — happy-path: `include package("github.com/example/lib", "reference.conf")` with registry populated.
+- `ipk02-one-arg-rejected.conf` — `include package("github.com/example/lib/reference.conf")` (one-arg) → parse error (decision 2).
+- `ipk03-collision.conf` — sibling test setup registers same `(id, file)` key twice with different content → registration-time error (decision 3; go.hocon + rs.hocon only — n/a for ts.hocon per per-impl override).
+- `ipk04-lookup-miss.conf` — `include package("github.com/example/missing", "x.conf")` with empty registry → parse error (decision 4).
+- `ipk05-required-miss.conf` — `include required(package("github.com/example/missing", "x.conf"))` → parse error (decision 7).
+- `ipk06-byte-exact-id-case.conf` — register `Foo/Bar` then `include package("foo/bar", "x.conf")` → lookup miss (decision 5: case-sensitive identifier).
+- `ipk07-byte-exact-file-case.conf` — register `Reference.conf` then `include package("github.com/example/lib", "reference.conf")` → lookup miss (decision 5: case-sensitive file).
+- `ipk08-empty-content.conf` — register `("github.com/example/lib", "empty.conf")` with empty string content, `include package(...)` succeeds and merges `{}` (decision 4 note).
+- `ipk09-file-empty.conf` — `include package("foo", "")` → parse error (decision 6).
+- `ipk10-file-absolute.conf` — `include package("foo", "/etc/passwd")` → parse error (decision 6).
+- `ipk11-file-traversal.conf` — `include package("foo", "../escape.conf")` → parse error (decision 6).
+- `ipk12-file-backslash.conf` — `include package("foo", "x\\y.conf")` → parse error (decision 6).
+- `ipk13-cycle-self.conf` — register `("foo", "x.conf")` whose content body is `include package("foo", "x.conf")` → include-cycle error (decision 8).
+- `ipk14-cycle-mutual.conf` — register `("foo", "a.conf")` including `("foo", "b.conf")` and vice versa → include-cycle error (decision 8).
+
+No Lightbend `.error` sidecars (Lightbend has no concept of `package(...)`) — per-impl conformance tests use per-impl override lists, following the `IMPL_OVERRIDE_ERRORS` / `KNOWN_LIGHTBEND_QUIRKS` / `implErrors` pattern established by E5 / E9 / E10. ts.hocon overrides exempt `ipk03` (collision not detected — see decision 3).
+
+**Prior art** (non-JVM HOCON parsers, surveyed 2026-05-20):
+
+- `go-akka/configuration` exposes an `IncludeCallback(filename string) -> *HoconRoot` parser option — the closest existing hook, but at a lower abstraction level (raw callback rather than typed package registry). The tokenizer accepts only bare `include "..."` (no qualifier syntax), so `package(...)` cannot be layered on top without a tokenizer-level addition.
+- `gurkankaymak/hocon` parses `classpath(...)` syntactically but silently treats the inner path as a filesystem path. This is the anti-pattern E11 spec decision 4 explicitly rejects: accepting a qualifier syntax without delivering its semantics produces runtime surprises.
+- `mockersf/hocon.rs` (Rust) has no pluggable include resolution; resolution is fully internal. Repository is archived/unmaintained.
+- No existing non-JVM HOCON parser implements a `package(...)`-equivalent qualifier. E11 establishes the first such convention in the cross-impl o3co stack.
+
+**Tracking issue**: [#33](https://github.com/o3co/xx.hocon/issues/33).
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -266,4 +357,6 @@ Lightbend 1.4.3 silently accepts empty input as `SimpleConfigObject({})`. Verifi
 2026-05-18 — E9 flipped ❌ → ✅ in all 3 impls after Phase 6 #3e impl PRs landed ([ts.hocon#102](https://github.com/o3co/ts.hocon/pull/102), [rs.hocon#90](https://github.com/o3co/rs.hocon/pull/90), [go.hocon#88](https://github.com/o3co/go.hocon/pull/88)). Each impl rejects `include.foo = 1` (and `a = { include.bar = 1 }`) via its post-PathParser path-element check on the constructed key list, with quoted-vs-unquoted provenance captured locally in the field-parser before `parseKey` / `parse_key` advances the cursor. The ir03/ir04 fixtures remain without xx.hocon `.error` sidecars — Lightbend's tokenizer joins `include.foo` into a single unquoted token before `isIncludeKeyword` runs, so it silently accepts. Each impl's conformance test maintains a per-impl override list (`IMPL_OVERRIDE_ERRORS` in ts, `KNOWN_LIGHTBEND_QUIRKS` in rs, `implErrors` in go) pinning ir03/ir04 to error. **Side-clear**: go.hocon S14a.10 (#80) also flipped ❌ → ✅ via the same PR — `parseInclude` now requires the include argument to be a quoted TokenString; unquoted `include foo.conf` raises `*parser.Error`. Spec-aligned error-message split applied in go.hocon (S14a.10 case → "include argument must be a quoted string"; S12.5 case → "'include' is reserved as a key name") per Claude multi-agent-review Important finding fixed in-PR (commit 7b5c80a). ts/rs were already ✅ on S14a.10 pre-fix so their flips are S12.5-only.
 2026-05-18 — E5 flipped ❌ → ✅ in all 3 impls after Phase 6 #3b impl PRs landed ([ts.hocon#101](https://github.com/o3co/ts.hocon/pull/101), [rs.hocon#89](https://github.com/o3co/rs.hocon/pull/89), [go.hocon#87](https://github.com/o3co/go.hocon/pull/87)). Each impl rejects the `{object} scalar`, `scalar {object}`, `[array] scalar`, `scalar [array]` constructs via its pairwise-fold `joinPair` / `join_pair` type-mismatch branch — same code path that closes S10.4/S10.13/S10.19 in the canonical matrix. go.hocon merge is **BREAKING** (prior permissive `[1, 2] 3 → [1, 2, 3]` removed); ts and rs were already error on the construct pre-fix so their flips are non-breaking. The ce05 fixture remains without an xx.hocon `.error` sidecar — Lightbend silently accepts the construct, so the generator omits the sidecar; each impl's conformance test maintains a per-impl override list pinning ce05 (and other E-marked Lightbend-quirk fixtures) to error.
 2026-05-18 — E6 and E7 flipped 🤷 → ✅ in all 3 impls after Phase 6 #3g impl PRs landed ([ts.hocon#100](https://github.com/o3co/ts.hocon/pull/100), [rs.hocon#88](https://github.com/o3co/rs.hocon/pull/88), [go.hocon#86](https://github.com/o3co/go.hocon/pull/86)). E7 enforcement narrowed via multi-agent-review (I2 fix): only ASCII space (0x20) / tab (0x09) accepted between path and `[]`; broader Unicode whitespace (NBSP, CR, Zs) errors. E6 known limitation (cross-impl: include-scope `${X[]}` does not fall back to original-path config) tracked at [xx.hocon#22](https://github.com/o3co/xx.hocon/issues/22) — Copilot review on go.hocon#86 surfaced the issue; cross-impl scope (also affects ts + rs).
+2026-05-21 — E11 (`include package(...)` qualifier — service-locator pattern for non-JVM HOCON) added as a project-introduced extension to HOCON syntax. Five normative spec decisions established: (1) identifier MUST be Go-module-path-style canonical form `<host>/<org>/<name>`; (2) two-arg form `package("id", "file")` mandatory, one-arg rejected; (3) collision on `(id, file)` is hard error (idempotent byte-equal re-registration allowed); (4) registry-miss is hard error at parse time (no silent empty-include fallback); (5) `include required(package(...))` follows existing required semantics. Per-impl registration mechanism: ts.hocon via runtime `require.resolve`, go.hocon via `init()`+`embed.FS`+`RegisterPackage`, rs.hocon via explicit `Parser::register_package` + `include_str!`. Driven by cross-impl design discussion 2026-05-20 (tracking issue [#33](https://github.com/o3co/xx.hocon/issues/33)); supersedes earlier ts-only proposal [ts.hocon#109](https://github.com/o3co/ts.hocon/issues/109) (closed). Status 🤷 in all 3 impls — fixtures and impls to follow in per-impl PRs.
+
 2026-05-20 — E8 **rewritten** to adopt Lightbend's pragmatic reading of HOCON.md L270-276 "begin" as value-position (not token-position at any lexer offset). Driven by external issue [xx.hocon#31](https://github.com/o3co/xx.hocon/issues/31) (@cgordon, first external issue), which surfaced `b = ${a}-bar` rejected under the strict reading. Concat-continuation cases (`${a}-bar`, `${a}--bar`, `${a}-1`, `${a}1bar`, `${a}.bar`, `"foo"-bar`, etc.) now accepted; us02 (`a = -foo`) / us03 (`a = -`) / us13 (`a = 01`) moved from per-impl error overrides to `SUCCESS_CONFS`. **BREAKING for downstream**: F3 (`a = 01` → `1` number, was `"01"` string) is a value-type change; other changes are additive. `+` rejection retained in both value-start and concat-continuation positions (HOCON `+=` operator reservation, distinct from number-lex). Lightbend probe matrix recorded at [`generate/src/main/java/ProbeIssue31.java`](../generate/src/main/java/ProbeIssue31.java) (groups A–F). Project principle established alongside this amendment: where xx.hocon and Lightbend differ and both behaviors derive from a reasonable reading of the spec, xx.hocon is the side that needs correcting (E5/E9/E10 to be re-audited under this principle as separate follow-ups; E10 may be a genuine Lightbend spec violation rather than an interpretation difference and will be raised upstream).
