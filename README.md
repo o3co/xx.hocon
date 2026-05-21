@@ -4,13 +4,18 @@ Shared test resources for HOCON parser conformance testing across [rs.hocon](htt
 
 ## Implementation status
 
-All 3 reference implementations are at **v1.3.0** (2026-05-21 — simultaneous spec-compliance bugfix release rolling out the [#31](https://github.com/o3co/xx.hocon/issues/31) / [#32](https://github.com/o3co/xx.hocon/pull/32) E8 amendment, Lightbend's pragmatic reading of HOCON.md L270-276).
+Current cross-impl release status:
 
 | impl | release | package | spec-total | spec-applicable |
 | --- | --- | --- | --- | --- |
 | ts.hocon | [v1.3.0](https://github.com/o3co/ts.hocon/releases/tag/v1.3.0) | npm `@o3co/ts.hocon@1.3.0` | **85.9%** | **96.5%** |
 | rs.hocon | [v1.3.0](https://github.com/o3co/rs.hocon/releases/tag/v1.3.0) | crates.io `hocon-parser 1.3.0` | **87.8%** | **95.6%** |
-| go.hocon | [v1.3.0](https://github.com/o3co/go.hocon/releases/tag/v1.3.0) | GOPROXY `github.com/o3co/go.hocon@v1.3.0` | **85.4%** | **95.5%** |
+| go.hocon | [v1.3.1](https://github.com/o3co/go.hocon/releases/tag/v1.3.1) | GOPROXY `github.com/o3co/go.hocon@v1.3.1` | **85.4%** | **95.5%** |
+
+Recent releases:
+
+- **go.hocon v1.3.1** (2026-05-21) — paren-in-unquoted-string spec fix ([#34](https://github.com/o3co/xx.hocon/issues/34) external report by @cgordon). go.hocon was the only cross-impl outlier; ts.hocon and rs.hocon already accepted parens correctly.
+- **v1.3.0** (2026-05-21) — simultaneous spec-compliance bugfix release across all 3 impls, rolling out the [#31](https://github.com/o3co/xx.hocon/issues/31) / [#32](https://github.com/o3co/xx.hocon/pull/32) E8 amendment (Lightbend's pragmatic reading of HOCON.md L270-276).
 
 Full breakdown: [docs/compliance-matrix.md](docs/compliance-matrix.md).
 

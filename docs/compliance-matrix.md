@@ -8,7 +8,7 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 |---|---:|---:|---:|---:|---:|---:|---:|
 | [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **85.9%** | **96.5%** | 178 | 3 | 5 | 0 | 23 |
 | [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **87.8%** | **95.6%** | 182 | 3 | 7 | 0 | 17 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **84.9%** | **94.9%** | 176 | 3 | 8 | 0 | 22 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **85.4%** | **95.5%** | 177 | 3 | 7 | 0 | 22 |
 
 Where:
 
@@ -58,7 +58,6 @@ Items where the test or implementation behavior contradicts the spec:
 | S8.2 | go | ❌ | `//` inside an unquoted run without preceding whitespace is treated as literal content; spec L248 says `//` starts a comment anywhere outside a quoted string. ts/rs ✅. |
 | S3.4 | ts | ❌ | Unbraced root + stray `}` accepted ([#55](https://github.com/o3co/ts.hocon/issues/55)) |
 | S8.1 | ts | ⚠️ | Lexer allows backtick in unquoted strings, contrary to spec L245 forbidden set |
-| S8.1 | go | ❌ | Lexer emits `TokenLParen`/`TokenRParen` as standalone tokens unconditionally (`internal/lexer/lexer.go:164-169`), rejecting parens in ordinary unquoted value positions (`a = hello (world)` → parse error). Spec L274 forbidden set does NOT include `(` or `)`; parens are contextual only inside include resource syntax (`file(...)` / `required(...)` / `classpath(...)` / `url(...)`). ts/rs ✅. Fix tracked at [go.hocon#100](https://github.com/o3co/go.hocon/issues/100); cross-impl pin fixtures `testdata/hocon/unquoted-parens/up01-up06` per [xx.hocon#34](https://github.com/o3co/xx.hocon/issues/34) external report by @cgordon. |
 | S10.8 | ts, rs, go | ❌ / ⚠️ | Unquoted concat in field keys (`a b = 1`) rejected; spec L317/L556 requires acceptance as key "a b". rs partial pass: quoted variant works ([ts#76](https://github.com/o3co/ts.hocon/issues/76), [rs#66](https://github.com/o3co/rs.hocon/issues/66), [go#65](https://github.com/o3co/go.hocon/issues/65)) |
 | S10.15 | go | ❌ | Quoted whitespace between obj/array substitutions (e.g. `c = ${a} " " ${b}`) is silently accepted and the arrays merged to `[1, 2]`; spec L442 requires this to be an error. ts ✅. rs incidentally cleared by Phase 6 #3b (quoted whitespace is a scalar; `join_pair` now errors on `scalar between array operands`). go still fails because the resolver elides separator tokens before `joinPair` runs, so the type-check is never reached. |
 | S11.8 | go | ❌ | Parser rejects TokenBool in key position; spec L504 requires stringification to `"true"` / `"false"`. Impl is stricter than spec ([go#66](https://github.com/o3co/go.hocon/issues/66)) |
@@ -83,6 +82,27 @@ Spec items with no test coverage in **any** of the three implementations. These 
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the three impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### Cleared in Phase 6 #3i — paren-in-unquoted-string (2026-05-21)
+
+S8.1 fully cleared (go ❌ → ✅) via the paren-in-unquoted-string fix ([xx.hocon#34](https://github.com/o3co/xx.hocon/issues/34) external report by @cgordon — second issue from outside o3co, [xx.hocon#35](https://github.com/o3co/xx.hocon/pull/35) spec PR commit `5b9c1ba`, [ts.hocon#111](https://github.com/o3co/ts.hocon/pull/111) wire-up `4116e98`, [rs.hocon#102](https://github.com/o3co/rs.hocon/pull/102) wire-up `6f6f0f0`, [go.hocon#101](https://github.com/o3co/go.hocon/pull/101) impl squash `b57ff25`). HOCON.md L274 forbidden set does NOT include `(` or `)`; ts.hocon and rs.hocon already matched the spec — go.hocon was the only outlier (lexer emitted standalone `TokenLParen`/`TokenRParen` unconditionally + `unquotedForbidden` const included `()`).
+
+- **S8.1** (go ❌ → ✅) — Lexer's standalone paren tokenization removed at the value-position dispatch; `unquotedForbidden` const no longer includes `()`. `parseInclude` rewritten to string-match on the unquoted token value for the include resource forms (`file(`, `required(`, `classpath(`, `url(`), mirroring ts.hocon's `parseInclude` structure. `TokenLParen` / `TokenRParen` constants removed from `internal/lexer/lexer.go` (no longer emitted; previously only consumed inside `parseInclude` — `internal/`-scoped per Go path rule, non-breaking).
+
+Architecture divergence (intentional — go.hocon is **stricter** than the pure ts.hocon mirror to close silent-data-loss footguns surfaced by multi-agent review):
+
+- **go.hocon** (`b57ff25`): parens are unquoted-continue chars; `skipToIncludePath` helper restricts pre-path advance to genuine include-syntax noise tokens (bare `(`, `file`/`url`/`classpath` with optional `(`-prefix); post-path advance restricted to `)`-only tokens via `onlyClosingParens`. Bare `file`/`required` (whitespace before `(`) requires `(` to follow. Exact `file(` / `url(` / `classpath(` prefix checks inside `required(...)` (replacing `strings.HasPrefix("file")` which false-matched `fileX(`). Pinned by 6 conformance fixtures `unquoted-parens/up01-up06` + 10 regression tests for the multi-agent hardening (`TestIncludeFile_DoesNotSilentlyMaskMalformedIncludes` + `TestIncludeFile_DoesNotConsumeNextFieldOnSameLine`).
+- **ts.hocon** + **rs.hocon**: already spec-compliant — both impls' lexers allow `(` `)` in unquoted runs. Wire-up PRs added the new conformance fixtures with no impl change and no version bump (will bundle into the next normal release).
+
+Cross-impl convergent learnings flagged during the rollout:
+
+- Multi-agent review surfaced the same root issue across rounds: Codex caught the pre-path skip silent-data-loss in round 1; Copilot caught the symmetric post-path skip bug in round 2 plus the bare-resource-word `(` enforcement gap. Convergence-promoted fix shape: `isIncludeSkipToken` (gate pre-path) + `onlyClosingParens` (gate post-path) helpers, plus exact-prefix resource-name detection.
+- ts.hocon mirror is NOT always strict — `parseInclude` in ts.hocon has the same skip-loop silent-data-loss and `startsWith` false-match bugs that go.hocon's fix closed. Filed upstream as [ts.hocon#113](https://github.com/o3co/ts.hocon/issues/113).
+- Phase 1 spec PR (xx.hocon#35) added a transient ❌ row + lowered go.hocon's top-line to 84.9%/94.9% to truthfully reflect the newly-documented gap before the fix landed. This #3i clear restores 85.4%/95.5%.
+
+Rate change (go.hocon, in-scope): 94.9% → 95.5% (+0.6pp restoration). +1 ✅ −1 ❌ on go (1 cell total). ts/rs unchanged.
+
+Released: [go.hocon v1.3.1](https://github.com/o3co/go.hocon/releases/tag/v1.3.1) (2026-05-21).
 
 ### Cleared in Phase 6 #3c Phase 3 — E8 amendment (2026-05-20)
 
