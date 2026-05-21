@@ -282,6 +282,55 @@ function directly on the `.properties` file, NOT via `include`.
 
 ---
 
+## Test-package registry fixtures (E11 — `include package(...)`)
+
+The `include-package/` fixture group is structurally different from all other
+groups because Lightbend has no concept of `package(...)`. This group follows
+the **per-impl registry population model**:
+
+1. No `expected/hocon/include-package/` directory. The Java generator is NOT
+   run for these fixtures and MUST NOT be added to `SIDECAR_ERROR_CONFS`,
+   `SUCCESS_CONFS`, or any other generator array.
+2. Each fixture requires per-impl test code to **pre-populate a registry**
+   (impl-specific) with test-package content before calling `parse()`.
+3. Expected outputs are described in `testdata/hocon/include-package/README.md`
+   — a human-readable description of the merged output (for success fixtures)
+   or the error category (for error fixtures).
+
+### `_packages/` convention
+
+Test-package content lives in `testdata/hocon/include-package/_packages/`. The
+leading `_` marks this directory as non-fixture: per-impl test runners that
+iterate a directory for `.conf` files MUST skip `_packages/`. The authoritative
+registry key for each file is the `# Registry key:` comment inside the file —
+the filesystem path encodes `/` as `_` for filesystem compatibility but is NOT
+the registry key.
+
+### Per-impl override: ipk03 (collision test)
+
+ipk03 exercises go.hocon / rs.hocon explicit-registry collision policy. ts.hocon
+has no explicit registry, so ipk03 is not applicable for ts.hocon. Per-impl
+override lists must skip ipk03 for ts.hocon:
+
+- ts.hocon: `IMPL_OVERRIDE_ERRORS` (or equivalent skip list)
+- rs.hocon: `KNOWN_LIGHTBEND_QUIRKS` — mark as go/rs only
+- go.hocon: `implErrors` — mark as go/rs only
+
+### Why no `.error` sidecars for this group
+
+The generator oracle (Lightbend) does not throw on `package(...)` syntax —
+it would parse it as an unknown qualifier or a token error with different
+semantics than E11 intends. Lightbend error messages cannot be used as
+conformance targets here. Instead, per-impl conformance tests assert error
+category directly (any `HoconError` for parse-error fixtures; registration
+error before parse for ipk03; cycle error for ipk13/ipk14).
+
+This follows the same spirit as ce05 / ir03 / ir04 / ef01–ef06, but with the
+additional twist that the expected outcome is never "Lightbend says X"; it is
+always "E11 spec says X".
+
+---
+
 ## Fixture naming convention
 
 | Prefix | Group | Coverage |
@@ -299,6 +348,7 @@ function directly on the `.properties` file, NOT via `include`.
 | `ef01`–`ef06` | `empty-file/` | S3.1 strict-spec empty file rejection (cluster 3h) — Lightbend silently accepts; impls must reject |
 | `bsl01`–`bsl09` | `byte-single-letter/` | S21.4 binary single-letter K/M/G/T/P/E byte abbreviations (cluster 3h) — per-impl `getBytes()` assertion |
 | `pc01`–`pc04` | `properties-conflict/` | S23.4 `.properties` object-wins conflict (cluster 3h) — direct `.properties` parse, no `.conf` wrapper |
+| `ipk01`–`ipk14` | `include-package/` | E11 `include package(...)` qualifier — service-locator pattern; no Lightbend sidecars; per-impl registry-population model (see "Test-package registry fixtures" section above) |
 
 ### Sibling include-target files
 
