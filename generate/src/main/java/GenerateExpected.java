@@ -133,6 +133,21 @@ public class GenerateExpected {
         "unquoted-starts/us28-concat-subst-dash-subst-other.conf",
         "unquoted-starts/us29-concat-unquoted-dash-subst.conf",
         "unquoted-starts/us30-concat-quoted-dash-subst.conf",
+        // S8.1/S8.8 unquoted-parens — clarifying fixtures for issue #34 (@cgordon).
+        // HOCON.md L274 forbidden set does NOT include `(` or `)`; parens are special
+        // only inside include resource syntax (`file(...)`, `required(...)`,
+        // `classpath(...)`, `url(...)`). Outside of that contextual use, `(` and `)`
+        // are ordinary unquoted-string content. ts.hocon and rs.hocon already match
+        // this reading; go.hocon currently emits TokenLParen/TokenRParen as standalone
+        // tokens unconditionally — these fixtures pin the cross-impl spec target so
+        // go.hocon's fix (tracked at o3co/go.hocon#100) has a Lightbend-faithful
+        // ground truth to converge on.
+        "unquoted-parens/up01-paren-mid-token.conf",
+        "unquoted-parens/up02-paren-leading.conf",
+        "unquoted-parens/up03-paren-real-world.conf",
+        "unquoted-parens/up04-paren-nested.conf",
+        "unquoted-parens/up05-paren-unbalanced-open.conf",
+        "unquoted-parens/up06-paren-unbalanced-close.conf",
         // S12.5 include-reservation positive fixtures (cluster 3e). Negative fixtures
         // distributed between SIDECAR_ERROR_CONFS (Lightbend throws) and Lightbend-quirk
         // exclusions (Lightbend silently accepts dotted `include.foo`). See E9 in

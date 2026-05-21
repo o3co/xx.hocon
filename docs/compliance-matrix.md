@@ -8,12 +8,12 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 |---|---:|---:|---:|---:|---:|---:|---:|
 | [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **85.9%** | **96.5%** | 178 | 3 | 5 | 0 | 23 |
 | [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **87.8%** | **95.6%** | 182 | 3 | 7 | 0 | 17 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **85.4%** | **95.5%** | 177 | 3 | 7 | 0 | 22 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **84.9%** | **94.9%** | 176 | 3 | 8 | 0 | 22 |
 
 Where:
 
 - **Spec-total** = `(✅ + ⚠️·0.5) / 209`. Denominator includes ALL items, including out-of-scope. Out-of-scope items intentionally lower this number — it is the answer to "how much of HOCON.md does this implementation handle?".
-- **In-scope** = `(✅ + ⚠️·0.5) / (209 − ➖_per_impl)`. The denominator is **per-impl** because each implementation can additionally mark items ➖ for language-natural reasons that don't apply to its siblings (e.g. ts marks S1.1 ➖ because JS strings are pre-decoded Unicode at the I/O boundary, but go cannot — Go `string` permits arbitrary bytes). Globally shared ➖ count is 21; per-impl: ts=23 (+ S1.1, S13a.10), rs=21, go=22 (+ S13a.10). This is the answer to "of what the implementation chooses to support, how much is covered?".
+- **In-scope** = `(✅ + ⚠️·0.5) / (209 − ➖_per_impl)`. The denominator is **per-impl** because each implementation can additionally mark items ➖ for language-natural reasons that don't apply to its siblings (e.g. ts marks S1.1 ➖ because JS strings are pre-decoded Unicode at the I/O boundary, but go cannot — Go `string` permits arbitrary bytes). Globally shared ➖ count is 17; per-impl: ts=23 (+ S1.1, S13a.10, S20.1–S20.4), rs=17, go=22 (+ S13a.10, S20.1–S20.4). This is the answer to "of what the implementation chooses to support, how much is covered?".
 - `❌` and `🤷` contribute 0. `🤷` is treated as 0 because an unverified claim is, by policy, not a pass — pinning it as ✅/❌ requires a test. After Phase 5, all three impls reached `🤷 = 0`.
 
 Both numbers are shown side by side so neither over-claims nor under-claims. See [`spec-checklist.md`](spec-checklist.md) for the convention rationale.
@@ -26,7 +26,7 @@ Both numbers are shown side by side so neither over-claims nor under-claims. See
 | ⚠️ | Test exists, partial pass / pinning a spec-violating behavior |
 | ❌ | Test exists and fails, OR known spec violation documented in source |
 | 🤷 | No test — implementation claim only, unverified |
-| ➖ | Out of scope (rationale required). May be **globally out of scope** (excluded by all three impls — see [Globally out-of-scope items](#globally-out-of-scope-items-21)) or **per-impl out of scope** (one impl excludes for language-natural reasons that don't apply to siblings, e.g. ts S1.1 because JS strings are pre-decoded Unicode at the I/O boundary). |
+| ➖ | Out of scope (rationale required). May be **globally out of scope** (excluded by all three impls — see [Globally out-of-scope items](#globally-out-of-scope-items-17)) or **per-impl out of scope** (one impl excludes for language-natural reasons that don't apply to siblings, e.g. ts S1.1 because JS strings are pre-decoded Unicode at the I/O boundary). |
 
 ## Globally out-of-scope items (17)
 
@@ -58,6 +58,7 @@ Items where the test or implementation behavior contradicts the spec:
 | S8.2 | go | ❌ | `//` inside an unquoted run without preceding whitespace is treated as literal content; spec L248 says `//` starts a comment anywhere outside a quoted string. ts/rs ✅. |
 | S3.4 | ts | ❌ | Unbraced root + stray `}` accepted ([#55](https://github.com/o3co/ts.hocon/issues/55)) |
 | S8.1 | ts | ⚠️ | Lexer allows backtick in unquoted strings, contrary to spec L245 forbidden set |
+| S8.1 | go | ❌ | Lexer emits `TokenLParen`/`TokenRParen` as standalone tokens unconditionally (`internal/lexer/lexer.go:164-169`), rejecting parens in ordinary unquoted value positions (`a = hello (world)` → parse error). Spec L274 forbidden set does NOT include `(` or `)`; parens are contextual only inside include resource syntax (`file(...)` / `required(...)` / `classpath(...)` / `url(...)`). ts/rs ✅. Fix tracked at [go.hocon#100](https://github.com/o3co/go.hocon/issues/100); cross-impl pin fixtures `testdata/hocon/unquoted-parens/up01-up06` per [xx.hocon#34](https://github.com/o3co/xx.hocon/issues/34) external report by @cgordon. |
 | S10.8 | ts, rs, go | ❌ / ⚠️ | Unquoted concat in field keys (`a b = 1`) rejected; spec L317/L556 requires acceptance as key "a b". rs partial pass: quoted variant works ([ts#76](https://github.com/o3co/ts.hocon/issues/76), [rs#66](https://github.com/o3co/rs.hocon/issues/66), [go#65](https://github.com/o3co/go.hocon/issues/65)) |
 | S10.15 | go | ❌ | Quoted whitespace between obj/array substitutions (e.g. `c = ${a} " " ${b}`) is silently accepted and the arrays merged to `[1, 2]`; spec L442 requires this to be an error. ts ✅. rs incidentally cleared by Phase 6 #3b (quoted whitespace is a scalar; `join_pair` now errors on `scalar between array operands`). go still fails because the resolver elides separator tokens before `joinPair` runs, so the type-check is never reached. |
 | S11.8 | go | ❌ | Parser rejects TokenBool in key position; spec L504 requires stringification to `"true"` / `"false"`. Impl is stricter than spec ([go#66](https://github.com/o3co/go.hocon/issues/66)) |

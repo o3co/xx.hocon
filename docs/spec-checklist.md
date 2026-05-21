@@ -116,14 +116,14 @@ The two numbers, side by side, neutralize "we look bad because we don't do class
 
 ## S8. Unquoted strings
 
-- **S8.1** Forbidden characters rejected (``$ " { } [ ] : = , + # ` ^ ? ! @ * & \``) and whitespace — §Unquoted strings (L245)
+- **S8.1** Forbidden characters rejected (``$ " { } [ ] : = , + # ` ^ ? ! @ * & \``) and whitespace — §Unquoted strings (L245). **Parens `(` / `)` are NOT in this set** and appear as ordinary unquoted content (e.g. `a = hello (world)` → `{"a":"hello (world)"}`). They are contextual tokens only inside include resource syntax (`file(...)` / `required(...)` / `classpath(...)` / `url(...)` — see S14a). Cross-impl pins: `testdata/hocon/unquoted-parens/up01-up06`. Per [issue #34](https://github.com/o3co/xx.hocon/issues/34) (@cgordon).
 - **S8.2** `//` inside an unquoted string starts a comment — §Unquoted strings (L248)
 - **S8.3** Initial token `true`/`false`/`null` parsed as keyword — §Unquoted strings (L250)
 - **S8.4** Initial number characters parse as number — §Unquoted strings (L250)
 - **S8.5** Embedded `true`/`false`/`null`/number become string content — §Unquoted strings (L266)
 - **S8.6** Unquoted string cannot begin with `0-9` or `-` — §Unquoted strings (L270)
 - **S8.7** No escape sequences in unquoted strings — §Unquoted strings (L253)
-- **S8.8** Unquoted strings allow control characters except forbidden set — §Unquoted strings (L280)
+- **S8.8** Unquoted strings allow characters outside the forbidden set — §Unquoted strings (L280). See S8.1 note re: parens.
 
 ## S9. Multi-line strings
 
