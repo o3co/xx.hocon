@@ -1,0 +1,5 @@
+isResolved: false
+getter:
+  a: hello
+  avail: hello
+  b: ERROR: NotResolved

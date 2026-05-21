@@ -1,0 +1,5 @@
+isResolved: true
+getter:
+  version: 1.2.3-42
+  variables.shortversion: 1.2.3
+  CI_RUN_NUMBER: 42

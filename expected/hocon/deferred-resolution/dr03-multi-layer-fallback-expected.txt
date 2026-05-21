@@ -1,0 +1,5 @@
+isResolved: true
+getter:
+  a: alpha
+  b: beta
+  c: gamma

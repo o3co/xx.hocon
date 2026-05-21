@@ -1,0 +1,1 @@
+lightbendSkip=true; description: ResolveWith with an unresolved source config raises NotResolved (MUST per E12 precondition).

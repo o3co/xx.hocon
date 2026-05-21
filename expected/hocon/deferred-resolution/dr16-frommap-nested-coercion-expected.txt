@@ -1,0 +1,11 @@
+isResolved: true
+getter:
+  flag: true
+  count: 42
+  label: hello
+  nested.inner: deep
+  items: [
+  1,
+  2,
+  3
+]

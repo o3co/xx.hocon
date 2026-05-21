@@ -1,0 +1,3 @@
+isResolved: false
+getter:
+  a: ERROR: NotResolved

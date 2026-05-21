@@ -338,6 +338,120 @@ No Lightbend `.error` sidecars (Lightbend has no concept of `package(...)`) — 
 
 **Tracking issue**: [#33](https://github.com/o3co/xx.hocon/issues/33).
 
+### E12 — Deferred substitution resolution: Lightbend-aligned `parse / withFallback / resolve()` lifecycle
+
+**Source**: external request + Lightbend-parity convention. HOCON.md L130–L240 (object merge) and L660–L720 (substitutions) describe substitution and merge semantics but do NOT prescribe the public API lifecycle through which callers invoke them. Lightbend Java exposes `ConfigFactory.parseString(s)` returning an **unresolved** `Config`, followed by explicit `Config.withFallback(...)` composition and `Config.resolve(...)` resolution as distinct operations (with `ConfigFactory.defaultReferenceUnresolved()` existing specifically for callers that want to defer resolution). The three impls deviated by fusing parse-and-resolve into a single call (`ParseString` / `parseString` / `parse`), which prevents callers from composing programmatic fallback layers between parse and resolve. External request [o3co/go.hocon#99](https://github.com/o3co/go.hocon/issues/99) (cgordon) surfaced this with a concrete CI use case where `${CI_RUN_NUMBER}` cannot be parsed because the value is only available from a programmatic fallback layer.
+
+**o3co convention**: each of ts.hocon / rs.hocon / go.hocon MUST expose a public API that allows the canonical Lightbend lifecycle:
+
+1. **Parse without resolving** — `ParseStringWithOptions(input, ParseOptions{ResolveSubstitutions: false})` (or the language-idiomatic equivalent) returns a `Config` whose `IsResolved()` is `false` if the input contains any unresolved `${...}` substitutions.
+2. **Compose fallback layers** — `c.WithFallback(other)` accepts both resolved and unresolved operands. Substitution placeholders survive merge unchanged.
+3. **Resolve explicitly** — `c.Resolve(ResolveOptions{...})` performs a single top-level resolve operation over the entire fallback stack, with options for hermetic resolution (`UseSystemEnvironment=false`) and partial resolution (`AllowUnresolved=true`).
+4. **Construct configs from in-memory data** — `FromMap(values, originDescription)` produces a `Config` from a plain-key map for use as a fallback layer.
+
+The existing `ParseString` / `parseString` / `parse` (no options) entry points remain as parse-and-resolve convenience wrappers and produce identical results to `ParseStringWithOptions(..., {ResolveSubstitutions: true})` — backward compatibility is preserved.
+
+**Why an E-item rather than an S-item**: HOCON.md is silent on API surface. The lifecycle separation is an *interface* convention, not a behavioral spec item — there is no S-item it clarifies. Conceptually parallel to E11: a project-introduced cross-impl convention. Cross-spec *behavioral* interactions (s13a, s10) ARE clarified by E12 — see § "Cross-spec interactions" below — but those clarifications are anchored in E12 because they describe the spec items' behavior *under the new lifecycle*, not at parse time alone.
+
+#### Spec decisions
+
+The following decisions are normative for all three impls:
+
+1. **Existing `ParseString` / `ParseFile` behavior preserved** for backward compatibility. They continue to parse and resolve in one shot. A future major version MAY flip this default to align with Lightbend's parse-only-by-default semantics; out of scope for v1. Rationale: cross-impl release cadence requires minor (not major) bump for E12; preserving existing parse-and-resolve avoids forcing downstream code changes.
+
+2. **`ParseOptions` v1 fields**: `ResolveSubstitutions: bool` (default `true`) and `OriginDescription: string` (default empty). Other Lightbend `ConfigParseOptions` fields (`setSyntax`, `setAllowMissing`, `setIncluder`, `setClassLoader`) are deferred to follow-on. Rationale: minimal v1 scope; defaults match Lightbend semantics for the included fields.
+
+3. **`ResolveOptions` v1 fields**: `UseSystemEnvironment: bool` (default `true`, Lightbend default) and `AllowUnresolved: bool` (default `false`, Lightbend default). Custom resolver chain (Lightbend `ConfigResolveOptions.appendResolver`) is deferred. Rationale: covers issue #99's hermetic-resolve and partial-resolution needs; custom-resolver is a Lightbend 1.3.2+ feature with no current cross-impl demand.
+
+4. **Options encoding per language**: each impl uses its idiomatic pattern. **Go**: builder pattern with `DefaultParseOptions()` / `DefaultResolveOptions()` factory functions + chainable `WithX()` setter methods. **`ParseOptions{}` zero-value literal is NOT valid invocation** (would mean `ResolveSubstitutions=false` and `UseSystemEnvironment=false`, contradicting Lightbend defaults). **TypeScript**: `Partial<ParseOptions>` interface — omitted fields take Lightbend defaults. **Rust**: `Default` impl returning Lightbend defaults + chainable builder methods (`.with_resolve_substitutions(false)`, etc.). The hard cross-impl constraint: an invocation equivalent to "use all defaults" MUST produce Lightbend default behavior without requiring the caller to set anything.
+
+5. **`WithFallback` accepts unresolved operands**. Existing semantic for resolved operands is preserved (deep merge with receiver-wins precedence). New behavior: when either operand is unresolved, the merge operates at the unresolved-tree level — substitution placeholders survive into the merged tree. The result is unresolved iff either operand is unresolved. Non-object values do not merge: `obj.WithFallback(nonObj).WithFallback(otherObj)` ignores `otherObj` per Lightbend `ConfigMergeable` semantics (HOCON.md §Merge L191-L207). Rationale: required for the issue #99 use case; preserves Lightbend parity.
+
+6. **Single-pass, transitively-recursive resolution over the fallback stack**: `Resolve()` performs **one top-level resolve operation** over the entire merged fallback stack, with **transitive recursive substitution evaluation**. A literal "single tree walk" is not required; what matters is that `a = ${b}; b = ${c}; c = 1` resolves `a` to `1` (not `${b}`), regardless of whether the chain crosses fallback layers. Rationale: Lightbend documents this as "ideally resolve once on the full stack"; transitive resolution is implicit in HOCON.md §Substitutions but explicit here to prevent impl divergence.
+
+7. **Hidden substitutions are not evaluated**. Substitutions in *overridden* values (HOCON.md §Substitutions L670–L703) MUST be discarded before resolution. `foo = ${nonexist}\nfoo = 42` resolves to `{foo: 42}` without error. Across fallback layers, the receiver's keys win — fallback substitutions hidden by the receiver are dropped. Rationale: HOCON-spec compliance; an impl that evaluates hidden substitutions would fail valid Lightbend-produced configs.
+
+8. **Cross-layer cycle detection**: substitution cycles that emerge only after `WithFallback` (e.g., receiver `a=${b}`, fallback `b=${a}`) MUST be detected at resolve time. The algorithm is impl-internal; the conformance requirement is the outcome. Rationale: single-source cycles are already covered by S13a.6-9; this clarifies that cycle detection extends to merged trees.
+
+9. **`ResolveWith(source)` is distinct from `WithFallback(source).Resolve()`**: substitutions in the receiver are looked up in `source`, but `source`'s keys are NOT merged into the result. Conformance: MUST in go.hocon (where issue #99 was filed); MAY in ts.hocon / rs.hocon v1 (follow-on PR acceptable). Rationale: Lightbend parity; the two operations have distinct use cases (template-with-lookup vs. composition).
+
+10. **`ResolveWith` precondition** (intentional Lightbend divergence): the `source` argument MUST be resolved (or substitution-free). If unresolved, `ResolveWith` MUST raise `NotResolved` BEFORE attempting to resolve the receiver. Lightbend does NOT precondition-check (it surfaces the source's resolution failure as `ConfigException.UnresolvedSubstitution`); E12 deliberately strengthens this to surface the *caller's mistake* clearly. Rationale: passing an unresolved source is virtually always a programmer error; an early-precondition error is more actionable than a downstream resolution failure.
+
+11. **`IsResolved()`** is whole-config granularity: returns `false` if any substitution placeholder remains in the value tree. No per-value `isResolved` — matches Lightbend.
+
+12. **Getters on unresolved paths raise `NotResolved`**. Reading any path whose value (or any transitive parent) contains an unresolved substitution returns the language-idiomatic `NotResolved` error. `AllowUnresolved=true` does NOT make getters lenient — it only makes `Resolve()` itself non-erroring. Paths that resolve cleanly are returned; paths that don't error at getter call. Matches Lightbend.
+
+13. **`FromMap(values, originDescription)`**: constructs a `Config` from a plain-key map (keys are NOT path expressions). Type coercion follows Lightbend `ConfigValueFactory.fromMap` semantics: booleans, numbers (int/float), strings, lists (homogeneously typed recursively), nested maps, and null. The `originDescription` argument provides source-location info for error messages; an empty string means "use default origin". Rationale: covers issue #99's programmatic-fallback use case. `FromAnyRef` (Lightbend scalar/list/null roots) is deferred — requires publishing a `ConfigValue` public type.
+
+14. **Include resolution stays at parse phase**, regardless of `ResolveSubstitutions`. `ParseStringWithOptions(..., {ResolveSubstitutions: false})` returns a `Config` with all `include` directives (including E11 `include package(...)`) already expanded; only `${...}` substitutions are deferred. Rationale: matches Lightbend (includes are parse-time, substitutions are resolve-time); avoids surprising interaction with E11 by keeping include resolution timing invariant.
+
+#### Cross-spec interactions
+
+E12 clarifies the behavior of two existing S-items when WithFallback / Resolve are invoked as separate operations.
+
+##### S13a × WithFallback — Self-reference lookback across fallback layers
+
+S13a.2 ("self-ref to overridden field works in merge") implicitly assumes single-source merge. With multi-source fallback composition, the lookback algorithm extends as follows:
+
+Within the receiver's definition of `a`, `${?a}` (optional) and `${a}` (required) look back at the value of `a` from the immediately-prior layer in the fallback stack. The lookback chain walks **across fallback layers** (receiver → fallback₁ → fallback₂ → ...), not just within the receiver's own source.
+
+Concrete cases (covered by fixtures dr04–dr06):
+
+1. Receiver `a = ${?a} extra`, fallback `a = base`. After merge + resolve: `a = "base extra"` (optional self-ref pulls from fallback prior).
+2. Receiver `a = ${?a} extra`, fallback has no `a` OR no fallback at all. After merge + resolve: `a = " extra"` (optional self-ref to undefined → empty contribution per S13a.4). Empty fallback and absent fallback are observably equivalent per Lightbend.
+3. Receiver `a = ${a} extra` (required), fallback `a = base`. After merge + resolve: `a = "base extra"`.
+4. Receiver `a = ${a} extra`, fallback has no `a` OR no fallback at all. After merge + resolve: **CycleError** (the substitution looks at the very value it is defining; Lightbend reports this as `ConfigException.UnresolvedSubstitution` with a cycle message). Both sub-cases (fallback present but without `a`, and no fallback layer) MUST produce the same outcome — there is no observable distinction in the merged-tree lookback chain when `a` is absent from all non-receiver layers. dr06 pins this with no fallback; impls without a distinct cycle category MAY surface as `ResolveError`.
+
+##### S10 × AllowUnresolved — Type-check behavior under partial resolution
+
+S10.4 / S10.13 / S10.19 specify concat type errors fire during resolution. Under `AllowUnresolved=true`:
+
+- **Type-incompatible concat with at least one resolved operand of incompatible type**: the type error fires regardless of `AllowUnresolved`. A type error is structurally invalid; deferring it would mask programmer mistakes. Example: `a = "p" [1,2]` raises `TypeError` even with `AllowUnresolved=true` (covered by dr13).
+- **Concat with all operands unresolved**: the concat survives as a concat-placeholder. Getter on its path raises `NotResolved` (covered by dr14).
+- **Concat with mixed resolved + unresolved operands of compatible type**: the resolved portion is computed; the placeholder retains a reference to unresolved operands. Getter raises `NotResolved`.
+
+Rationale: `AllowUnresolved` is about deferring *missing-value* errors, not *type* errors. The distinction prevents a class of silent miscompilations under partial-resolve workflows.
+
+##### Optional substitution materialisation in concat contexts
+
+Per HOCON.md §Substitutions L626–L645 and §Concatenation L387–L441, undefined `${?foo}` materialises differently depending on surrounding concat context. The materialisation rules are normative (covered by fixtures dr24–dr28):
+
+| Context | Undefined `${?foo}` materialises as | Example | Result |
+| --- | --- | --- | --- |
+| Standalone field value | Field is **omitted** from parent object | `a = ${?x}` (x undef) | `{}` (no `a` key) |
+| String concat | Empty string | `a = ${?x} "tail"` | `a = " tail"` (leading space preserved per HOCON whitespace rules) |
+| String concat (multiple optional, all undef) | Empty string; if entire value collapses to empty, field is omitted | `a = ${?x}${?y}` (both undef) | `{}` (no `a` key) |
+| Array concat | Empty array (no elements contributed) | `a = ${?x} [1,2]` (x undef) | `a = [1,2]` |
+| Object merge | Empty object (no keys contributed) | `a = ${?x} { k = 1 }` (x undef) | `a = { k: 1 }` |
+| Type-mixed concat | Type-determined per s10; `${?x}` does NOT bridge incompatible types | `a = "p" ${?x} [1]` | s10 type error |
+
+#### Non-goals (explicit)
+
+The following are out of scope for E12 v1 and are NOT to be inferred from the convention:
+
+- **`FromAnyRef` + public `ConfigValue` type**: requires defining the public surface for non-object Config roots (scalar / list / null). Deferred to a follow-on E-item.
+- **Custom resolver chain** (Lightbend `ConfigResolveOptions.appendResolver`): no current cross-impl demand. Future enhancement.
+- **Path-expression `parseMap`** (Lightbend `ConfigFactory.parseMap` interpreting keys as path expressions): v1 has `FromMap` (plain keys) only.
+- **Other `ConfigParseOptions` fields** (`setSyntax`, `setAllowMissing`, `setIncluder`, `setClassLoader`): each is a separate follow-on.
+- **`Config.atPath(p)` / `Config.atKey(k)`**: Lightbend convenience wrappers, not in scope for issue #99.
+- **Default-loading-chain replication** (Lightbend `ConfigFactory.load()` with reference.conf / application.conf auto-merge): platform-specific. Out of scope.
+
+| Impl | Status | Encoding | API surface | Notes |
+| --- | --- | --- | --- | --- |
+| ts.hocon | 🤷 | `Partial<ParseOptions>` / `Partial<ResolveOptions>` interfaces | `parseString(s, opts?)`, `Config.withFallback(c)`, `Config.resolve(opts?)`, `Config.resolveWith(s, opts?)`, `Config.isResolved()`, `fromMap(m, origin?)`, `empty(origin?)` | `resolveWith` MAY be follow-on per decision 9. |
+| rs.hocon | 🤷 | `ParseOptions::default()` + builder methods; `ResolveOptions::default()` + builders | `hocon::parse_with_options(s, opts)`, `Config::with_fallback(&self, c)`, `Config::resolve(&self, opts)`, `Config::resolve_with(&self, s, opts)`, `Config::is_resolved(&self)`, `hocon::from_map(m, origin)`, `hocon::empty(origin)` | `resolve_with` MAY be follow-on per decision 9. `StructureBuilder` / `SubstitutionResolver` remain `pub(crate)`. |
+| go.hocon | 🤷 | Builder pattern: `DefaultParseOptions()` + `WithX()` chainable setters | `hocon.ParseStringWithOptions(s, opts)`, `(*Config).WithFallback(c)`, `(*Config).Resolve(opts)`, `(*Config).ResolveWith(s, opts)`, `(*Config).IsResolved()`, `hocon.FromMap(m, origin)`, `hocon.Empty(origin)` | `ResolveWith` MUST in v1 (issue origin per decision 9). v1.4.0 release closes go.hocon#99. |
+
+**Fixtures**: 31 scenario YAML files (30 scenario IDs, with dr11 split into dr11a/dr11b) under `testdata/hocon/deferred-resolution/` (`dr01.yaml` – `dr30.yaml`) covering: basic fallback (dr01), FromMap-only (dr02), multi-layer (dr03), self-reference × fallback (dr04–dr06), AllowUnresolved partial (dr07), hermetic resolve (dr08), getter-on-unresolved (dr09), composition barrier (dr10), ResolveWith semantics (dr11a/dr11b), origin preservation (dr12), type-check under AllowUnresolved (dr13/dr14), include + deferred (dr15), FromMap nested coercion (dr16), E11 package include + deferred (dr17, Lightbend-skip), cross-layer cycle (dr18), Resolve idempotency (dr19), transitive substitution (dr20/dr21), hidden substitution (dr22/dr23), optional substitution materialisation (dr24–dr28), empty config edges (dr29), object-merge barrier (dr30).
+
+**Fixture format**: YAML scenarios (NOT `.conf`) — encoded as multi-step build sequences with explicit `parseString` / `fromMap` / `withFallback` / `resolve` ops. See [`testdata/hocon/deferred-resolution/README.md`](../testdata/hocon/deferred-resolution/README.md) and [`docs/fixture-conventions.md` § "Scenario YAML fixtures (E12)"](fixture-conventions.md#scenario-yaml-fixtures-e12) for schema.
+
+**Java generator**: `generate/src/main/java/DeferredResolutionRunner.java` runs each YAML scenario through Lightbend `com.typesafe.config` and emits expected outputs (`.json` / `.error` / `.skip` / `.txt`). dr11b and dr17 are marked `lightbendSkip: true` (dr11b: intentional Lightbend divergence per decision 10; dr17: E11 not applicable to Lightbend).
+
+**Prior art**: Lightbend Java HOCON (`com.typesafe.config`) is the reference. No non-JVM HOCON parser surveyed (`go-akka/configuration`, `gurkankaymak/hocon`, `mockersf/hocon.rs`) exposes the lifecycle separation; all fuse parse-and-resolve. E12 establishes this convention in the cross-impl o3co stack.
+
+**Tracking issue**: [#37](https://github.com/o3co/xx.hocon/issues/37). **External origin**: [o3co/go.hocon#99](https://github.com/o3co/go.hocon/issues/99) (cgordon).
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -357,6 +471,8 @@ No Lightbend `.error` sidecars (Lightbend has no concept of `package(...)`) — 
 2026-05-18 — E9 flipped ❌ → ✅ in all 3 impls after Phase 6 #3e impl PRs landed ([ts.hocon#102](https://github.com/o3co/ts.hocon/pull/102), [rs.hocon#90](https://github.com/o3co/rs.hocon/pull/90), [go.hocon#88](https://github.com/o3co/go.hocon/pull/88)). Each impl rejects `include.foo = 1` (and `a = { include.bar = 1 }`) via its post-PathParser path-element check on the constructed key list, with quoted-vs-unquoted provenance captured locally in the field-parser before `parseKey` / `parse_key` advances the cursor. The ir03/ir04 fixtures remain without xx.hocon `.error` sidecars — Lightbend's tokenizer joins `include.foo` into a single unquoted token before `isIncludeKeyword` runs, so it silently accepts. Each impl's conformance test maintains a per-impl override list (`IMPL_OVERRIDE_ERRORS` in ts, `KNOWN_LIGHTBEND_QUIRKS` in rs, `implErrors` in go) pinning ir03/ir04 to error. **Side-clear**: go.hocon S14a.10 (#80) also flipped ❌ → ✅ via the same PR — `parseInclude` now requires the include argument to be a quoted TokenString; unquoted `include foo.conf` raises `*parser.Error`. Spec-aligned error-message split applied in go.hocon (S14a.10 case → "include argument must be a quoted string"; S12.5 case → "'include' is reserved as a key name") per Claude multi-agent-review Important finding fixed in-PR (commit 7b5c80a). ts/rs were already ✅ on S14a.10 pre-fix so their flips are S12.5-only.
 2026-05-18 — E5 flipped ❌ → ✅ in all 3 impls after Phase 6 #3b impl PRs landed ([ts.hocon#101](https://github.com/o3co/ts.hocon/pull/101), [rs.hocon#89](https://github.com/o3co/rs.hocon/pull/89), [go.hocon#87](https://github.com/o3co/go.hocon/pull/87)). Each impl rejects the `{object} scalar`, `scalar {object}`, `[array] scalar`, `scalar [array]` constructs via its pairwise-fold `joinPair` / `join_pair` type-mismatch branch — same code path that closes S10.4/S10.13/S10.19 in the canonical matrix. go.hocon merge is **BREAKING** (prior permissive `[1, 2] 3 → [1, 2, 3]` removed); ts and rs were already error on the construct pre-fix so their flips are non-breaking. The ce05 fixture remains without an xx.hocon `.error` sidecar — Lightbend silently accepts the construct, so the generator omits the sidecar; each impl's conformance test maintains a per-impl override list pinning ce05 (and other E-marked Lightbend-quirk fixtures) to error.
 2026-05-18 — E6 and E7 flipped 🤷 → ✅ in all 3 impls after Phase 6 #3g impl PRs landed ([ts.hocon#100](https://github.com/o3co/ts.hocon/pull/100), [rs.hocon#88](https://github.com/o3co/rs.hocon/pull/88), [go.hocon#86](https://github.com/o3co/go.hocon/pull/86)). E7 enforcement narrowed via multi-agent-review (I2 fix): only ASCII space (0x20) / tab (0x09) accepted between path and `[]`; broader Unicode whitespace (NBSP, CR, Zs) errors. E6 known limitation (cross-impl: include-scope `${X[]}` does not fall back to original-path config) tracked at [xx.hocon#22](https://github.com/o3co/xx.hocon/issues/22) — Copilot review on go.hocon#86 surfaced the issue; cross-impl scope (also affects ts + rs).
+2026-05-21 — E12 (deferred substitution resolution — Lightbend-aligned `parse / withFallback / resolve()` lifecycle) added as a project-introduced cross-impl API convention. Fourteen normative spec decisions established covering: parse-with-options entry point, options encoding per language (Go builder / TS Partial / Rust Default), WithFallback semantics for unresolved operands, single-pass transitive resolution, hidden-substitution discard, cross-layer cycle detection, ResolveWith semantics + precondition (intentional Lightbend divergence per decision 10), IsResolved granularity, getter behavior, FromMap type coercion, include-resolution timing invariance. Cross-spec interactions clarified for S13a (self-reference lookback across fallback layers) and S10 (concat type-check behavior under AllowUnresolved=true) inline in E12 section. 31 scenario YAML fixtures (30 scenario IDs, with dr11 split into dr11a/dr11b) landed under `testdata/hocon/deferred-resolution/`, runnable via new `DeferredResolutionRunner.java` (Lightbend ground truth: 29 success or expected-error, 2 lightbendSkip — dr11b [decision 10 divergence] + dr17 [E11 not applicable to Lightbend]). External origin [go.hocon#99](https://github.com/o3co/go.hocon/issues/99); tracking issue [#37](https://github.com/o3co/xx.hocon/issues/37). Status 🤷 in all 3 impls — impls to follow in per-impl PRs targeting v1.4.0 bundle release with E11.
+
 2026-05-21 — E11 (`include package(...)` qualifier — service-locator pattern for non-JVM HOCON) added as a project-introduced extension to HOCON syntax. Five normative spec decisions established: (1) identifier MUST be Go-module-path-style canonical form `<host>/<org>/<name>`; (2) two-arg form `package("id", "file")` mandatory, one-arg rejected; (3) collision on `(id, file)` is hard error (idempotent byte-equal re-registration allowed); (4) registry-miss is hard error at parse time (no silent empty-include fallback); (5) `include required(package(...))` follows existing required semantics. Per-impl registration mechanism: ts.hocon via runtime `require.resolve`, go.hocon via `init()`+`embed.FS`+`RegisterPackage`, rs.hocon via explicit `Parser::register_package` + `include_str!`. Driven by cross-impl design discussion 2026-05-20 (tracking issue [#33](https://github.com/o3co/xx.hocon/issues/33)); supersedes earlier ts-only proposal [ts.hocon#109](https://github.com/o3co/ts.hocon/issues/109) (closed). Status 🤷 in all 3 impls — fixtures and impls to follow in per-impl PRs.
 
 2026-05-20 — E8 **rewritten** to adopt Lightbend's pragmatic reading of HOCON.md L270-276 "begin" as value-position (not token-position at any lexer offset). Driven by external issue [xx.hocon#31](https://github.com/o3co/xx.hocon/issues/31) (@cgordon, first external issue), which surfaced `b = ${a}-bar` rejected under the strict reading. Concat-continuation cases (`${a}-bar`, `${a}--bar`, `${a}-1`, `${a}1bar`, `${a}.bar`, `"foo"-bar`, etc.) now accepted; us02 (`a = -foo`) / us03 (`a = -`) / us13 (`a = 01`) moved from per-impl error overrides to `SUCCESS_CONFS`. **BREAKING for downstream**: F3 (`a = 01` → `1` number, was `"01"` string) is a value-type change; other changes are additive. `+` rejection retained in both value-start and concat-continuation positions (HOCON `+=` operator reservation, distinct from number-lex). Lightbend probe matrix recorded at [`generate/src/main/java/ProbeIssue31.java`](../generate/src/main/java/ProbeIssue31.java) (groups A–F). Project principle established alongside this amendment: where xx.hocon and Lightbend differ and both behaviors derive from a reasonable reading of the spec, xx.hocon is the side that needs correcting (E5/E9/E10 to be re-audited under this principle as separate follow-ups; E10 may be a genuine Lightbend spec violation rather than an interpretation difference and will be raised upstream).

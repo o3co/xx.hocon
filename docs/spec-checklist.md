@@ -135,10 +135,12 @@ The two numbers, side by side, neutralize "we look bad because we don't do class
 
 ## S10. Value concatenation
 
+See also: [E12 § "S10 × AllowUnresolved — Type-check behavior under partial resolution"](extra-spec-conventions.md#e12) for normative behavior under the deferred parse/resolve lifecycle (type errors fire eagerly even with AllowUnresolved=true; fully-unresolved concats survive as placeholders).
+
 - **S10.1** Simple values + non-newline whitespace → string concat — §Value concatenation (L310)
 - **S10.2** All arrays → array concatenation — §Value concatenation (L312)
 - **S10.3** All objects → object merge (concatenation) — §Value concatenation (L314)
-- **S10.4** Mixing arrays + objects in concat is an error — §Array and object concatenation (L385)
+- **S10.4** Mixing arrays + objects in concat is an error — §Array and object concatenation (L385) — see also E12 dr13 (type error under AllowUnresolved=true)
 - **S10.5** Inner whitespace between simple values preserved — §String value concatenation (L332)
 - **S10.6** Leading/trailing whitespace around concat discarded — §String value concatenation (L346)
 - **S10.7** Concatenation does not span a newline — §String value concatenation (L335)
@@ -200,11 +202,13 @@ The two numbers, side by side, neutralize "we look bad because we don't do class
 
 ### S13a. Self-referential substitutions
 
+See also: [E12 § "S13a × WithFallback — Self-reference lookback across fallback layers"](extra-spec-conventions.md#e12) for normative behavior under the deferred parse/resolve lifecycle (cross-layer lookback, hidden substitution discard across fallback).
+
 - **S13a.1** `path : ${path}` resolves to prior `path` value — §Self-Referential (L666)
-- **S13a.2** Self-ref to overridden field works in merge — §Self-Referential (L748)
-- **S13a.3** Self-ref before any prior value → undefined → error — §Self-Referential (L767)
-- **S13a.4** Optional self-ref `${?foo}` disappears silently — §Self-Referential (L776)
-- **S13a.5** Substitution hidden by later non-object → no error — §Self-Referential (L780)
+- **S13a.2** Self-ref to overridden field works in merge — §Self-Referential (L748) — see also E12 § "S13a × WithFallback" for cross-fallback behavior
+- **S13a.3** Self-ref before any prior value → undefined → error — §Self-Referential (L767) — see also E12 dr06 (Lightbend surfaces this as CycleError under merged-tree resolution)
+- **S13a.4** Optional self-ref `${?foo}` disappears silently — §Self-Referential (L776) — see also E12 § "Optional substitution materialisation in concat contexts" (dr24–dr28)
+- **S13a.5** Substitution hidden by later non-object → no error — §Self-Referential (L780) — see also E12 § "Hidden substitutions are not evaluated" (dr22/dr23)
 - **S13a.6** Cycle inside object `a : { b : ${a} }` → error — §Self-Referential (L688)
 - **S13a.7** Cycle inside array `a : [${a}]` → error — §Self-Referential (L689)
 - **S13a.8** Two-step cycle `bar : ${foo}; foo : ${bar}` → error — §Self-Referential (L857)

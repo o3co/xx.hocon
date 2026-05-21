@@ -1,0 +1,4 @@
+isResolved: true
+getter:
+  lit: value
+  sub: resolved

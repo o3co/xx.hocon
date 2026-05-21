@@ -1,0 +1,2 @@
+lightbendSkip=true; description: E11 package include expanded at parse phase; substitution inside included content deferred until resolve. Not applicable to Lightbend (no package() qualifier). Per-impl tests only.
+

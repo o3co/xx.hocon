@@ -511,6 +511,15 @@ public class GenerateExpected {
 
         System.out.println();
         System.out.printf("Done. OK: %d, Errors: %d, Skipped: %d%n", okCount, errCount, skipCount);
+
+        // --- E12 deferred-resolution scenarios ---
+        // Each dr*.yaml is a multi-step scenario run through Lightbend and emits:
+        //   <name>-expected.json  (success)
+        //   <name>-expected.txt   (isResolved + getter assertions)
+        //   <name>-expected.error (error scenarios)
+        //   <name>-expected.skip  (lightbendSkip: true)
+        // See DeferredResolutionRunner and testdata/hocon/deferred-resolution/README.md.
+        DeferredResolutionRunner.runAll(testdataDir, expectedDir);
     }
 
     static ConfigObject filterKeys(ConfigObject obj, Set<String> exclude) {

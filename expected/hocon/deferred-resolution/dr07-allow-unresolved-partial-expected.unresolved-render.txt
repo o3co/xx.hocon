@@ -1,0 +1,5 @@
+{
+    "a" : "hello",
+    "avail" : "hello",
+    "b" : ${unavail}
+}
