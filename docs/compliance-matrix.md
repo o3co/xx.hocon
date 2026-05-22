@@ -7,7 +7,7 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **85.9%** | **96.5%** | 178 | 3 | 5 | 0 | 23 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **87.8%** | **95.6%** | 182 | 3 | 7 | 0 | 17 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **88.3%** | **96.1%** | 183 | 3 | 6 | 0 | 17 |
 | [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **85.9%** | **96.0%** | 178 | 3 | 6 | 0 | 22 |
 
 Where:
@@ -62,7 +62,6 @@ Items where the test or implementation behavior contradicts the spec:
 | S10.15 | go | ❌ | Quoted whitespace between obj/array substitutions (e.g. `c = ${a} " " ${b}`) is silently accepted and the arrays merged to `[1, 2]`; spec L442 requires this to be an error. ts ✅. rs incidentally cleared by Phase 6 #3b (quoted whitespace is a scalar; `join_pair` now errors on `scalar between array operands`). go still fails because the resolver elides separator tokens before `joinPair` runs, so the type-check is never reached. |
 | S11.8 | go | ❌ | Parser rejects TokenBool in key position; spec L504 requires stringification to `"true"` / `"false"`. Impl is stricter than spec ([go#66](https://github.com/o3co/go.hocon/issues/66)) |
 | S13b.2 | ts, rs | ❌ | `+=` on non-array prior value silently allowed; spec L732 requires error. go ✅ correctly rejects ([ts#81](https://github.com/o3co/ts.hocon/issues/81), [rs#72](https://github.com/o3co/rs.hocon/issues/72)) |
-| S13.9 | rs | ❌ | `HOME = null; result = ${?HOME}` resolves `result` to a present null scalar instead of erasing the field per L618 "null treated same as missing"; env value is correctly blocked ([rs#74](https://github.com/o3co/rs.hocon/issues/74)). ts ✅, go ✅. |
 | S13.11 | go | ⚠️ | Lenient mode drops optional substitutions in nested-include scope ([#45](https://github.com/o3co/go.hocon/issues/45)) |
 | S13a.3 | ts | ⚠️ | Self-reference before any prior value (`a = ${a}`) raises a cycle error, but the error type / message classifies this as a generic substitution error rather than the "undefined" path the spec describes at L795. rs/go ✅ (correct error class). |
 | S13a.12 | go | ❌ | Self-ref in a path expression (`${foo.a}` where `foo.a` is being defined) does not resolve to the "below" value per L831; the looked-up sub-object is discarded in the merge. ts/rs ✅. |
@@ -81,6 +80,36 @@ Spec items with no test coverage in **any** of the three implementations. These 
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the three impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### v1.5.0 work — S13.9 rs mis-classification corrected (Lightbend ground-truth verification, 2026-05-22)
+
+During v1.5.0 PR review cycle, [rs.hocon PR #111](https://github.com/o3co/rs.hocon/pull/111) (the proposed fix for [rs.hocon#74](https://github.com/o3co/rs.hocon/issues/74)) was closed without merge after multi-agent review (Claude + Codex) raised a Critical spec-interpretation concern. Lightbend reference verification via `ProbeS13_9.java` (committed in this PR's `generate/`):
+
+```java
+ConfigFactory.parseString("HOME = null\nresult = ${?HOME}").resolve();
+// rendered:   {"HOME":null, "result":null}      // field PRESENT in tree as null
+// hasPath:    false                              // getter API filters null as absent
+// entrySet:   []                                 // typed-view filter null
+```
+
+Same result for the required form `result = ${HOME}`. The conclusion:
+
+- **HOCON.md L630 "null treated same as missing" is a *getter-level* statement**, not a tree-level one. Lightbend keeps the field in the resolved tree as a null scalar; the typed-getter API (`hasPath`, `entrySet`, typed accessors) filters null out as "absent".
+- **rs.hocon's pre-fix behavior** (field present as null scalar, env value blocked) matches Lightbend tree-level semantics.
+- **The matrix's prior S13.9 row** (rs ❌, "should erase the field") was a mis-classification that conflated tree-level and getter-level semantics. ts.hocon and go.hocon were already ✅; rs.hocon is also actually ✅.
+- **Getter-level null-rejection** is covered separately by S17.6 (`get_string` on null → error). rs.hocon had a S17.6 violation, fixed in [rs.hocon PR #109](https://github.com/o3co/rs.hocon/pull/109) (merged `6c1b95f` in v1.5.0 work).
+
+Matrix changes:
+
+- S13.9 row removed from [Top spec violations](#top-spec-violations-verified).
+- rs.hocon top-table row: 182 ✅ → 183 ✅, 7 ❌ → 6 ❌. Spec-total **87.8% → 88.3%** (+0.5pp); in-scope **95.6% → 96.1%** (+0.5pp).
+- Phase 3 historical entry annotated with audit-correction.
+
+Companion cleanup:
+
+- [rs.hocon#111](https://github.com/o3co/rs.hocon/pull/111) closed with full Lightbend probe explanation.
+- [rs.hocon#74](https://github.com/o3co/rs.hocon/issues/74) closed as "not a spec violation."
+- `generate/src/main/java/ProbeS13_9.java` + `generate/build.gradle.kts probeS13_9` task added to xx.hocon for future spec-verification audits.
 
 ### v1.4.0 retroactive matrix audit — S13.15 cleared, S17.6 rs mis-class corrected (2026-05-22)
 
@@ -517,7 +546,7 @@ The following items were cleared from shared test debt by [ts.hocon#85](https://
 
 - **S13.3** — `${?` is exactly 3 chars; whitespace before `?` is not optional marker (✅ in all 3)
 - **S13.5** — substitutions are NOT parsed inside quoted strings (✅ in all 3)
-- **S13.9** — `null` in config blocks env var lookup (✅ in ts/go; ❌ in rs — see Top spec violations above)
+- **S13.9** — `null` in config blocks env var lookup (✅ in ts/go; originally classified ❌ in rs — see Top spec violations above. **2026-05-22 audit correction**: rs reclassified ✅ — the Phase 3 ❌ was a mis-classification; Lightbend reference verification (`ProbeS13_9.java` in `generate/`) confirmed all 3 impls match Lightbend's tree-level semantics — field is present as `null` scalar; null-as-missing is a *getter-level* statement (covered by S17.6))
 - **S13.13** — optional undefined in string concat → empty string (✅ in all 3)
 - **S13.14** — optional undefined in obj/array concat (✅ in go; ⚠️ in ts/rs — array variant broken, see Top spec violations above)
 - **S13.16** — substitutions only in field values / array elements (✅ in all 3)
@@ -612,6 +641,8 @@ done
 5. When the template gains or loses an item, **all three per-repo files must be synced** before this matrix is rebuilt; otherwise the totals will be inconsistent.
 
 ## Last verified
+
+2026-05-22 (v1.5.0 work — S13.9 rs mis-classification corrected via Lightbend ground-truth verification) — **rs.hocon spec-total 87.8% → 88.3% (+0.5pp), in-scope 95.6% → 96.1% (+0.5pp)** from S13.9 row removal. Lightbend reference probe (`ProbeS13_9.java`) confirmed rs.hocon's pre-fix behavior (field present as null in tree) matched Lightbend tree-level semantics; the matrix's prior "rs ❌" classification conflated tree-level vs getter-level "null treated same as missing" semantics. rs.hocon PR #111 (proposed fix) closed without merge as over-fix; rs.hocon#74 closed as not-a-violation. Getter-level null rejection is covered by S17.6 (rs.hocon PR #109, merged 2026-05-22).
 
 2026-05-22 (v1.4.0 retroactive matrix audit — S13.15 cleared, S17.6 rs mis-class corrected) — **go.hocon spec-total 85.4% → 85.9% (+0.5pp), in-scope 95.5% → 96.0% (+0.5pp)**; rs.hocon and ts.hocon unchanged (S13.15 +1 ✅ / S17.6 −1 ✅ mis-class correction cancel for rs; ts was already classified ✅ on S13.15 pre-v1.4.0). Audit run on the v1.4.1 release tags of all 3 impls (go.hocon `84e73f4`, ts.hocon `8639cab`, rs.hocon `6346a5a`); full test suites green across go (0 failed, 0 skipped spec-violation tests for S13.15), ts (978 passed, 9 expected-fail — S13.15 not among them), rs (all bins 0 failed; `s13_15_spec_both_optional_undefined_field_absent` no longer `#[ignore]`'d). Methodology note added to the v1.4.0 audit section above: from v1.5.0 onward each release's "Last verified" entry must enumerate touched S-cells, not just the headline feature, to prevent recurrence of this v1.4.0 narrative gap.
 
