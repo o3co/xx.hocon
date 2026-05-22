@@ -6,9 +6,9 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **85.9%** | **96.5%** | 178 | 3 | 5 | 0 | 23 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **88.3%** | **96.1%** | 183 | 3 | 6 | 0 | 17 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **85.9%** | **96.0%** | 178 | 3 | 6 | 0 | 22 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **86.4%** | **97.0%** | 179 | 3 | 4 | 0 | 23 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **88.5%** | **96.4%** | 184 | 2 | 6 | 0 | 17 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **86.4%** | **96.5%** | 179 | 3 | 5 | 0 | 22 |
 
 Where:
 
@@ -58,7 +58,6 @@ Items where the test or implementation behavior contradicts the spec:
 | S8.2 | go | ❌ | `//` inside an unquoted run without preceding whitespace is treated as literal content; spec L248 says `//` starts a comment anywhere outside a quoted string. ts/rs ✅. |
 | S3.4 | ts | ❌ | Unbraced root + stray `}` accepted ([#55](https://github.com/o3co/ts.hocon/issues/55)) |
 | S8.1 | ts | ⚠️ | Lexer allows backtick in unquoted strings, contrary to spec L245 forbidden set |
-| S10.8 | ts, rs, go | ❌ / ⚠️ | Unquoted concat in field keys (`a b = 1`) rejected; spec L317/L556 requires acceptance as key "a b". rs partial pass: quoted variant works ([ts#76](https://github.com/o3co/ts.hocon/issues/76), [rs#66](https://github.com/o3co/rs.hocon/issues/66), [go#65](https://github.com/o3co/go.hocon/issues/65)) |
 | S10.15 | go | ❌ | Quoted whitespace between obj/array substitutions (e.g. `c = ${a} " " ${b}`) is silently accepted and the arrays merged to `[1, 2]`; spec L442 requires this to be an error. ts ✅. rs incidentally cleared by Phase 6 #3b (quoted whitespace is a scalar; `join_pair` now errors on `scalar between array operands`). go still fails because the resolver elides separator tokens before `joinPair` runs, so the type-check is never reached. |
 | S11.8 | go | ❌ | Parser rejects TokenBool in key position; spec L504 requires stringification to `"true"` / `"false"`. Impl is stricter than spec ([go#66](https://github.com/o3co/go.hocon/issues/66)) |
 | S13b.2 | ts, rs | ❌ | `+=` on non-array prior value silently allowed; spec L732 requires error. go ✅ correctly rejects ([ts#81](https://github.com/o3co/ts.hocon/issues/81), [rs#72](https://github.com/o3co/rs.hocon/issues/72)) |
@@ -162,6 +161,24 @@ Multi-agent-review cross-impl convergent learnings during the v1.4.1 rollout:
 Rate change: **none on any cell.** This release is recorded for ground-truth pinning, not for matrix movement. Both behaviours were silent divergences not represented in the previous violation table; the regression-test sets (`issue105_*` + `issue106_*` across the 3 impls — 7 scenarios per impl for #106 ordering including a same-file self-ref control case, and per-impl coverage of empty/comment/whitespace/BOM for #105) are the durable artifact.
 
 Released: [go.hocon v1.4.1](https://github.com/o3co/go.hocon/releases/tag/v1.4.1), [ts.hocon v1.4.1](https://github.com/o3co/ts.hocon/releases/tag/v1.4.1), [rs.hocon v1.4.1](https://github.com/o3co/rs.hocon/releases/tag/v1.4.1) (2026-05-22).
+
+### Cleared in Phase 6 #4 — S10.8 unquoted space-concat in field keys (2026-05-22)
+
+S10.8 fully cleared across all 3 impls (`ts ❌ / rs ⚠️ / go ❌ → all ✅`) via the unquoted space-concat key fix ([ts.hocon#128](https://github.com/o3co/ts.hocon/pull/128) rebase `1fc0582`, [rs.hocon#115](https://github.com/o3co/rs.hocon/pull/115) rebase `ebb06f4`, [go.hocon#114](https://github.com/o3co/go.hocon/pull/114) squash `f238996`). Closes [ts.hocon#76](https://github.com/o3co/ts.hocon/issues/76), [rs.hocon#66](https://github.com/o3co/rs.hocon/issues/66), [go.hocon#65](https://github.com/o3co/go.hocon/issues/65). HOCON.md L317 ("string value concatenation is allowed in field keys") + L553-560 (`a b c : 42` ≡ `"a b c" : 42`) require unquoted whitespace-separated tokens in key position to merge into a single path element. Previously all 3 impls rejected `foo bar = 1` at parse time (`unexpected token after key` / `expected ':', '=' or '{' after key`); rs partially passed because quoted-key variant `"foo bar" = 1` worked.
+
+- **S10.8** (ts ❌ → ✅, rs ⚠️ → ✅, go ❌ → ✅) — `parseKey` / `parse_key` gain a `spaceConcat` flag: when the next key token has `precedingSpace`/`PrecedingSpace`, the first dot-split piece merges into the LAST existing segment with a literal space; remaining pieces become new path segments. Behaviour pinned by 12–13 regression tests per impl (basic 2-token, 3-token spec L556 example, dotted-prefix + dotted-tail concat, quoted+unquoted concat, inline-object shorthand, four leading-dot edge cases, tab whitespace).
+
+Leading-dot interaction (S10.8 + S11.1): if the spaced-in token starts with `.`, the leading `.` is a path separator that survives the space — not a literal char to fold into the previous segment. `a .b = 1` → `["a", "b"]`, `a.b .c = 1` → `["a", "b", "c"]`. This edge case was flagged on the ts.hocon companion PR by Claude + Codex + Copilot **independent review (3-way convergence)** — rs.hocon and go.hocon ports both pre-emptively handle it. ts implements via a `raw.startsWith('.')` guard inside the spaceConcat merge; rs same; go via the pre-existing leading-dot continuation branch which fires before space-concat (incidental correctness preserved by ordering).
+
+Multi-reviewer convergent findings during the rollout:
+
+- **Leading-dot priority** (Claude internal + Codex internal + Copilot on PR — 3 independent reviewers on the ts.hocon companion PR; auto-promoted to must-fix per CLAUDE.md). Cross-ported to rs/go before initial PR submission.
+- **S8.6-in-key over-strict vs Lightbend** (Codex flagged the partial case on rs.hocon #115; FCoT-driven Lightbend probe via direct typesafe-config 1.4.3 JVM call revealed the broader gap). All 3 impls currently enforce S8.6 leading-`-` rule in key position; Lightbend's typesafe-config accepts `foo -bar = 1`, `foo bar.-baz = 1`, and `-foo bar = 1` without enforcing S8.6 at the path-element level. **Out of scope for the S10.8 v1.5.0 work**; tracked for follow-up as [xx.hocon#42](https://github.com/o3co/xx.hocon/issues/42).
+- **Trailing-dot-then-whitespace divergence** (uncovered while addressing codecov gap on go.hocon #114). Lightbend preserves leading whitespace on the post-dot segment (`a b. c = 1` → `{"a b":{" c":1}}` with leading-space `" c"`); none of the 3 impls preserve it (`{"a b":{"c":1}}`). Also tracked in [xx.hocon#42](https://github.com/o3co/xx.hocon/issues/42).
+
+Rate change (in-scope): ts 96.5% → 97.0% (+0.5pp), rs 96.1% → 96.4% (+0.3pp), go 96.0% → 96.5% (+0.5pp). +1 ✅ across all 3 impls; ts: −1 ❌, rs: −1 ⚠️, go: −1 ❌. Top-line spec-total: ts 85.9% → 86.4%, rs 88.3% → 88.5%, go 85.9% → 86.4%.
+
+Released: [ts.hocon v1.5.0](https://github.com/o3co/ts.hocon/releases/tag/v1.5.0), [rs.hocon v1.5.0](https://github.com/o3co/rs.hocon/releases/tag/v1.5.0), [go.hocon v1.5.0](https://github.com/o3co/go.hocon/releases/tag/v1.5.0) (TBD).
 
 ### Cleared in Phase 6 #3i — paren-in-unquoted-string (2026-05-21)
 
@@ -565,7 +582,7 @@ The following items were cleared from shared test debt by [ts.hocon#82](https://
 - **S3.2** — root non-object/non-array is invalid (✅ in all 3)
 - **S10.4** — mixing arrays + objects in concat is an error (now verified ❌ in all 3 — see Top spec violations above)
 - **S10.7** — concatenation does not span a newline (✅ in all 3)
-- **S10.8** — string concat in field keys (verified ❌ in ts/go, ⚠️ in rs — see Top spec violations above)
+- **S10.8** — string concat in field keys (verified ❌ in ts/go, ⚠️ in rs — fixed in Phase 6 #4 / v1.5.0)
 - **S10.13** — array/object in string concat → error (verified ❌ across ts/rs, was only go ⚠️ before)
 - **S10.14** — whitespace around obj/array substitutions (✅ in rs/go; ⚠️ in ts — partial pass)
 - **S10.19** — substitution-resolved object + literal array → error (now verified ❌ in all 3)
@@ -641,6 +658,8 @@ done
 5. When the template gains or loses an item, **all three per-repo files must be synced** before this matrix is rebuilt; otherwise the totals will be inconsistent.
 
 ## Last verified
+
+2026-05-22 (Phase 6 #4 / v1.5.0 — S10.8 unquoted space-concat in field keys cleared across all 3 impls) — **ts.hocon spec-total 85.9% → 86.4% (+0.5pp), in-scope 96.5% → 97.0% (+0.5pp); rs.hocon 88.3% → 88.5% (+0.2pp), 96.1% → 96.4% (+0.3pp); go.hocon 85.9% → 86.4% (+0.5pp), 96.0% → 96.5% (+0.5pp)**. Single S-cell flipped per impl: ts ❌→✅, rs ⚠️→✅, go ❌→✅. PRs: [ts.hocon#128](https://github.com/o3co/ts.hocon/pull/128) `1fc0582`, [rs.hocon#115](https://github.com/o3co/rs.hocon/pull/115) `ebb06f4`, [go.hocon#114](https://github.com/o3co/go.hocon/pull/114) `f238996`. Three Phase 6 #4 sub-findings filed as cross-impl follow-up [xx.hocon#42](https://github.com/o3co/xx.hocon/issues/42): (a) S8.6-in-key over-strict vs Lightbend (`foo -bar = 1` accepted by Lightbend, rejected by all 3 impls); (b) trailing-dot-then-whitespace whitespace preservation (`a b. c = 1` → Lightbend `{"a b":{" c":1}}` with leading-space sub-key, all 3 impls produce `{"a b":{"c":1}}`); (c) cross-impl comprehensive audit of "S8.6 + S11.1 + path-expression whitespace" interactions. Released: TBD.
 
 2026-05-22 (v1.5.0 work — S13.9 rs mis-classification corrected via Lightbend ground-truth verification) — **rs.hocon spec-total 87.8% → 88.3% (+0.5pp), in-scope 95.6% → 96.1% (+0.5pp)** from S13.9 row removal. Lightbend reference probe (`ProbeS13_9.java`) confirmed rs.hocon's pre-fix behavior (field present as null in tree) matched Lightbend tree-level semantics; the matrix's prior "rs ❌" classification conflated tree-level vs getter-level "null treated same as missing" semantics. rs.hocon PR #111 (proposed fix) closed without merge as over-fix; rs.hocon#74 closed as not-a-violation. Getter-level null rejection is covered by S17.6 (rs.hocon PR #109, merged 2026-05-22).
 
