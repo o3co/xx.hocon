@@ -8,7 +8,7 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 |---|---:|---:|---:|---:|---:|---:|---:|
 | [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **85.9%** | **96.5%** | 178 | 3 | 5 | 0 | 23 |
 | [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **87.8%** | **95.6%** | 182 | 3 | 7 | 0 | 17 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **85.4%** | **95.5%** | 177 | 3 | 7 | 0 | 22 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **85.9%** | **96.0%** | 178 | 3 | 6 | 0 | 22 |
 
 Where:
 
@@ -63,12 +63,11 @@ Items where the test or implementation behavior contradicts the spec:
 | S11.8 | go | ❌ | Parser rejects TokenBool in key position; spec L504 requires stringification to `"true"` / `"false"`. Impl is stricter than spec ([go#66](https://github.com/o3co/go.hocon/issues/66)) |
 | S13b.2 | ts, rs | ❌ | `+=` on non-array prior value silently allowed; spec L732 requires error. go ✅ correctly rejects ([ts#81](https://github.com/o3co/ts.hocon/issues/81), [rs#72](https://github.com/o3co/rs.hocon/issues/72)) |
 | S13.9 | rs | ❌ | `HOME = null; result = ${?HOME}` resolves `result` to a present null scalar instead of erasing the field per L618 "null treated same as missing"; env value is correctly blocked ([rs#74](https://github.com/o3co/rs.hocon/issues/74)). ts ✅, go ✅. |
-| S13.15 | rs, go | ❌ | `foo : ${?bar}${?baz}` skip semantics: spec L658 says the field is skipped only when **both** substitutions are undefined. rs/go differ from this; go in particular creates the field with an empty-string value when both are undefined. ts ✅. |
 | S13.11 | go | ⚠️ | Lenient mode drops optional substitutions in nested-include scope ([#45](https://github.com/o3co/go.hocon/issues/45)) |
 | S13a.3 | ts | ⚠️ | Self-reference before any prior value (`a = ${a}`) raises a cycle error, but the error type / message classifies this as a generic substitution error rather than the "undefined" path the spec describes at L795. rs/go ✅ (correct error class). |
 | S13a.12 | go | ❌ | Self-ref in a path expression (`${foo.a}` where `foo.a` is being defined) does not resolve to the "below" value per L831; the looked-up sub-object is discarded in the merge. ts/rs ✅. |
 | S14c.2 | rs | ❌ | Non-relativized substitution path fallback not implemented ([#44](https://github.com/o3co/rs.hocon/issues/44)) |
-| S17.6 | ts | ⚠️ | `getString()` on null silently returns the string `"null"` instead of throwing per L1252; other typed accessors throw, but *incidentally* (no explicit `valueType==='null'` guard in `requireScalar`) ([ts#88](https://github.com/o3co/ts.hocon/issues/88)). rs/go ✅. |
+| S17.6 | ts, rs | ⚠️ / ❌ | `getString` / `get_string` on null silently returns the string `"null"` instead of throwing per L1252. **ts** ⚠️ — other typed accessors throw, but *incidentally* (no explicit `valueType==='null'` guard in `requireScalar`) ([ts#88](https://github.com/o3co/ts.hocon/issues/88)). **rs** ❌ — `get_string` returns `Ok("null")` on null values; pre-existing matrix mis-classification corrected during the v1.4.1 audit ([rs#80](https://github.com/o3co/rs.hocon/issues/80) / pending fix [rs#109](https://github.com/o3co/rs.hocon/pull/109)). go ✅. |
 | S17.7, S17.8 | go | ⚠️ | Non-Option accessors panic correctly per L1254-1255; Option accessors return `None` instead of error — partial violation ([go#72](https://github.com/o3co/go.hocon/issues/72)). ts/rs ✅. |
 | S19.8 | ts, rs | ❌ | Duration unit names should be case-sensitive (lowercase only) per L1304; both impls accept `MS`, `Seconds`, `NS`, etc. (rs `parse_duration` calls `.to_lowercase()` before matching at `src/config.rs:417`; ts has the same shape). go ✅. |
 | S22.2 | ts | ❌ | Intermediate non-object hides earlier object across files per L1430; ts merges across the non-object barrier. rs/go ✅. |
@@ -82,6 +81,27 @@ Spec items with no test coverage in **any** of the three implementations. These 
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the three impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### v1.4.0 retroactive matrix audit — S13.15 cleared, S17.6 rs mis-class corrected (2026-05-22)
+
+After cutting v1.4.1 narrative roll-up, a full-test audit on all 3 impls at the v1.4.1 tag (go.hocon `84e73f4`, ts.hocon `8639cab`, rs.hocon `6346a5a`) surfaced two pre-existing drift items that the v1.4.0 roll-up missed (the v1.4.0 entry in "Last verified" was scoped to E12 addition only, not the bundled S13.15 cell flips). Both corrected here as the v1.5.0 work baseline:
+
+- **S13.15 (rs ❌ → ✅, go ❌ → ✅, ts unchanged ✅)** — `foo = ${?bar}${?baz}` with both substitutions undefined now correctly omits the field (was returning `null` / empty-string scalar). All 3 v1.4.0 CHANGELOGs explicitly list this fix:
+  - **go.hocon v1.4.0**: S13.15 multi-optional-undef concat materialisation: now correctly omits the field (was producing an empty-string value). Per HOCON.md L640. Bundled with E12 since the dr28 fixture surfaced the spec divergence.
+  - **ts.hocon v1.4.0**: Optional substitution materialisation: `a = ${?x}${?y}` with both undefined now correctly omits field `a` (was incorrectly returning null).
+  - **rs.hocon v1.4.0**: Optional `${?x}${?y}` where all operands are undefined → field omitted from result (HOCON.md §Substitutions L626–L645 concat materialisation rule).
+
+  Audit verified post-fix state by running the existing `s13_15_spec_both_optional_undefined_field_absent` / `TestSpec_S13_15_BothUndefined_Spec` / E12 dr28 scenario tests in each impl at v1.4.1 — all pass (the rs `_spec` variant is no longer `#[ignore]`'d, the go `_Spec` variant no longer carries `t.Skipf`, the ts `it()` for the field-absent case is no longer `it.fails`). The S13.15 row is removed from [Top spec violations](#top-spec-violations-verified).
+
+- **S17.6 rs ⚠️/❌ — pre-existing matrix mis-classification corrected** — matrix previously read "rs/go ✅" on S17.6 (`getString` / `get_string` on null should throw per L1252). rs reality post-v1.4.1 audit: `get_string` returns `Ok("null")` on null values (pre-existing `#[ignore = "spec violation ... see #80"]` test in `tests/integration_test.rs` documents the violation; pending fix in [rs#109](https://github.com/o3co/rs.hocon/pull/109)). The matrix entry now reads "ts ⚠️, rs ❌"; go remains ✅. **No net count/rate change for rs** — two cells flip (S13.15 ❌→✅ via the v1.4.0 fix; S17.6 ✅→❌ via the mis-class correction) and exactly cancel in both ✅ and ❌ tallies. rs spec-total / in-scope: 87.8% / 95.6% (unchanged).
+
+Rate change from this audit:
+
+- **go.hocon**: 85.4% → **85.9%** spec-total (+0.5pp; +1 ✅, −1 ❌ from S13.15). In-scope: 95.5% → **96.0%** (+0.5pp).
+- **rs.hocon**: 87.8% / 95.6% **unchanged** (S13.15 +1 ✅ and S17.6 −1 ✅ mis-class correction cancel; ❌ count likewise stable since S13.15 −1 and S17.6 +1 cancel).
+- **ts.hocon**: 85.9% / 96.5% **unchanged** (S13.15 was already classified ✅ pre-v1.4.0; the ts CHANGELOG suggests pre-v1.4.0 ts may itself have been silently broken — either it would have been 🤷 if no test pinned the case, or it was outright mis-classified ✅ if a test passed for the wrong reason. The matrix did not previously flag this; cannot be retroactively corrected since the v1.4.0 fix made the question moot).
+
+Methodology note: this audit pattern (run full test suite at the release tag, cross-reference `#[ignore]` / `t.Skip` / `it.fails` against violations table, also against each impl's docs/spec-compliance.md) should run **after every release roll-up**, not just when triggered by a missed entry. The v1.4.0 "Last verified" entry below was scoped to "E12 added" because E12 was the headline; the bundled S-cell flips slipped through. For v1.5.0 work onward, each release's "Last verified" entry should include the full enumeration of touched S-cells via a `git log --oneline -- "**/docs/spec-compliance.md"` style grep, not just the headline feature.
 
 ### Released in v1.4.1 — Lightbend include-path divergences (2026-05-22)
 
@@ -534,7 +554,7 @@ The following items were cleared from shared test debt by [ts.hocon#90](https://
 - **S15.1–S15.3, S15.5–S15.7** — numerically-indexed object → array conversion (verified ❌ in all 3 — see Top spec violations above)
 - **S15.4** — empty object NOT converted (✅ in all 3 — *incidental*: passes today because no conversion runs at all; must be re-validated when the S15 conversion path lands)
 - **S17.5** — `"null"` → null when null requested (now ➖ in all 3 — no `getNull()`-equivalent accessor in any impl; spec L1244 structurally inapplicable. Added to globally OOS list.)
-- **S17.6** — null → other type: error (✅ in rs/go; ⚠️ in ts — see Top spec violations above)
+- **S17.6** — null → other type: error (originally classified ✅ in rs/go; ⚠️ in ts — see Top spec violations above. **2026-05-22 audit correction**: rs reclassified ❌ — the Phase 4 ✅ was a mis-classification; `get_string` returns `Ok("null")` on null values per `tests/integration_test.rs` `#[ignore]` test pinned to [rs#80](https://github.com/o3co/rs.hocon/issues/80))
 - **S17.7** — object → other type: error (✅ in ts/rs; ⚠️ in go — Option accessors return None instead of error)
 - **S17.8** — array → other type: error (✅ in ts/rs; ⚠️ in go — same shape as S17.7)
 - **S21.4** — single-letter byte abbreviations (verified ❌ in ts/go; ✅ in rs — see Top spec violations above)
@@ -592,6 +612,8 @@ done
 5. When the template gains or loses an item, **all three per-repo files must be synced** before this matrix is rebuilt; otherwise the totals will be inconsistent.
 
 ## Last verified
+
+2026-05-22 (v1.4.0 retroactive matrix audit — S13.15 cleared, S17.6 rs mis-class corrected) — **go.hocon spec-total 85.4% → 85.9% (+0.5pp), in-scope 95.5% → 96.0% (+0.5pp)**; rs.hocon and ts.hocon unchanged (S13.15 +1 ✅ / S17.6 −1 ✅ mis-class correction cancel for rs; ts was already classified ✅ on S13.15 pre-v1.4.0). Audit run on the v1.4.1 release tags of all 3 impls (go.hocon `84e73f4`, ts.hocon `8639cab`, rs.hocon `6346a5a`); full test suites green across go (0 failed, 0 skipped spec-violation tests for S13.15), ts (978 passed, 9 expected-fail — S13.15 not among them), rs (all bins 0 failed; `s13_15_spec_both_optional_undefined_field_absent` no longer `#[ignore]`'d). Methodology note added to the v1.4.0 audit section above: from v1.5.0 onward each release's "Last verified" entry must enumerate touched S-cells, not just the headline feature, to prevent recurrence of this v1.4.0 narrative gap.
 
 2026-05-22 (v1.4.1 cross-impl Lightbend include-path bugfix release) — no rate change. Two cgordon-reported divergences fixed simultaneously in all 3 impls: empty / comment-only / whitespace-only included files now contribute `{}` instead of erroring ([go.hocon#105](https://github.com/o3co/go.hocon/issues/105) — narrow carve-out, top-level empty parses still error per S3.1); and includes appearing after a pre-existing parent key now correctly override that key per Lightbend "as if written inline" semantics, with self-referential append through include resolving against the parent's prior value ([go.hocon#106](https://github.com/o3co/go.hocon/issues/106) — go-only impl fix; ts.hocon and rs.hocon already conformed and shipped cross-impl regression tests). Companion go.hocon refinement: under `WithAllowUnresolved(true)`, required self-referential `${k}` with no prior value now defers the placeholder instead of erroring (required by the include child resolver running in lenient mode for #106). Neither behaviour was in the previous violation table — both were silent footguns; rate change: none on any cell. The regression-test sets (`issue105_*` + `issue106_*` across the 3 impls) are the durable artifact. Released: [go.hocon v1.4.1](https://github.com/o3co/go.hocon/releases/tag/v1.4.1), [ts.hocon v1.4.1](https://github.com/o3co/ts.hocon/releases/tag/v1.4.1), [rs.hocon v1.4.1](https://github.com/o3co/rs.hocon/releases/tag/v1.4.1).
 
