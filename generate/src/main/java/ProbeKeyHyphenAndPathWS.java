@@ -11,12 +11,14 @@ public class ProbeKeyHyphenAndPathWS {
       "-foo bar = 1",
       "foo -1bar = 1",
       "foo - = 1",
-      // Path-expression whitespace
+      // Path-expression whitespace (space + tab)
       "a b. c = 1",
       "a . b = 1",
       "a .b = 1",
       "a b.c d = 1",
       "a b . c = 1",
+      "a b.\tc = 1",
+      "a\tb.c d = 1",
       // Combined / edge cases
       "a b.-c = 1",
       "foo.-bar = 1",

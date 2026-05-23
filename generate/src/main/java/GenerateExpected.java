@@ -203,8 +203,7 @@ public class GenerateExpected {
         // digit" rule was always intended for value-position lexing; key-position is governed
         // by path-element parsing rules. ts/rs/go previously over-enforced S8.6 on each key
         // segment regardless of position — these fixtures pin the Lightbend-aligned behavior.
-        // See docs/extra-spec-conventions.md E8 (value-position precedent) and §Lightbend
-        // quirks "key-hyphen-position" note (added by this PR).
+        // See docs/extra-spec-conventions.md E13.
         "key-hyphen-position/kh01-space-concat-hyphen-tail.conf",
         "key-hyphen-position/kh02-dotted-then-space-hyphen-tail.conf",
         "key-hyphen-position/kh03-quoted-then-space-hyphen-tail.conf",
@@ -212,18 +211,29 @@ public class GenerateExpected {
         "key-hyphen-position/kh05-first-token-hyphen-start.conf",
         "key-hyphen-position/kh06-trailing-hyphen-only.conf",
         "key-hyphen-position/kh07-dot-hyphen-start-segment.conf",
+        // kh08: hyphen-then-digit branch — distinguishes "S8.6 not enforced at all in key"
+        // from "S8.6 still triggers number-lex on hyphen-then-digit". Lightbend accepts
+        // `foo -1bar = 1` verbatim as a single space-concat key. Without this fixture an impl
+        // could pass kh01-kh07 (which all use `-` not-followed-by-digit) while still applying
+        // value-side number-lex to the `-1bar` segment.
+        "key-hyphen-position/kh08-space-concat-hyphen-digit-tail.conf",
         // Path-expression whitespace preservation (xx.hocon issue #42 comment, v1.5.3).
         // Lightbend preserves literal whitespace adjacent to dots in path expressions —
         // the segment between two dots (or between a dot and the key/value separator) is
         // taken verbatim from the source. ts/rs/go previously stripped leading whitespace
         // on segments following a dot. These fixtures pin the Lightbend-aligned behavior.
         // pw06 is the boundary case: a trailing dot before separator still errors (BadPath),
-        // i.e. whitespace adjacency does not relax the trailing-dot rule.
+        // i.e. whitespace adjacency does not relax the trailing-dot rule. pw04 has no
+        // whitespace adjacent to a dot — it is a combined-regression guard verifying the
+        // path-WS loosening does not regress the S10.8-only case. pw07 pins HOCON_WS tab
+        // coverage; HOCON_WS includes tab so the path-WS rule must preserve it the same
+        // way it preserves space.
         "path-expr-whitespace/pw01-space-after-dot.conf",
         "path-expr-whitespace/pw02-space-both-sides-of-dot.conf",
         "path-expr-whitespace/pw03-space-before-dot.conf",
         "path-expr-whitespace/pw04-space-concat-both-segments.conf",
         "path-expr-whitespace/pw05-multi-whitespace-both-sides.conf",
+        "path-expr-whitespace/pw07-tab-after-dot.conf",
     };
 
     // S23.4 properties-conflict fixtures (cluster 3h). Lightbend's direct

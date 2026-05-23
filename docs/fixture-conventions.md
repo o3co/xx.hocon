@@ -437,8 +437,8 @@ directly to the step sequence.
 | `pc01`–`pc04` | `properties-conflict/` | S23.4 `.properties` object-wins conflict (cluster 3h) — direct `.properties` parse, no `.conf` wrapper |
 | `ipk01`–`ipk14` | `include-package/` | E11 `include package(...)` qualifier — service-locator pattern; no Lightbend sidecars; per-impl registry-population model (see "Test-package registry fixtures" section above) |
 | `dr01`–`dr30` (with `dr11a`/`dr11b`) | `deferred-resolution/` | E12 deferred substitution resolution lifecycle — multi-step scenario YAML format (parse / withFallback / resolve); Lightbend ground truth via `DeferredResolutionRunner`; 2 `lightbendSkip` (dr11b, dr17) per "Scenario YAML fixtures (E12)" section above |
-| `kh01`–`kh07` | `key-hyphen-position/` | S8.6 in key position (xx.hocon [#42](https://github.com/o3co/xx.hocon/issues/42), v1.5.3) — hyphen-start segments accepted in field keys per Lightbend; previously over-strict in ts/rs/go |
-| `pw01`–`pw06` | `path-expr-whitespace/` | Path-expression literal whitespace preservation (xx.hocon [#42](https://github.com/o3co/xx.hocon/issues/42), v1.5.3) — whitespace adjacent to dots in path expressions taken verbatim per Lightbend; `pw06` pins trailing-dot rule still errors (BadPath) |
+| `kh01`–`kh08` | `key-hyphen-position/` | S8.6 in key position (xx.hocon [#42](https://github.com/o3co/xx.hocon/issues/42), v1.5.3) — hyphen-start segments accepted in field keys per Lightbend; previously over-strict in ts/rs/go. kh08 pins the hyphen-then-digit branch (`-1bar` accepted verbatim, not number-lexed) |
+| `pw01`–`pw07` | `path-expr-whitespace/` | Path-expression literal whitespace preservation (xx.hocon [#42](https://github.com/o3co/xx.hocon/issues/42), v1.5.3) — whitespace adjacent to dots in path expressions taken verbatim per Lightbend; `pw04` is a combined-regression guard (no whitespace at dot); `pw06` pins trailing-dot rule still errors (BadPath); `pw07` pins HOCON_WS tab coverage adjacent to dot |
 
 ### Sibling include-target files
 
