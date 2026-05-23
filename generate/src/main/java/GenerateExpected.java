@@ -173,6 +173,17 @@ public class GenerateExpected {
         "self-ref-lookback/sr09-nested-no-prior.conf",
         "self-ref-lookback/sr10-nested-with-prior.conf",
         "self-ref-lookback/sr11-mutual-ref-forward.conf",
+        // S13a.x follow-ups (xx.hocon#27) — fixtures pinning the 4 cross-impl resolver
+        // bugs surfaced by S13a.13 cluster 3f Round 2 review. All 5 are Lightbend-
+        // spec-conformant (typesafe-config 1.4.3 probe is the authoritative oracle).
+        // Bug coverage: sr12/sr13 = nested external ref (Bug #1); sr14 = cache pollution
+        // on prior-with-external-ref (Bug #2); sr15 = same-field double-self-ref (Bug
+        // #3); sr16 = order-dependent external-then-self-ref (Bug #4).
+        "self-ref-lookback/sr12-nested-external-ref-no-prior.conf",
+        "self-ref-lookback/sr13-nested-external-ref-with-prior.conf",
+        "self-ref-lookback/sr14-cache-prior-external.conf",
+        "self-ref-lookback/sr15-double-self-ref.conf",
+        "self-ref-lookback/sr16-external-before-self-ref.conf",
         // S3.1 empty-file fixtures (cluster 3h). Lightbend silently accepts empty
         // documents as `{}`, contradicting spec L130. Documented as E10 in
         // docs/extra-spec-conventions.md. Per-impl conformance tests load these and

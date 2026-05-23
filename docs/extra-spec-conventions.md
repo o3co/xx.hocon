@@ -519,6 +519,73 @@ The following are out of scope for E12 v1 and are NOT to be inferred from the co
 
 **Tracking issue**: [#42](https://github.com/o3co/xx.hocon/issues/42). **Companion to E8** (value-position).
 
+<a id="e14"></a>
+
+### E14 — S13a.13 self-ref detection mechanism: narrower-than-path-equality variants accepted
+
+**Source**: cross-impl convergence + spec amendment of the S13a.13 cluster 3f design (per `agentscope/.claude/superpowers/specs/2026-05-17-s13a-self-ref-lookback-design.md` ★1 decision #1). The original normative decision read:
+
+> Self-ref detection via path-equality is preserved: each impl already correctly identifies self-ref by matching the substitution path against the path being resolved. The existing detection mechanism is correct; the fix is downstream.
+
+Round-2 multi-agent-review of the per-impl cluster 3f PRs found this **too coarse**: path-equality misfires when an external field references a self-ref'd field's value (`a = ${?a}foo; b = ${a}` — when `b = ${a}` triggers resolution of `a`, the `${?a}` inside `a`'s value matches path-equality even though `b`'s lookup is NOT the self-ref site). All 3 impls independently arrived at strictly-narrower mechanisms during the cluster 3f fix work; this E-item records the cross-impl convention that *any* mechanism strictly narrower than path-equality is acceptable, and pins five regression fixtures (sr12–sr16) covering the four resolver bugs that path-equality permitted.
+
+**Reading**: S13a.13 normative behavior (sr01–sr11) is unchanged. What this E-item amends is the *implementation flexibility* clause of decision #1 — impls SHOULD use a self-ref detection mechanism narrower than naive path-equality. The three observed mechanisms (each strictly narrower than path-equality, each correct enough to handle one or more of the bug cases below) are all acceptable variants:
+
+| Impl | Mechanism | Source pointer |
+| --- | --- | --- |
+| ts.hocon | `resolvingConcats` WeakSet of `ConcatPlaceholder` nodes currently mid-resolution + `resolvingFieldPath` stack | `src/internal/resolver/substitution-resolver.ts` (`resolvingConcats`, `resolvingFieldPath`) |
+| rs.hocon | `resolving_field_path: Vec<String>` + `is_owner` guard (current field-path equals subst path) | `src/resolver/substitution_resolver.rs` (`resolving_field_path`, `is_owner`) |
+| go.hocon | AST-node pointer identity (`sp == s` between resolving substitution pointer and found substitution pointer) | `internal/resolver/resolver.go` (`sp == s` comparison) |
+
+Each impl's mechanism is **strictly narrower** than path-equality — it correctly excludes the "external lookup of a self-ref'd field" case that path-equality misfired on. The choice between mechanisms is a per-impl architectural fit decision (WeakSet suits a closure-heavy fold; pointer-identity suits a single-root AST; `is_owner` suits a structurally-shared resolver). No mechanism is mandated; the E-item only mandates "narrower than path-equality" plus the regression fixtures below.
+
+**o3co convention**: each impl MUST:
+
+1. Use a self-ref detection mechanism that is strictly narrower than naive path-equality between the `${...}` subst path and the path-being-resolved. The three mechanisms above are reference implementations; novel mechanisms are acceptable if they pass the sr12–sr16 fixture set.
+2. Pass sr12 + sr14 + sr15 + sr16 (Lightbend ground truth shown in expected JSON sidecars).
+3. Pass sr13 (nested-external-ref + prior — the 2-axis combo of Bug #1 and Bug #2).
+
+**The 4 bugs pinned by sr12–sr16** (cross-impl pre-fix matrix as of E14 introduction):
+
+| Fixture | Input pattern | Expected | ts pre-fix | rs pre-fix | go pre-fix |
+| --- | --- | --- | --- | --- | --- |
+| sr12 | `foo.a = ${?foo.a}bar; foo.b = ${foo.a}` | `{"foo":{"a":"bar","b":"bar"}}` | ✅ | ❌ stack overflow | ✅ |
+| sr13 | `foo.a = "x"; foo.a = ${?foo.a}bar; foo.b = ${foo.a}` | `{"foo":{"a":"xbar","b":"xbar"}}` | (un-verified) | (un-verified) | (un-verified) |
+| sr14 | `a = "x"; a = ${?a}foo; b = ${a}` | `{"a":"xfoo","b":"xfoo"}` | ❌ `b="x"` (cache poll) | ❌ `b="x"` (cache poll) | ✅ |
+| sr15 | `a = ${?a}1; a = ${?a}2` | `{"a":"12"}` | ❌ `a="2"` | ❌ `a="2"` | ❌ `a="2"` |
+| sr16 | `b = ${a}; a = ${?a}foo` | `{"a":"foo","b":"foo"}` | ❌ `a="foofoo"` | ❌ `a="foofoo"` | ✅ |
+
+**Notes on cross-impl behavior**:
+
+- **Bug #1 (sr12)** caused a hard stack overflow in rs.hocon (and originally in ts.hocon, fixed as a side-effect of the chained-self-ref work in [ts.hocon#131](https://github.com/o3co/ts.hocon/issues/131) v1.5.2). go.hocon's pointer-identity mechanism is structurally immune. Per-impl fix scope: rs.hocon needs the most invasive change (look-back walker recursion guard); ts.hocon is already green.
+- **Bug #2 (sr14)** affects ts and rs identically — the `b = ${a}` lookup resolves `a` against a cached prior-merge value (`"x"`) rather than the final post-concat value (`"xfoo"`). go.hocon's resolver structurally separates the prior-merge cache from the final-resolved cache, so this bug does not appear. Per-impl fix scope: ts/rs need cache-invalidation-on-concat-completion; go.hocon is green.
+- **Bug #3 (sr15)** is the only universal failure — all 3 impls return `"2"` instead of `"12"`. The second assignment's `${?a}` does not see the first assignment's resolved `"1"`. This is likely a `prior_values` map population issue independent of the detection mechanism, so the cross-impl fix is expected to share a root cause and may be tractable as a single 3-PR cluster.
+- **Bug #4 (sr16)** affects ts and rs identically — when `b = ${a}` resolves first (declaration order swap), `a` ends up over-expanded to `"foofoo"`. go.hocon's pointer-identity prevents the double-fold. Per-impl fix scope: same as Bug #2 (cache invalidation timing); go.hocon is green.
+
+**Why an E-item rather than amending the spec inline**: The S13a.13 design spec at `.claude/superpowers/specs/2026-05-17-s13a-self-ref-lookback-design.md` is an internal-only artifact (not a normative spec exported to consumers); its decision #1 wording is preserved with an amendment-note appended. The cross-impl consumer-facing convention is recorded here as E14, parallel to how E8 records the value-position S8.6 reading. The S13a.13 spec-checklist.md row stays at its current state (it represents the canonical "no prior + self-ref → undefined" rule, which is unchanged); E14 adds the orthogonal detection-mechanism-flexibility convention plus the new fixture set.
+
+**Out of scope**:
+
+- **The "no prior + self-ref → UNDEFINED" core rule** of decision #2 is unchanged. E14 only amends decision #1 (the detection mechanism flexibility).
+- **The sr01–sr11 fixture set** is unchanged; no behavior change to those cases.
+- **Caching of short-circuited substitution results** (decision-track open question #2 in the original spec) is unchanged.
+
+| Impl | Status | Test | Notes |
+| --- | --- | --- | --- |
+| ts.hocon | 🤷 → planned | sr12 ✅ / sr13 (verify) / sr14 ❌ / sr15 ❌ / sr16 ❌ | sr14/sr16 fix touches cache invalidation; sr15 fix shares root cause cross-impl. |
+| rs.hocon | 🤷 → planned | sr12 ❌-CRASH / sr13 (verify) / sr14 ❌ / sr15 ❌ / sr16 ❌ | sr12 is hardest (look-back walker recursion guard); sr14/sr16/sr15 same as ts. |
+| go.hocon | 🤷 → planned (partial-green) | sr12 ✅ / sr13 (verify) / sr14 ✅ / sr15 ❌ / sr16 ✅ | Only sr15 fails — pointer-identity mechanism is structurally robust on the other three. |
+
+**Fixtures**:
+
+- `self-ref-lookback/sr12-nested-external-ref-no-prior.conf` — Bug #1 minimal
+- `self-ref-lookback/sr13-nested-external-ref-with-prior.conf` — Bug #1 + prior combo (2-axis)
+- `self-ref-lookback/sr14-cache-prior-external.conf` — Bug #2
+- `self-ref-lookback/sr15-double-self-ref.conf` — Bug #3 (universal failure)
+- `self-ref-lookback/sr16-external-before-self-ref.conf` — Bug #4 (order-dependent)
+
+**Tracking issue**: [#27](https://github.com/o3co/xx.hocon/issues/27). **Companion to S13a.13** (decision #1 amendment); sr01–sr11 in the same fixture directory cover the unchanged S13a.13 normative cases.
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -541,6 +608,8 @@ The following are out of scope for E12 v1 and are NOT to be inferred from the co
 2026-05-21 — E12 (deferred substitution resolution — Lightbend-aligned `parse / withFallback / resolve()` lifecycle) added as a project-introduced cross-impl API convention. Fourteen normative spec decisions established covering: parse-with-options entry point, options encoding per language (Go builder / TS Partial / Rust Default), WithFallback semantics for unresolved operands, single-pass transitive resolution, hidden-substitution discard, cross-layer cycle detection, ResolveWith semantics + precondition (intentional Lightbend divergence per decision 10), IsResolved granularity, getter behavior, FromMap type coercion, include-resolution timing invariance. Cross-spec interactions clarified for S13a (self-reference lookback across fallback layers) and S10 (concat type-check behavior under AllowUnresolved=true) inline in E12 section. 31 scenario YAML fixtures (30 scenario IDs, with dr11 split into dr11a/dr11b) landed under `testdata/hocon/deferred-resolution/`, runnable via new `DeferredResolutionRunner.java` (Lightbend ground truth: 29 success or expected-error, 2 lightbendSkip — dr11b [decision 10 divergence] + dr17 [E11 not applicable to Lightbend]). External origin [go.hocon#99](https://github.com/o3co/go.hocon/issues/99); tracking issue [#37](https://github.com/o3co/xx.hocon/issues/37). Status 🤷 in all 3 impls — impls to follow in per-impl PRs targeting v1.4.0 bundle release with E11.
 
 2026-05-21 — E11 (`include package(...)` qualifier — service-locator pattern for non-JVM HOCON) added as a project-introduced extension to HOCON syntax. Five normative spec decisions established: (1) identifier MUST be Go-module-path-style canonical form `<host>/<org>/<name>`; (2) two-arg form `package("id", "file")` mandatory, one-arg rejected; (3) collision on `(id, file)` is hard error (idempotent byte-equal re-registration allowed); (4) registry-miss is hard error at parse time (no silent empty-include fallback); (5) `include required(package(...))` follows existing required semantics. Per-impl registration mechanism: ts.hocon via runtime `require.resolve`, go.hocon via `init()`+`embed.FS`+`RegisterPackage`, rs.hocon via explicit `Parser::register_package` + `include_str!`. Driven by cross-impl design discussion 2026-05-20 (tracking issue [#33](https://github.com/o3co/xx.hocon/issues/33)); supersedes earlier ts-only proposal [ts.hocon#109](https://github.com/o3co/ts.hocon/issues/109) (closed). Status 🤷 in all 3 impls — fixtures and impls to follow in per-impl PRs.
+
+2026-05-23 — E14 (S13a.13 self-ref detection mechanism — narrower-than-path-equality variants accepted) added as amendment to the S13a.13 cluster 3f spec ★1 decision #1. Round-2 multi-agent-review found the original "path-equality detection is correct" claim too coarse — it misfires when an external field references a self-ref'd field's value. All 3 impls independently arrived at strictly-narrower mechanisms (ts: `resolvingConcats` WeakSet; rs: `is_owner` guard; go: AST-node pointer-identity). E14 records the convention that any mechanism narrower than path-equality is acceptable, and pins 5 regression fixtures (sr12–sr16) covering the 4 newly-surfaced resolver bugs: sr12/sr13 nested external ref (Bug #1); sr14 cache pollution (Bug #2); sr15 same-field double-self-ref (Bug #3, universal failure); sr16 order-dependent ref-before-self-ref (Bug #4). Cross-impl pre-fix matrix: go.hocon green on 3/4 (only sr15 fails); ts.hocon fails sr14/sr15/sr16; rs.hocon fails sr12 (hard stack overflow) + sr14/sr15/sr16. Per-impl PRs to follow in cluster 3h. Tracking issue [#27](https://github.com/o3co/xx.hocon/issues/27).
 
 2026-05-23 — E13 (key-position parsing — S8.6 not enforced on key path segments, path-expression whitespace preserved verbatim) added, aligned with Lightbend 1.4.3. Companion to E8 (value-position): E8 documents value-start S8.6 reading; E13 documents key-position scope. Driven by issue [#42](https://github.com/o3co/xx.hocon/issues/42), surfaced during S10.8 cross-impl work (Codex review on rs.hocon#115 / ts.hocon#128 flagged `foo -bar = 1` rejected by S8.6 in newly-reachable space-concat path; FCoT probe revealed Lightbend does not enforce S8.6 in key position at all). 8 `kh*` (`key-hyphen-position/`) + 6 success `pw*` + 1 error `pw06` (`path-expr-whitespace/`) fixtures land alongside the E-item: kh08 covers the hyphen-then-digit branch (distinguishes "S8.6 not enforced at all" from "S8.6 still triggers on hyphen-then-digit"); pw07 covers HOCON_WS tab adjacent to dot. Probe matrix at `generate/src/main/java/ProbeKeyHyphenAndPathWS.java`. Status 🤷 in all 3 impls — fixtures land first; per-impl PRs to follow targeting v1.5.3.
 
