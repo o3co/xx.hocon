@@ -216,7 +216,7 @@ See also: [E12 § "S13a × WithFallback — Self-reference lookback across fallb
 - **S13a.10** Substitution memoized by instance, not by path — §Self-Referential (L885)
 - **S13a.11** Object can refer to its own descendant (`bar : { foo : 42, baz : ${bar.foo} }`) — §Self-Referential (L806)
 - **S13a.12** Self-ref in path expression `${foo.a}` resolves to "below" — §Self-Referential (L791)
-- **S13a.13** `a = ${?a}foo` resolves to `"foo"` (look-back undefined) — §Self-Referential (L841)
+- **S13a.13** `a = ${?a}foo` resolves to `"foo"` (look-back undefined) — §Self-Referential (L841) — see also [E14](extra-spec-conventions.md#e14) for the cross-impl convention on self-ref detection mechanism (narrower-than-path-equality variants accepted; sr12–sr16 pin 4 cross-impl resolver bugs surfaced by Round-2 review)
 - **S13a.14** Mutually-referring object fields (`bar.a = ${foo.d}; foo.c = ${bar.b}`) resolve lazily without false cycle — §Self-Referential (L825-834)
 
 ### S13b. `+=` field separator
