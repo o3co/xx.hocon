@@ -33,6 +33,14 @@ tasks.register<JavaExec>("probeS13_9") {
     mainClass.set("ProbeS13_9")
 }
 
+tasks.register<JavaExec>("probeKeyHyphenAndPathWS") {
+    group = "verification"
+    description = "Probe Lightbend behavior for xx.hocon issue #42 — S8.6 in key + path-expression whitespace"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("ProbeKeyHyphenAndPathWS")
+}
+
 java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(21))

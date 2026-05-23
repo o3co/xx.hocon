@@ -121,7 +121,7 @@ The two numbers, side by side, neutralize "we look bad because we don't do class
 - **S8.3** Initial token `true`/`false`/`null` parsed as keyword — §Unquoted strings (L250)
 - **S8.4** Initial number characters parse as number — §Unquoted strings (L250)
 - **S8.5** Embedded `true`/`false`/`null`/number become string content — §Unquoted strings (L266)
-- **S8.6** Unquoted string cannot begin with `0-9` or `-` — §Unquoted strings (L270)
+- **S8.6** Unquoted string cannot begin with `0-9` or `-` — §Unquoted strings (L270). See E8 for value-position reading (Lightbend-aligned: `-foo` accepted at value-start as unquoted), and E13 for key-position scope (Lightbend-aligned: S8.6 not enforced on key path segments).
 - **S8.7** No escape sequences in unquoted strings — §Unquoted strings (L253)
 - **S8.8** Unquoted strings allow characters outside the forbidden set — §Unquoted strings (L280). See S8.1 note re: parens.
 

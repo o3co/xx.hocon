@@ -458,6 +458,56 @@ The following are out of scope for E12 v1 and are NOT to be inferred from the co
 
 **Tracking issue**: [#37](https://github.com/o3co/xx.hocon/issues/37). **External origin**: [o3co/go.hocon#99](https://github.com/o3co/go.hocon/issues/99) (cgordon).
 
+<a id="e13"></a>
+
+### E13 — Key-position parsing: S8.6 not enforced, path-expression whitespace preserved (aligned with Lightbend)
+
+**Source**: cross-impl convention, aligned with the spec-author reference implementation (Lightbend 1.4.3). HOCON.md §Unquoted strings L270-276 (S8.6) and §Path expressions (path-element parsing) interact ambiguously when applied to field-key position. Lightbend's path parser does NOT enforce S8.6 in key position and DOES preserve literal whitespace adjacent to dots; ts/rs/go previously over-enforced S8.6 on each key segment and stripped leading whitespace from post-dot segments. This E-item documents the Lightbend-aligned reading.
+
+**Reading**: S8.6 is a *value-position lexer rule* — its purpose (disambiguating unquoted runs from JSON numbers) does not apply in field-key position, where the parser is consuming a path expression, not classifying a value. Path-expression parsing tokenizes on `.` and field separators (`=` / `:` / `{`) but otherwise takes characters verbatim, including hyphens at any segment offset and whitespace adjacent to dots.
+
+**o3co convention**: each of ts.hocon / rs.hocon / go.hocon MUST implement the following behavior in key position, matching Lightbend 1.4.3 empirically (probe matrix at [`generate/src/main/java/ProbeKeyHyphenAndPathWS.java`](../generate/src/main/java/ProbeKeyHyphenAndPathWS.java)):
+
+| Aspect | Behavior |
+| --- | --- |
+| **Hyphen-start in any path segment** | Accept verbatim. `foo -bar = 1` → `{"foo -bar":1}`; `a.b -bar = 1` → `{"a":{"b -bar":1}}`; `foo.-bar = 1` → `{"foo":{"-bar":1}}`; `-foo bar = 1` → `{"-foo bar":1}`. S8.6's "begin with `-` requires digit" rule does NOT fire on key path elements. |
+| **Trailing hyphen-only segment** | Accept verbatim. `foo - = 1` → `{"foo -":1}`. |
+| **Whitespace adjacent to dot** | Preserve literally as part of the adjacent segment(s). `a b. c = 1` → `{"a b":{" c":1}}` (leading space on `" c"` preserved); `a . b = 1` → `{"a ":{" b":1}}` (both segments preserve their adjacent whitespace); `a .b = 1` → `{"a ":{"b":1}}`; `a b . c = 1` → `{"a b ":{" c":1}}`. |
+| **Leading / trailing / double dot in path** | Reject (`BadPath`). `.foo = 1`, `foo. = 1`, `a b. = 1` all error — whitespace adjacency does NOT relax the empty-segment rule. |
+| **Plus-sign in key position** | (Unchanged from prior behavior) reject — `+foo = 1` is rejected by the `+= operator` reservation, distinct from this E-item's scope. |
+
+**Notes on cross-impl consistency**:
+
+- This is a *loosening*: existing valid inputs continue to parse identically; previously-rejected inputs (the cases in `key-hyphen-position/kh01–kh07`) now parse. From a downstream-consumer perspective the change is **backward-compatible** — no input that succeeded before fails now.
+- For the path-WS preservation (`pw01–pw05`), some prior-rejected inputs now produce a key with leading/trailing whitespace where the impl previously produced a trimmed key OR rejected. The semantics change is on the *key string* of inputs that contain whitespace adjacent to dots — a narrow set, but a behavior change worth calling out in per-impl release notes for users who were relying on the prior trimming.
+- The boundary fixture `pw06` (`a b. = 1` → BadPath) is a guard: loosening S8.6-in-key and preserving path-WS does NOT cascade into accepting empty path segments.
+
+**Why an E-item rather than (just) an S-item**: HOCON.md L270-276 (S8.6) is value-position; HOCON.md §Path expressions does not enumerate the whitespace-preservation or hyphen-acceptance rules explicitly. E13 records the project's chosen reading (Lightbend-aligned: S8.6 is value-only, path-WS preserved) and is parallel to E8 (which clarifies S8.6 in value position). The S8.6 matrix row stays ✅ under E8; E13 covers key-position behavior that S8.6 was being over-applied to. There is no compliance-matrix row to flip for E13 since the spec did not enumerate these rules — only the affected per-impl fixture results change.
+
+| Impl | Status | Test | Notes |
+| --- | --- | --- | --- |
+| ts.hocon | ❌ → ✅ | `key-hyphen-position/kh01–kh07.conf` + `path-expr-whitespace/pw01–pw06.conf` via conformance test | Path-parser loosening: remove S8.6-style validation on key path segments; preserve verbatim whitespace in path expressions. |
+| rs.hocon | ❌ → ✅ | same fixtures | Same path-parser changes. |
+| go.hocon | ❌ → ✅ | same fixtures | Same path-parser changes. |
+
+**Fixtures**:
+
+- `key-hyphen-position/kh01-space-concat-hyphen-tail.conf` — `foo -bar = 1` → `{"foo -bar":1}`
+- `key-hyphen-position/kh02-dotted-then-space-hyphen-tail.conf` — `a.b -bar = 1` → `{"a":{"b -bar":1}}`
+- `key-hyphen-position/kh03-quoted-then-space-hyphen-tail.conf` — `"foo" -bar = 1` → `{"foo -bar":1}`
+- `key-hyphen-position/kh04-space-concat-dot-hyphen-start.conf` — `foo bar.-baz = 1` → `{"foo bar":{"-baz":1}}`
+- `key-hyphen-position/kh05-first-token-hyphen-start.conf` — `-foo bar = 1` → `{"-foo bar":1}`
+- `key-hyphen-position/kh06-trailing-hyphen-only.conf` — `foo - = 1` → `{"foo -":1}`
+- `key-hyphen-position/kh07-dot-hyphen-start-segment.conf` — `foo.-bar = 1` → `{"foo":{"-bar":1}}`
+- `path-expr-whitespace/pw01-space-after-dot.conf` — `a b. c = 1` → `{"a b":{" c":1}}`
+- `path-expr-whitespace/pw02-space-both-sides-of-dot.conf` — `a . b = 1` → `{"a ":{" b":1}}`
+- `path-expr-whitespace/pw03-space-before-dot.conf` — `a .b = 1` → `{"a ":{"b":1}}`
+- `path-expr-whitespace/pw04-space-concat-both-segments.conf` — `a b.c d = 1` → `{"a b":{"c d":1}}`
+- `path-expr-whitespace/pw05-multi-whitespace-both-sides.conf` — `a b . c = 1` → `{"a b ":{" c":1}}`
+- `path-expr-whitespace/pw06-trailing-dot-before-separator.conf` — `a b. = 1` → BadPath (`.error` sidecar)
+
+**Tracking issue**: [#42](https://github.com/o3co/xx.hocon/issues/42). **Companion to E8** (value-position).
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -480,5 +530,7 @@ The following are out of scope for E12 v1 and are NOT to be inferred from the co
 2026-05-21 — E12 (deferred substitution resolution — Lightbend-aligned `parse / withFallback / resolve()` lifecycle) added as a project-introduced cross-impl API convention. Fourteen normative spec decisions established covering: parse-with-options entry point, options encoding per language (Go builder / TS Partial / Rust Default), WithFallback semantics for unresolved operands, single-pass transitive resolution, hidden-substitution discard, cross-layer cycle detection, ResolveWith semantics + precondition (intentional Lightbend divergence per decision 10), IsResolved granularity, getter behavior, FromMap type coercion, include-resolution timing invariance. Cross-spec interactions clarified for S13a (self-reference lookback across fallback layers) and S10 (concat type-check behavior under AllowUnresolved=true) inline in E12 section. 31 scenario YAML fixtures (30 scenario IDs, with dr11 split into dr11a/dr11b) landed under `testdata/hocon/deferred-resolution/`, runnable via new `DeferredResolutionRunner.java` (Lightbend ground truth: 29 success or expected-error, 2 lightbendSkip — dr11b [decision 10 divergence] + dr17 [E11 not applicable to Lightbend]). External origin [go.hocon#99](https://github.com/o3co/go.hocon/issues/99); tracking issue [#37](https://github.com/o3co/xx.hocon/issues/37). Status 🤷 in all 3 impls — impls to follow in per-impl PRs targeting v1.4.0 bundle release with E11.
 
 2026-05-21 — E11 (`include package(...)` qualifier — service-locator pattern for non-JVM HOCON) added as a project-introduced extension to HOCON syntax. Five normative spec decisions established: (1) identifier MUST be Go-module-path-style canonical form `<host>/<org>/<name>`; (2) two-arg form `package("id", "file")` mandatory, one-arg rejected; (3) collision on `(id, file)` is hard error (idempotent byte-equal re-registration allowed); (4) registry-miss is hard error at parse time (no silent empty-include fallback); (5) `include required(package(...))` follows existing required semantics. Per-impl registration mechanism: ts.hocon via runtime `require.resolve`, go.hocon via `init()`+`embed.FS`+`RegisterPackage`, rs.hocon via explicit `Parser::register_package` + `include_str!`. Driven by cross-impl design discussion 2026-05-20 (tracking issue [#33](https://github.com/o3co/xx.hocon/issues/33)); supersedes earlier ts-only proposal [ts.hocon#109](https://github.com/o3co/ts.hocon/issues/109) (closed). Status 🤷 in all 3 impls — fixtures and impls to follow in per-impl PRs.
+
+2026-05-23 — E13 (key-position parsing — S8.6 not enforced on key path segments, path-expression whitespace preserved verbatim) added, aligned with Lightbend 1.4.3. Companion to E8 (value-position): E8 documents value-start S8.6 reading; E13 documents key-position scope. Driven by issue [#42](https://github.com/o3co/xx.hocon/issues/42), surfaced during S10.8 cross-impl work (Codex review on rs.hocon#115 / ts.hocon#128 flagged `foo -bar = 1` rejected by S8.6 in newly-reachable space-concat path; FCoT probe revealed Lightbend does not enforce S8.6 in key position at all). 7 `kh*` (`key-hyphen-position/`) + 5 success `pw*` + 1 error `pw06` (`path-expr-whitespace/`) fixtures land alongside the E-item. Probe matrix at `generate/src/main/java/ProbeKeyHyphenAndPathWS.java`. Status 🤷 in all 3 impls — fixtures land first; per-impl PRs to follow targeting v1.5.3.
 
 2026-05-20 — E8 **rewritten** to adopt Lightbend's pragmatic reading of HOCON.md L270-276 "begin" as value-position (not token-position at any lexer offset). Driven by external issue [xx.hocon#31](https://github.com/o3co/xx.hocon/issues/31) (@cgordon, first external issue), which surfaced `b = ${a}-bar` rejected under the strict reading. Concat-continuation cases (`${a}-bar`, `${a}--bar`, `${a}-1`, `${a}1bar`, `${a}.bar`, `"foo"-bar`, etc.) now accepted; us02 (`a = -foo`) / us03 (`a = -`) / us13 (`a = 01`) moved from per-impl error overrides to `SUCCESS_CONFS`. **BREAKING for downstream**: F3 (`a = 01` → `1` number, was `"01"` string) is a value-type change; other changes are additive. `+` rejection retained in both value-start and concat-continuation positions (HOCON `+=` operator reservation, distinct from number-lex). Lightbend probe matrix recorded at [`generate/src/main/java/ProbeIssue31.java`](../generate/src/main/java/ProbeIssue31.java) (groups A–F). Project principle established alongside this amendment: where xx.hocon and Lightbend differ and both behaviors derive from a reasonable reading of the spec, xx.hocon is the side that needs correcting (E5/E9/E10 to be re-audited under this principle as separate follow-ups; E10 may be a genuine Lightbend spec violation rather than an interpretation difference and will be raised upstream).

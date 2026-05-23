@@ -197,6 +197,33 @@ public class GenerateExpected {
         "byte-single-letter/bsl07-1E.conf",
         "byte-single-letter/bsl08-1024K.conf",
         "byte-single-letter/bsl09-05K.conf",
+        // S8.6 in key position (xx.hocon issue #42, v1.5.3). Lightbend accepts hyphen-start
+        // segments in field keys when the key is built via space-concat (S10.8), via dot
+        // (S11.1), or as the first token in a key path. The S8.6 "begin with `-` requires
+        // digit" rule was always intended for value-position lexing; key-position is governed
+        // by path-element parsing rules. ts/rs/go previously over-enforced S8.6 on each key
+        // segment regardless of position — these fixtures pin the Lightbend-aligned behavior.
+        // See docs/extra-spec-conventions.md E8 (value-position precedent) and §Lightbend
+        // quirks "key-hyphen-position" note (added by this PR).
+        "key-hyphen-position/kh01-space-concat-hyphen-tail.conf",
+        "key-hyphen-position/kh02-dotted-then-space-hyphen-tail.conf",
+        "key-hyphen-position/kh03-quoted-then-space-hyphen-tail.conf",
+        "key-hyphen-position/kh04-space-concat-dot-hyphen-start.conf",
+        "key-hyphen-position/kh05-first-token-hyphen-start.conf",
+        "key-hyphen-position/kh06-trailing-hyphen-only.conf",
+        "key-hyphen-position/kh07-dot-hyphen-start-segment.conf",
+        // Path-expression whitespace preservation (xx.hocon issue #42 comment, v1.5.3).
+        // Lightbend preserves literal whitespace adjacent to dots in path expressions —
+        // the segment between two dots (or between a dot and the key/value separator) is
+        // taken verbatim from the source. ts/rs/go previously stripped leading whitespace
+        // on segments following a dot. These fixtures pin the Lightbend-aligned behavior.
+        // pw06 is the boundary case: a trailing dot before separator still errors (BadPath),
+        // i.e. whitespace adjacency does not relax the trailing-dot rule.
+        "path-expr-whitespace/pw01-space-after-dot.conf",
+        "path-expr-whitespace/pw02-space-both-sides-of-dot.conf",
+        "path-expr-whitespace/pw03-space-before-dot.conf",
+        "path-expr-whitespace/pw04-space-concat-both-segments.conf",
+        "path-expr-whitespace/pw05-multi-whitespace-both-sides.conf",
     };
 
     // S23.4 properties-conflict fixtures (cluster 3h). Lightbend's direct
@@ -263,6 +290,11 @@ public class GenerateExpected {
         // optional/required asymmetry — the fix only changes optional from "foofoo"
         // resolution to undefined; required already errors today.
         "self-ref-lookback/sr05-required-no-prior.conf",
+        // Path-expression whitespace pw06: `a b. = 1` — trailing dot before separator.
+        // Lightbend throws BadPath ("path has a leading, trailing, or two adjacent period").
+        // Pins that whitespace adjacency does not relax the trailing-dot rule even after
+        // we loosen key parsing in companion fixtures pw01-pw05 (xx.hocon issue #42, v1.5.3).
+        "path-expr-whitespace/pw06-trailing-dot-before-separator.conf",
     };
 
     // Conf files that should produce a parse/resolve error (traditional JSON error record format)
