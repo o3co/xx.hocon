@@ -89,6 +89,40 @@ cross-directory includes are NOT pre-expanded.
 `ev11-inner.conf` is include-only: it is not in `SUCCESS_CONFS` and has no
 expected JSON of its own.
 
+#### Hybrid mode: `ev12c` routes through native Lightbend 1.4.6 (no sidecar)
+
+Most env-var-list fixtures use the `.env` sidecar + `EnvVarListExpander`
+pipeline above. **`ev12c-include-config-defined-wins.conf` is an exception**:
+it has NO `.env` sidecar and is processed via the native Lightbend 1.4.6 path
+(the `else` branch of the SUCCESS_CONFS loop in `GenerateExpected.java`,
+equivalent to plain `ConfigFactory.parseFile(...).resolve()`).
+
+**Why the exception**: ev12c exercises the cross-source case — `${X[]}` in an
+included file when `X` is defined as a config key in the *including* file at
+root. `EnvVarListExpander.generateJson` pre-expands every `.conf` in
+`confDir` against its own source via line-level `isDefinedInConfig`. When
+processing `ev12c-inner.conf` (which contains `mylist = ${S13C_EV12C_X[]}`),
+the expander would not see that `S13C_EV12C_X` is defined in the *outer*
+file, so the regex would replace `${X[]}` with the
+`${NEVER_DEFINED_PLACEHOLDER}` sentinel and required-resolution would fail.
+
+The native Lightbend 1.4.6 path has full resolver semantics including
+[S14c.2 original-path fallback](spec-checklist.md), which is exactly what
+the spec posture under [E6 cross-source](extra-spec-conventions.md#e6)
+relies on. See [xx.hocon#22](https://github.com/o3co/xx.hocon/issues/22).
+
+**Hermeticity note**: the native path uses `ConfigResolveOptions.defaults()`,
+which leaves `useSystemEnvironment=true`. For ev12c specifically this is
+harmless — even if a host exports `S13C_EV12C_X_0`, Lightbend's resolver
+hits the original-path config (`S13C_EV12C_X = ["root-val"]`) first and
+never consults env. The test's expected JSON pins this behavior, so any
+host-env-induced deviation would surface as a fixture failure.
+
+**When to use this hybrid mode**: when the behavior under test cannot be
+modeled by per-file textual pre-expansion (cross-source semantics, multi-pass
+resolution interactions, etc.). For ordinary `${X[]}` same-source cases, stay
+with the `.env` sidecar pipeline.
+
 ### ENV_VAR_LIST_ERROR_CONFS — `.error` sidecar with pre-expansion (S13c errors)
 
 Distinct from `SIDECAR_ERROR_CONFS` only in the pre-processing step: source
