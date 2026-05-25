@@ -26,7 +26,10 @@ public class GenerateExpected {
         "bom.conf",
         "file-include.conf",
         // "include-from-list.conf",  // typesafe-config limitation: include in list can't resolve ${}
-        // "env-variables.conf",      // uses ${VAR[]} syntax not supported by typesafe-config 1.4.3
+        // "env-variables.conf",      // ${VAR[]} now supported natively (typesafe-config 1.4.6+),
+        //                            // but env vars (SECRET_A, MY_LIST, etc.) aren't namespaced;
+        //                            // host env would leak. Equivalent coverage provided by ev01-ev13
+        //                            // fixtures with project-namespaced keys + .env sidecar pipeline.
         "subst-tokenize/st01-unquoted-simple.conf",
         "subst-tokenize/st02-quoted-single-segment.conf",
         "subst-tokenize/st03-quoted-dot-in-key.conf",
@@ -610,6 +613,14 @@ public class GenerateExpected {
      * Used to strip machine-dependent subtrees from generated expected JSON
      * (e.g. test01.conf's `system { home = ${?HOME}, path = ${?PATH}, ... }`
      * block, which resolves to user-specific values).
+     *
+     * LIMITATION: path segments are split on '.' literally. HOCON quoted-dot
+     * keys (e.g. `"a.b.c" = 1` — single key `a.b.c`) are NOT supported as
+     * segments; passing `"a.b.c"` here would split into 3 segments and try
+     * to descend `a → b → c`. Current call sites use unquoted single-dot
+     * paths only ("system", "test01.system"), so this is fine in practice;
+     * if a future caller needs quoted dotted keys, refactor to accept
+     * `String... segments` instead.
      */
     static ConfigObject filterPath(ConfigObject obj, String dotPath) {
         int dotIdx = dotPath.indexOf('.');
