@@ -11,6 +11,7 @@ public class GenerateExpected {
     static final String[] SUCCESS_CONFS = {
         "test01.conf",
         "test02.conf",
+        "test03.conf",
         "test04.conf",
         "test05.conf",
         "test06.conf",
@@ -25,7 +26,10 @@ public class GenerateExpected {
         "bom.conf",
         "file-include.conf",
         // "include-from-list.conf",  // typesafe-config limitation: include in list can't resolve ${}
-        // "env-variables.conf",      // uses ${VAR[]} syntax not supported by typesafe-config 1.4.3
+        // "env-variables.conf",      // ${VAR[]} now supported natively (typesafe-config 1.4.6+),
+        //                            // but env vars (SECRET_A, MY_LIST, etc.) aren't namespaced;
+        //                            // host env would leak. Equivalent coverage provided by ev01-ev13
+        //                            // fixtures with project-namespaced keys + .env sidecar pipeline.
         "subst-tokenize/st01-unquoted-simple.conf",
         "subst-tokenize/st02-quoted-single-segment.conf",
         "subst-tokenize/st03-quoted-dot-in-key.conf",
@@ -66,8 +70,18 @@ public class GenerateExpected {
         // concat-errors success fixtures (regression guards: ce09 S15 bridge, ce15 optional-omission)
         "concat-errors/ce09-numeric-obj-still-works.conf",
         "concat-errors/ce15-optional-missing-suppresses-pair.conf",
-        // env-var-list fixtures (S13c): processed via EnvVarListExpander with .env sidecar
-        // because typesafe-config 1.4.3 does not natively support ${X[]} syntax.
+        // env-var-list fixtures (S13c): processed via EnvVarListExpander with .env
+        // sidecar. EnvVarListExpander pre-expands ${X[]} textually against the .env
+        // values; it was originally a workaround for typesafe-config <=1.4.3 not
+        // supporting ${X[]} natively, but is still used in 1.4.6+ for hermeticity —
+        // the .env sidecar baked into source removes any dependency on host env vars.
+        //
+        // EXCEPTION (ev12c, below): the cross-source case — ${X[]} in an included
+        // file with X defined as config in the including file — cannot be modeled by
+        // EnvVarListExpander's per-file isDefinedInConfig check. ev12c ships WITHOUT
+        // a .env sidecar and routes through the native Lightbend 1.4.6 path
+        // (the `else` branch in the SUCCESS_CONFS loop), which has full resolver
+        // semantics including S14c.2 original-path fallback. See xx.hocon#22.
         "env-var-list/ev01-basic.conf",
         "env-var-list/ev02-stops-at-gap.conf",
         // ev03-required-no-elements.conf is in ENV_VAR_LIST_ERROR_CONFS (expected resolve error)
@@ -83,6 +97,13 @@ public class GenerateExpected {
         // S13C_EV12_X=scalar in env (no _0), ${?S13C_EV12_X[]} → key removed → {}.
         // Companion to ev12a (required form → error in ENV_VAR_LIST_ERROR_CONFS below).
         "env-var-list/ev12b-list-suffix-suppresses-scalar-fallback-optional.conf",
+        // ev12c: E6 cross-source — ${X[]} in an included file when X is
+        // config-defined in the including file at root. NO .env sidecar:
+        // routes through the native Lightbend 1.4.6 path (not EnvVarListExpander)
+        // because cross-source config-vs-env precedence cannot be modeled by
+        // EnvVarListExpander's per-file pre-expansion. Pins xx.hocon#22 spec
+        // posture: config exhaust (prefixed + original-path) before env list.
+        "env-var-list/ev12c-include-config-defined-wins.conf",
         // ev13: S13c — optional list expansion, direct (not inside concat).
         // Isolates ${?S13C_EV13_MY_LIST[]} with _0=a set → {"x": ["a"]}.
         // Complements ev06/ev07 (which embed ${?X[]} inside concat expressions).
@@ -389,9 +410,15 @@ public class GenerateExpected {
                         .setOriginDescription(confName);
                     Config config = ConfigFactory.parseFile(confPath.toFile(), parseOpts).resolve();
                     ConfigObject root = config.root();
-                    // Filter out environment-dependent keys that differ per machine
+                    // Filter out environment-dependent keys that differ per machine.
+                    // test01.conf has a top-level `system { home = ${?HOME}, ... }` block.
+                    // test03.conf transitively includes test01 via `test01 { include "test01" }`,
+                    // pulling the same `system` block into `test03.test01.system`. Both need
+                    // filtering to keep generated JSON stable across machines.
                     if (confName.equals("test01.conf")) {
-                        root = filterKeys(root, Set.of("system"));
+                        root = filterPath(root, "system");
+                    } else if (confName.equals("test03.conf")) {
+                        root = filterPath(root, "test01.system");
                     }
                     json = toSortedJson(root) + "\n";
                 }
@@ -575,12 +602,43 @@ public class GenerateExpected {
         DeferredResolutionRunner.runAll(testdataDir, expectedDir);
     }
 
-    static ConfigObject filterKeys(ConfigObject obj, Set<String> exclude) {
-        Map<String, ConfigValue> filtered = new HashMap<>(obj);
-        for (String key : exclude) {
-            filtered.remove(key);
+    /**
+     * Remove a dot-separated nested key path from a ConfigObject.
+     *
+     * Single-segment path (no dots): removes the named top-level key.
+     * Nested path (e.g. "test01.system"): descends into the head segment,
+     * recursively filters the tail from that subtree, and rebuilds. If any
+     * intermediate segment is missing or non-object, returns input unchanged.
+     *
+     * Used to strip machine-dependent subtrees from generated expected JSON
+     * (e.g. test01.conf's `system { home = ${?HOME}, path = ${?PATH}, ... }`
+     * block, which resolves to user-specific values).
+     *
+     * LIMITATION: path segments are split on '.' literally. HOCON quoted-dot
+     * keys (e.g. `"a.b.c" = 1` — single key `a.b.c`) are NOT supported as
+     * segments; passing `"a.b.c"` here would split into 3 segments and try
+     * to descend `a → b → c`. Current call sites use unquoted single-dot
+     * paths only ("system", "test01.system"), so this is fine in practice;
+     * if a future caller needs quoted dotted keys, refactor to accept
+     * `String... segments` instead.
+     */
+    static ConfigObject filterPath(ConfigObject obj, String dotPath) {
+        int dotIdx = dotPath.indexOf('.');
+        if (dotIdx < 0) {
+            Map<String, ConfigValue> filtered = new HashMap<>(obj);
+            filtered.remove(dotPath);
+            return ConfigValueFactory.fromMap(filtered).toConfig().root();
         }
-        return ConfigValueFactory.fromMap(filtered).toConfig().root();
+        String head = dotPath.substring(0, dotIdx);
+        String tail = dotPath.substring(dotIdx + 1);
+        ConfigValue child = obj.get(head);
+        if (!(child instanceof ConfigObject)) {
+            return obj;
+        }
+        ConfigObject filteredChild = filterPath((ConfigObject) child, tail);
+        Map<String, ConfigValue> rebuilt = new HashMap<>(obj);
+        rebuilt.put(head, filteredChild);
+        return ConfigValueFactory.fromMap(rebuilt).toConfig().root();
     }
 
     static String toSortedJson(ConfigObject root) {
