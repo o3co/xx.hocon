@@ -391,7 +391,7 @@ public class GenerateExpected {
                     ConfigObject root = config.root();
                     // Filter out environment-dependent keys that differ per machine
                     if (confName.equals("test01.conf")) {
-                        root = filterKeys(root, Set.of("system"));
+                        root = filterPath(root, "system");
                     }
                     json = toSortedJson(root) + "\n";
                 }
@@ -575,12 +575,35 @@ public class GenerateExpected {
         DeferredResolutionRunner.runAll(testdataDir, expectedDir);
     }
 
-    static ConfigObject filterKeys(ConfigObject obj, Set<String> exclude) {
-        Map<String, ConfigValue> filtered = new HashMap<>(obj);
-        for (String key : exclude) {
-            filtered.remove(key);
+    /**
+     * Remove a dot-separated nested key path from a ConfigObject.
+     *
+     * Single-segment path (no dots): removes the named top-level key.
+     * Nested path (e.g. "test01.system"): descends into the head segment,
+     * recursively filters the tail from that subtree, and rebuilds. If any
+     * intermediate segment is missing or non-object, returns input unchanged.
+     *
+     * Used to strip machine-dependent subtrees from generated expected JSON
+     * (e.g. test01.conf's `system { home = ${?HOME}, path = ${?PATH}, ... }`
+     * block, which resolves to user-specific values).
+     */
+    static ConfigObject filterPath(ConfigObject obj, String dotPath) {
+        int dotIdx = dotPath.indexOf('.');
+        if (dotIdx < 0) {
+            Map<String, ConfigValue> filtered = new HashMap<>(obj);
+            filtered.remove(dotPath);
+            return ConfigValueFactory.fromMap(filtered).toConfig().root();
         }
-        return ConfigValueFactory.fromMap(filtered).toConfig().root();
+        String head = dotPath.substring(0, dotIdx);
+        String tail = dotPath.substring(dotIdx + 1);
+        ConfigValue child = obj.get(head);
+        if (!(child instanceof ConfigObject)) {
+            return obj;
+        }
+        ConfigObject filteredChild = filterPath((ConfigObject) child, tail);
+        Map<String, ConfigValue> rebuilt = new HashMap<>(obj);
+        rebuilt.put(head, filteredChild);
+        return ConfigValueFactory.fromMap(rebuilt).toConfig().root();
     }
 
     static String toSortedJson(ConfigObject root) {
