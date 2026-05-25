@@ -67,8 +67,18 @@ public class GenerateExpected {
         // concat-errors success fixtures (regression guards: ce09 S15 bridge, ce15 optional-omission)
         "concat-errors/ce09-numeric-obj-still-works.conf",
         "concat-errors/ce15-optional-missing-suppresses-pair.conf",
-        // env-var-list fixtures (S13c): processed via EnvVarListExpander with .env sidecar
-        // because typesafe-config 1.4.3 does not natively support ${X[]} syntax.
+        // env-var-list fixtures (S13c): processed via EnvVarListExpander with .env
+        // sidecar. EnvVarListExpander pre-expands ${X[]} textually against the .env
+        // values; it was originally a workaround for typesafe-config <=1.4.3 not
+        // supporting ${X[]} natively, but is still used in 1.4.6+ for hermeticity —
+        // the .env sidecar baked into source removes any dependency on host env vars.
+        //
+        // EXCEPTION (ev12c, below): the cross-source case — ${X[]} in an included
+        // file with X defined as config in the including file — cannot be modeled by
+        // EnvVarListExpander's per-file isDefinedInConfig check. ev12c ships WITHOUT
+        // a .env sidecar and routes through the native Lightbend 1.4.6 path
+        // (the `else` branch in the SUCCESS_CONFS loop), which has full resolver
+        // semantics including S14c.2 original-path fallback. See xx.hocon#22.
         "env-var-list/ev01-basic.conf",
         "env-var-list/ev02-stops-at-gap.conf",
         // ev03-required-no-elements.conf is in ENV_VAR_LIST_ERROR_CONFS (expected resolve error)
