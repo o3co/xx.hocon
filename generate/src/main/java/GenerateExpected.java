@@ -11,6 +11,7 @@ public class GenerateExpected {
     static final String[] SUCCESS_CONFS = {
         "test01.conf",
         "test02.conf",
+        "test03.conf",
         "test04.conf",
         "test05.conf",
         "test06.conf",
@@ -389,9 +390,15 @@ public class GenerateExpected {
                         .setOriginDescription(confName);
                     Config config = ConfigFactory.parseFile(confPath.toFile(), parseOpts).resolve();
                     ConfigObject root = config.root();
-                    // Filter out environment-dependent keys that differ per machine
+                    // Filter out environment-dependent keys that differ per machine.
+                    // test01.conf has a top-level `system { home = ${?HOME}, ... }` block.
+                    // test03.conf transitively includes test01 via `test01 { include "test01" }`,
+                    // pulling the same `system` block into `test03.test01.system`. Both need
+                    // filtering to keep generated JSON stable across machines.
                     if (confName.equals("test01.conf")) {
                         root = filterPath(root, "system");
+                    } else if (confName.equals("test03.conf")) {
+                        root = filterPath(root, "test01.system");
                     }
                     json = toSortedJson(root) + "\n";
                 }
