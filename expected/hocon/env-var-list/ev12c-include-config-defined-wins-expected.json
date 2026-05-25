@@ -1,0 +1,10 @@
+{
+  "S13C_EV12C_X": [
+    "root-val"
+  ],
+  "outer": {
+    "mylist": [
+      "root-val"
+    ]
+  }
+}

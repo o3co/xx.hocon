@@ -84,6 +84,13 @@ public class GenerateExpected {
         // S13C_EV12_X=scalar in env (no _0), ${?S13C_EV12_X[]} → key removed → {}.
         // Companion to ev12a (required form → error in ENV_VAR_LIST_ERROR_CONFS below).
         "env-var-list/ev12b-list-suffix-suppresses-scalar-fallback-optional.conf",
+        // ev12c: E6 cross-source — ${X[]} in an included file when X is
+        // config-defined in the including file at root. NO .env sidecar:
+        // routes through the native Lightbend 1.4.6 path (not EnvVarListExpander)
+        // because cross-source config-vs-env precedence cannot be modeled by
+        // EnvVarListExpander's per-file pre-expansion. Pins xx.hocon#22 spec
+        // posture: config exhaust (prefixed + original-path) before env list.
+        "env-var-list/ev12c-include-config-defined-wins.conf",
         // ev13: S13c — optional list expansion, direct (not inside concat).
         // Isolates ${?S13C_EV13_MY_LIST[]} with _0=a set → {"x": ["a"]}.
         // Complements ev06/ev07 (which embed ${?X[]} inside concat expressions).
