@@ -266,6 +266,29 @@ public class GenerateExpected {
         "path-expr-whitespace/pw04-space-concat-both-segments.conf",
         "path-expr-whitespace/pw05-multi-whitespace-both-sides.conf",
         "path-expr-whitespace/pw07-tab-after-dot.conf",
+        // include-env-fallback fixtures (go.hocon#128 cross-impl). Pin the
+        // include-child `${?ENV}` env-with-default pattern: when the env var
+        // is unset, the prior duplicate-key assignment must remain — the
+        // include boundary is invisible to S7.1 + S13.2/S13.11 + S14b.2
+        // duplicate-key + optional-substitution semantics. go.hocon v1.4.1–
+        // v1.5.2 dropped this prior across a separate lenient-resolve pass
+        // (priorValues stripped at the include-child boundary), fixed in
+        // go.hocon v1.5.3 / #129. These fixtures route through the native
+        // Lightbend path with `setUseSystemEnvironment(false)` (see HERMETIC_
+        // NO_ENV_GROUPS below) so the env-unset case is bit-exact-stable
+        // regardless of the generator's host environment.
+        "include-env-fallback/iev01-env-unset-preserves-prior-default.conf",
+    };
+
+    // Fixture groups that must be generated with system environment access
+    // disabled, so the expected JSON is bit-exact-stable across machines.
+    // Used for `${?ENV}`-fallback-shaped fixtures where the bug case under
+    // test is the env-UNSET branch — if a host happened to define the same
+    // env name, the generator would silently bake the host value into the
+    // expected JSON. setUseSystemEnvironment(false) at resolve time forces
+    // the optional substitution to its undefined branch.
+    static final String[] HERMETIC_NO_ENV_GROUPS = {
+        "include-env-fallback/",
     };
 
     // S23.4 properties-conflict fixtures (cluster 3h). Lightbend's direct
@@ -408,7 +431,14 @@ public class GenerateExpected {
                 } else {
                     ConfigParseOptions parseOpts = ConfigParseOptions.defaults()
                         .setOriginDescription(confName);
-                    Config config = ConfigFactory.parseFile(confPath.toFile(), parseOpts).resolve();
+                    boolean hermeticNoEnv = false;
+                    for (String prefix : HERMETIC_NO_ENV_GROUPS) {
+                        if (confName.startsWith(prefix)) { hermeticNoEnv = true; break; }
+                    }
+                    ConfigResolveOptions resolveOpts = hermeticNoEnv
+                        ? ConfigResolveOptions.defaults().setUseSystemEnvironment(false)
+                        : ConfigResolveOptions.defaults();
+                    Config config = ConfigFactory.parseFile(confPath.toFile(), parseOpts).resolve(resolveOpts);
                     ConfigObject root = config.root();
                     // Filter out environment-dependent keys that differ per machine.
                     // test01.conf has a top-level `system { home = ${?HOME}, ... }` block.

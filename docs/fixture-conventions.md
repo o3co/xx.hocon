@@ -123,6 +123,46 @@ modeled by per-file textual pre-expansion (cross-source semantics, multi-pass
 resolution interactions, etc.). For ordinary `${X[]}` same-source cases, stay
 with the `.env` sidecar pipeline.
 
+### HERMETIC_NO_ENV_GROUPS — `setUseSystemEnvironment(false)` for env-unset fixtures
+
+A small array of group-prefix strings in `GenerateExpected.java`
+(`HERMETIC_NO_ENV_GROUPS`) selects fixtures that route through the native
+Lightbend `SUCCESS_CONFS` path **with `useSystemEnvironment` forced to
+false**. Currently: `include-env-fallback/`. Used when the case under test
+is the env-UNSET branch of a `${?ENV}` fallback — if a host happened to
+define the same env name, the generator would silently bake the host value
+into the expected JSON, defeating the regression. Forcing
+`useSystemEnvironment=false` at resolve time forces the optional
+substitution to its undefined branch, making the expected JSON
+bit-exact-stable across machines.
+
+Distinct from `.env` sidecar / `EnvVarListExpander`:
+
+- `.env` sidecar is used when the fixture's `${X[]}` content needs
+  *pre-expansion* against a known env (S13c list expansion).
+- `HERMETIC_NO_ENV_GROUPS` is for plain `${?ENV}` fallback where the
+  expected behaviour is "env undefined, prior assignment wins". No
+  pre-expansion; just disable env lookup at resolve time.
+
+The fixture is registered in `SUCCESS_CONFS` normally. The native loop
+checks `confName.startsWith(prefix)` against each entry in
+`HERMETIC_NO_ENV_GROUPS` and applies the no-env `ConfigResolveOptions`
+when a match is found.
+
+#### Adding a new hermetic-no-env group
+
+1. Create fixtures under `testdata/hocon/<group>/`. Use namespaced env-var
+   names (e.g., `GH128_IEV01_VAR_UNSET`) for defense-in-depth.
+2. Add the fixture paths to `SUCCESS_CONFS` in `GenerateExpected.java`
+   *and* add `"<group>/"` (with trailing slash) to `HERMETIC_NO_ENV_GROUPS`.
+3. Run `./gradlew run` from `generate/`.
+4. Inspect the generated `expected/hocon/<group>/*-expected.json` — the
+   optional fallback should resolve as undefined (prior assignment wins).
+5. If the fixture also models an env-SET companion case, that companion
+   should be tested at the per-impl layer with an env-injection API
+   (`parse(input, { env })` etc.), NOT at the shared-fixture layer where
+   hermeticity is the priority.
+
 ### ENV_VAR_LIST_ERROR_CONFS — `.error` sidecar with pre-expansion (S13c errors)
 
 Distinct from `SIDECAR_ERROR_CONFS` only in the pre-processing step: source
