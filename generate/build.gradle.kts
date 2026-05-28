@@ -41,6 +41,38 @@ tasks.register<JavaExec>("probeKeyHyphenAndPathWS") {
     mainClass.set("ProbeKeyHyphenAndPathWS")
 }
 
+// ---- Cross-impl differential harness (the in-house "cgordon") ----
+// Artifacts (corpus, report) live at the repo root next to testdata/ and
+// expected/, so the run working dir is the project's parent.
+val differentialPropPrefixes = listOf("adapter.", "corpus.dir", "report.dir", "suppression.file")
+fun JavaExec.forwardDifferentialProps() {
+    System.getProperties().forEach { k, v ->
+        val key = k.toString()
+        if (differentialPropPrefixes.any { key == it || key.startsWith(it) }) {
+            systemProperty(key, v.toString())
+        }
+    }
+}
+
+tasks.register<JavaExec>("differentialCorpus") {
+    group = "verification"
+    description = "Generate the cross-impl differential seed corpus under differential/corpus/"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("CorpusGenerator")
+    workingDir = project.projectDir.parentFile
+}
+
+tasks.register<JavaExec>("differential") {
+    group = "verification"
+    description = "Run the cross-impl differential harness (Lightbend oracle + go/rs/ts adapters)"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("DifferentialDriver")
+    workingDir = project.projectDir.parentFile
+    forwardDifferentialProps()
+}
+
 java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(21))
