@@ -67,13 +67,7 @@ public final class DifferentialDriver {
 
         CorpusGenerator.generate(corpusDir);
 
-        Map<String, String[]> adapters = new LinkedHashMap<>();
-        for (String impl : IMPLS) {
-            String cmd = System.getProperty("adapter." + impl);
-            if (cmd != null && !cmd.isBlank()) {
-                adapters.put(impl, cmd.trim().split("\\s+"));
-            }
-        }
+        Map<String, String[]> adapters = parseAdapters();
         if (adapters.isEmpty()) {
             System.err.println("WARNING: no -Dadapter.<go|rs|ts> configured; only the oracle will run.");
         }
@@ -91,20 +85,40 @@ public final class DifferentialDriver {
         List<CaseReport> reports = new ArrayList<>();
         for (Path caseDir : cases) {
             String caseId = caseDir.getFileName().toString();
-            Path mainConf = caseDir.resolve("main.conf");
-
-            EngineResult oracle = runOracle(mainConf);
-            Map<String, EngineResult> impls = new LinkedHashMap<>();
-            for (Map.Entry<String, String[]> a : adapters.entrySet()) {
-                impls.put(a.getKey(), runAdapter(a.getValue(), mainConf));
-            }
-            reports.add(classify(caseId, oracle, impls, suppressions.get(caseId)));
+            reports.add(evaluate(caseId, caseDir.resolve("main.conf"), adapters, suppressions.get(caseId)));
         }
 
         Files.createDirectories(reportDir);
         writeJsonReport(reportDir.resolve("results.json"), reports, adapters.keySet());
         writeMarkdownReport(reportDir.resolve("summary.md"), reports, adapters.keySet());
         printConsoleSummary(reports);
+    }
+
+    /** Reads -Dadapter.go/rs/ts into command templates (the conf path is
+     *  appended as the final arg at run time). Shared by the seed-corpus
+     *  driver and the fuzz runner. */
+    static Map<String, String[]> parseAdapters() {
+        Map<String, String[]> adapters = new LinkedHashMap<>();
+        for (String impl : IMPLS) {
+            String cmd = System.getProperty("adapter." + impl);
+            if (cmd != null && !cmd.isBlank()) {
+                adapters.put(impl, cmd.trim().split("\\s+"));
+            }
+        }
+        return adapters;
+    }
+
+    /** Runs the oracle + every configured adapter on one main.conf and
+     *  classifies the case. The single per-case unit reused by both the
+     *  seed-corpus driver and the fuzz runner (including shrink probes). */
+    static CaseReport evaluate(String caseId, Path mainConf,
+                               Map<String, String[]> adapters, Suppression supp) {
+        EngineResult oracle = runOracle(mainConf);
+        Map<String, EngineResult> impls = new LinkedHashMap<>();
+        for (Map.Entry<String, String[]> a : adapters.entrySet()) {
+            impls.put(a.getKey(), runAdapter(a.getValue(), mainConf));
+        }
+        return classify(caseId, oracle, impls, supp);
     }
 
     // ---- Oracle (Lightbend) -------------------------------------------------
