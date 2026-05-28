@@ -115,12 +115,17 @@ public final class FuzzRunner {
     }
 
     /** A divergence "shape": oracle outcome + each engine's ok/error/broken
-     *  state. Two cases with the same signature diverge the same way. */
+     *  state + the set of impls that diverge from the oracle. Pinning the
+     *  diverging set (not just the ok/error pattern) stops the shrinker drifting
+     *  to a different engine's divergence that merely shares the same shape. */
     static String signature(DifferentialDriver.CaseReport r) {
         StringBuilder sb = new StringBuilder(state(r.oracle));
         for (String k : DifferentialDriver.IMPLS) {
             if (r.impls.containsKey(k)) sb.append("|").append(k).append(":").append(state(r.impls.get(k)));
         }
+        List<String> div = new ArrayList<>(r.divergersFromOracle);
+        div.sort(null);
+        sb.append("#").append(String.join(",", div));
         return sb.toString();
     }
 
