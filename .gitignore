@@ -5,3 +5,5 @@ generate/build/
 # report is a run output); known-divergences.json is source and IS tracked.
 differential/corpus/
 differential/report/
+differential/fuzz-work/
+differential/fuzz-findings/

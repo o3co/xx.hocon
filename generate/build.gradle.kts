@@ -44,7 +44,7 @@ tasks.register<JavaExec>("probeKeyHyphenAndPathWS") {
 // ---- Cross-impl differential harness (the in-house "cgordon") ----
 // Artifacts (corpus, report) live at the repo root next to testdata/ and
 // expected/, so the run working dir is the project's parent.
-val differentialPropPrefixes = listOf("adapter.", "corpus.dir", "report.dir", "suppression.file")
+val differentialPropPrefixes = listOf("adapter.", "corpus.dir", "report.dir", "suppression.file", "fuzz.")
 fun JavaExec.forwardDifferentialProps() {
     System.getProperties().forEach { k, v ->
         val key = k.toString()
@@ -69,6 +69,16 @@ tasks.register<JavaExec>("differential") {
     dependsOn(tasks.named("classes"))
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("DifferentialDriver")
+    workingDir = project.projectDir.parentFile
+    forwardDifferentialProps()
+}
+
+tasks.register<JavaExec>("differentialFuzz") {
+    group = "verification"
+    description = "Fuzz the impls against the Lightbend oracle (-Dfuzz.seed, -Dfuzz.count)"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("FuzzRunner")
     workingDir = project.projectDir.parentFile
     forwardDifferentialProps()
 }

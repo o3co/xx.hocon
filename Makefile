@@ -1,4 +1,4 @@
-.PHONY: generate clean differential differential-corpus differential-adapters
+.PHONY: generate clean differential differential-corpus differential-adapters differential-fuzz
 
 generate:
 	cd generate && ./gradlew run
@@ -31,3 +31,16 @@ differential:
 	  -Dadapter.go="$(abspath $(GO_ADAPTER))" \
 	  -Dadapter.rs="$(abspath $(RS_ADAPTER))" \
 	  -Dadapter.ts="node $(abspath $(TS_SCRIPT))"
+
+# Grammar fuzz: generate FUZZ_COUNT seeded docs (reproducible from FUZZ_SEED),
+# diff each against the oracle, shrink divergences to minimal repros under
+# differential/fuzz-findings/ + differential/report/fuzz-summary.md.
+FUZZ_SEED  ?= 1
+FUZZ_COUNT ?= 200
+
+differential-fuzz:
+	cd generate && ./gradlew differentialFuzz \
+	  -Dadapter.go="$(abspath $(GO_ADAPTER))" \
+	  -Dadapter.rs="$(abspath $(RS_ADAPTER))" \
+	  -Dadapter.ts="node $(abspath $(TS_SCRIPT))" \
+	  -Dfuzz.seed=$(FUZZ_SEED) -Dfuzz.count=$(FUZZ_COUNT)
