@@ -1,2 +1,7 @@
 .gradle/
 generate/build/
+
+# Differential harness generated artifacts (corpus is regenerated each run,
+# report is a run output); known-divergences.json is source and IS tracked.
+differential/corpus/
+differential/report/
