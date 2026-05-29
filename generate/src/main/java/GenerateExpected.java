@@ -9,6 +9,10 @@ public class GenerateExpected {
     // Fixtures with a .env sidecar are processed via EnvVarListExpander
     // (which expands ${X[]} patterns using the sidecar env vars before Lightbend parses).
     static final String[] SUCCESS_CONFS = {
+        // xx.hocon#50: leading-zero numeric VALUE literals canonicalize to numbers
+        // (Lightbend authority): 023->23, 08.53->8.53, -023->-23. Distinct from
+        // E2/E3/E4 (leading-zero/sign object KEYS for array conversion).
+        "leading-zero-value/lzv01-int-float-negative.conf",
         "test01.conf",
         "test02.conf",
         "test03.conf",
