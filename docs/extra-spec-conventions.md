@@ -591,6 +591,49 @@ Each impl's mechanism is **strictly narrower** than path-equality — it correct
 
 **Tracking issue**: [#27](https://github.com/o3co/xx.hocon/issues/27). **Companion to S13a.13** (decision #1 amendment); sr01–sr11 in the same fixture directory cover the unchanged S13a.13 normative cases.
 
+### E15 — Numeric VALUE JSON rendering: per-impl natural form accepted; differential harness compares semantically
+
+**Source**: [#53](https://github.com/o3co/xx.hocon/issues/53) (follow-up to [#50](https://github.com/o3co/xx.hocon/issues/50)). After #50 closed the **leading-zero** invalid-JSON divergence (the only validity bug in the class), an empirical battery across all four engines revealed that numeric-VALUE JSON rendering still diverges in three orthogonal *cosmetic* dimensions — none of which affect the semantic value (`Number(...)` is identical across all four):
+
+| input | go.hocon / ts.hocon (lexeme-preserve + #50 leading-zero canonicalization) | rs.hocon (`serde_json` + `ryu`) | Lightbend oracle (GSON `value.unwrapped().toString()`) |
+| --- | --- | --- | --- |
+| `1.0` | `1.0` | `1.0` | `1` *(integer-collapse)* |
+| `1e3` | `1e3` | `1000.0` | `1000` |
+| `100.00` | `100.00` | `100.0` | `100` |
+| `-0.0` | `-0.0` | `-0.0` | `0` *(sign drop)* |
+| `-0` | `-0` | `0` | `0` |
+| `1e-300` | `1e-300` | `1e-300` | `1.0E-300` *(capital `E`, explicit `.0`, no `+`)* |
+| `1.7976931348623157e+308` | (same) | (same with `e+`) | `1.7976931348623157E308` |
+
+The three dimensions are: (a) **integer-collapse** of integral doubles (`1.0` → `1`); (b) **negative-zero** handling (`-0`, `-0.0` → `0`); (c) **scientific-notation format** (lowercase `e` vs Lightbend's `E`, optional `+` sign, presence of `.0`). Each is a stylistic choice each runtime's formatter makes (Go `strconv.FormatFloat('g', -1, 64)`, JS `Number.prototype.toString`, Rust `serde_json` + `ryu`, Java `Double.toString`). The differences are **technically fixable** in any impl with a few lines of custom format code, but the cost-vs-value math is poor: the affected outputs are produced *exclusively* by the cross-impl differential adapters (`_renderJSONForTest` / `RenderJSONForTest` / `examples/hocon-json` — explicitly test-only, name-encoded as not stable public API), and every divergence above produces valid JSON whose `Number(...)` parse yields the same f64 in all four engines.
+
+**o3co convention**: each implementation MAY render numeric VALUE scalars in its language's natural shortest-round-trip canonical form. No byte-level alignment is required across the four engines for the cosmetic dimensions listed above. The **semantic value must round-trip identically** (`Number(rendered_a) === Number(rendered_b)` for any pair of engine outputs of the same source HOCON), and **the output must be valid JSON** (this is the line #50 fixed for the leading-zero class; this E-item does not relax it).
+
+**Differential harness contract** (forward-looking — for `feat/differential-harness` when it merges): the harness MUST compare numeric leaf values **semantically**, not by byte-equality, so the per-impl format choices above do not produce false-positive divergence reports. Concretely: a leaf whose Lightbend oracle value is a JSON number (per `value.valueType() == NUMBER`) is compared by parsing both adapter outputs as f64 and asserting bit-equality of the parsed value (or both `NaN`); strings, booleans, nulls, arrays, and objects continue to compare by canonical-JSON byte-equality. The harness assertions in `xx.hocon/generate` (and any fuzz machinery in `feat/differential-fuzz`) carry this normalizer.
+
+**Why an E-item rather than a per-impl fix**:
+
+- All outputs are **semantically equivalent valid JSON** — no correctness bug, no parse failure, no value loss. The differences are textual style only.
+- The render path is **test-only adapter API** (`_renderJSONForTest` and friends are explicitly named to encode "not stable public API"). The `Config` getters (`GetString` / `GetInt64` / etc.) and string-coercion (`"x"${num}`) are governed by S10.11 and are unaffected — `GetString("023")` returns `"023"` (lexeme) in all impls; this E-item is strictly about the JSON serializer used by the differential harness.
+- Forcing byte convergence on all three dimensions would require either replicating Java's `Double.toString` format in Go/Rust/JS (high engineering for low value) or moving Lightbend off GSON's default in the oracle (changes the oracle's stable behavior for a non-correctness reason). Neither serves real users.
+- The "Lightbend authority" rule is read here as **semantic-level** (the same f64 value, the same JSON number type), not **byte-level format trivia** (the choice of `e` vs `E`).
+
+**Out of scope**:
+
+- The #50 leading-zero canonicalization (`023` → `23`, etc.) is a **validity fix** (the pre-fix output `{"b":023}` was invalid JSON, not just stylistically divergent). It is unchanged by this E-item and remains required of all impls.
+- This E-item does **not** affect any impl's `getString` / `getInt` / `unmarshal` / string-coercion behavior. S10.11 lexeme preservation in those paths is unchanged.
+- This E-item does **not** sanction divergence on the **classification** of a lexeme as number vs. string (e.g. `a = 023` must be classified as a number in all impls — that is part of E8 / S8.6). It governs only the **rendering** of an already-classified numeric scalar to JSON.
+
+| Impl | Status | Notes |
+| --- | --- | --- |
+| ts.hocon | ✅ | `renderHoconAsJSON` (`src/config.ts`): leading-zero canonicalized (#50); other forms emitted from lexeme via `JSON_NUMBER_RE` validity gate. |
+| rs.hocon | ✅ | `examples/hocon-json.rs`: `serde_json` (`ryu`) shortest round-trip; preserves int/float distinction (`1.0` → `1.0`). |
+| go.hocon | ✅ | `writeValJSON` (`config.go`): leading-zero canonicalized (#50); other forms emitted from lexeme; `ParseFloat`-validity gate. |
+
+**Fixtures**: `leading-zero-value/lzv01-int-float-negative.conf` (the #50 fixture) pins the **validity-required** subset of numeric rendering (leading-zero canonicalization, agreed byte-for-byte across all four engines). No additional fixtures are added for the cosmetic divergences above — by construction the four engines disagree on byte-form here, so a byte-pinned expected JSON would arbitrarily privilege one engine. The differential harness's semantic-equivalence normalizer is the assertion mechanism for the cosmetic subset.
+
+**Tracking issue**: [#53](https://github.com/o3co/xx.hocon/issues/53).
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -602,6 +645,7 @@ Each impl's mechanism is **strictly narrower** than path-equality — it correct
 
 2026-05-16 — file created; E1 (NEL) added.
 2026-05-16 — E2 (leading-zero key), E3 (leading `+` key), E4 (leading `-` key incl. `-0`) added as part of S15 numerically-indexed-object → array work (Phase 6 #2).
+2026-05-30 — E15 (numeric VALUE JSON rendering: per-impl natural form accepted; differential harness compares semantically) added as the cosmetic-divergence resolution of #53, complementing #50's leading-zero validity fix.
 2026-05-17 — E5 (trailing scalar in object/array concat) added as part of S10 concat type-check tightening work (Phase 6 #3b).
 2026-05-17 — E6 (`${X[]}` config-defined wins), E7 (whitespace before `[]` allowed) added as part of S13c env-var-list fixture work (Phase 6 #3a).
 2026-05-17 — E8 (S8.6 strict unquoted-starts; Lightbend fallback divergences for us02/us03/us13) added as part of Phase 6 #3c.
