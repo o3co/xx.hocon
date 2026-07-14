@@ -6,9 +6,9 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **86.4%** | **97.0%** | 179 | 3 | 4 | 0 | 23 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **88.5%** | **96.4%** | 184 | 2 | 6 | 0 | 17 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **86.4%** | **96.5%** | 179 | 3 | 5 | 0 | 22 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **88.0%** | **98.9%** | 183 | 2 | 1 | 0 | 23 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **91.9%** | **100.0%** | 192 | 0 | 0 | 0 | 17 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **88.0%** | **98.4%** | 184 | 0 | 3 | 0 | 22 |
 
 Where:
 
@@ -55,20 +55,11 @@ Items where the test or implementation behavior contradicts the spec:
 | Item | Impl | Status | Description |
 |---|---|---|---|
 | S1.1 | go | ❌ | Invalid UTF-8 (e.g. `string([]byte{0xff})` via `ParseString`) is silently substituted with U+FFFD instead of rejected; spec L117 requires rejection. Go `string` is `[]byte` and is not language-guaranteed UTF-8. ts ➖ (JS string is pre-decoded Unicode at the I/O boundary; the parser cannot observe raw bytes — see ts.hocon S1.1 entry). rs ✅ (Rust `&str` is language-guaranteed valid UTF-8; verified positively via `tests/testdata/hocon/bom.conf` fixture). |
-| S8.2 | go | ❌ | `//` inside an unquoted run without preceding whitespace is treated as literal content; spec L248 says `//` starts a comment anywhere outside a quoted string. ts/rs ✅. |
 | S3.4 | ts | ❌ | Unbraced root + stray `}` accepted ([#55](https://github.com/o3co/ts.hocon/issues/55)) |
 | S8.1 | ts | ⚠️ | Lexer allows backtick in unquoted strings, contrary to spec L245 forbidden set |
-| S10.15 | go | ❌ | Quoted whitespace between obj/array substitutions (e.g. `c = ${a} " " ${b}`) is silently accepted and the arrays merged to `[1, 2]`; spec L442 requires this to be an error. ts ✅. rs incidentally cleared by Phase 6 #3b (quoted whitespace is a scalar; `join_pair` now errors on `scalar between array operands`). go still fails because the resolver elides separator tokens before `joinPair` runs, so the type-check is never reached. |
-| S11.8 | go | ❌ | Parser rejects TokenBool in key position; spec L504 requires stringification to `"true"` / `"false"`. Impl is stricter than spec ([go#66](https://github.com/o3co/go.hocon/issues/66)) |
-| S13b.2 | ts, rs | ❌ | `+=` on non-array prior value silently allowed; spec L732 requires error. go ✅ correctly rejects ([ts#81](https://github.com/o3co/ts.hocon/issues/81), [rs#72](https://github.com/o3co/rs.hocon/issues/72)) |
-| S13.11 | go | ⚠️ | Lenient mode drops optional substitutions in nested-include scope ([#45](https://github.com/o3co/go.hocon/issues/45)) |
+| S8.2 | go | ❌ | `//` inside an unquoted run without preceding whitespace is treated as literal content; spec L248 says `//` starts a comment anywhere outside a quoted string. ts/rs ✅. |
 | S13a.3 | ts | ⚠️ | Self-reference before any prior value (`a = ${a}`) raises a cycle error, but the error type / message classifies this as a generic substitution error rather than the "undefined" path the spec describes at L795. rs/go ✅ (correct error class). |
 | S13a.12 | go | ❌ | Self-ref in a path expression (`${foo.a}` where `foo.a` is being defined) does not resolve to the "below" value per L831; the looked-up sub-object is discarded in the merge. ts/rs ✅. |
-| S14c.2 | rs | ❌ | Non-relativized substitution path fallback not implemented ([#44](https://github.com/o3co/rs.hocon/issues/44)) |
-| S17.6 | ts, rs | ⚠️ / ❌ | `getString` / `get_string` on null silently returns the string `"null"` instead of throwing per L1252. **ts** ⚠️ — other typed accessors throw, but *incidentally* (no explicit `valueType==='null'` guard in `requireScalar`) ([ts#88](https://github.com/o3co/ts.hocon/issues/88)). **rs** ❌ — `get_string` returns `Ok("null")` on null values; pre-existing matrix mis-classification corrected during the v1.4.1 audit ([rs#80](https://github.com/o3co/rs.hocon/issues/80) / pending fix [rs#109](https://github.com/o3co/rs.hocon/pull/109)). go ✅. |
-| S17.7, S17.8 | go | ⚠️ | Non-Option accessors panic correctly per L1254-1255; Option accessors return `None` instead of error — partial violation ([go#72](https://github.com/o3co/go.hocon/issues/72)). ts/rs ✅. |
-| S19.8 | ts, rs | ❌ | Duration unit names should be case-sensitive (lowercase only) per L1304; both impls accept `MS`, `Seconds`, `NS`, etc. (rs `parse_duration` calls `.to_lowercase()` before matching at `src/config.rs:417`; ts has the same shape). go ✅. |
-| S22.2 | ts | ❌ | Intermediate non-object hides earlier object across files per L1430; ts merges across the non-object barrier. rs/go ✅. |
 
 ## Shared test debt
 
@@ -79,6 +70,18 @@ Spec items with no test coverage in **any** of the three implementations. These 
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the three impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### 2026-07-14 re-roll-up — S19.8 cleared (ts/rs) + 11 stale cells synced to test ground truth
+
+S19.8 (duration unit names must be lowercase, L1304) cleared in ts.hocon ([#151](https://github.com/o3co/ts.hocon/pull/151)) and rs.hocon ([#144](https://github.com/o3co/rs.hocon/pull/144)) — both impls removed the unit lowercasing before matching (BREAKING: `"5 MS"` / `"100 Seconds"` now error), aligning with go.hocon which was already compliant. rs additionally became consistent with its own `parse_period`, which matched case-sensitively all along.
+
+The same audit found the matrix and several per-impl rows stale relative to test ground truth (fixes had landed without the doc/matrix sync). Verified by running the cited tests and runtime probes per impl:
+
+- **ts**: S13b.2 ❌→✅ (ts#81 fixed — `+=` on non-array errors), S17.6 ⚠️→✅ (ts#88 fixed — all typed accessors throw on null), S22.2 ❌→✅ (non-object fallback barrier respected).
+- **rs**: S13.14 ⚠️→✅ (rs#75), S13.15 ❌→✅, S13b.2 ❌→✅ (rs#72), S17.6 ⚠️→✅ (rs#80 / `a7d7aea`), S14c.2 ❌→✅ (rs#44 — was already noted fixed in the per-impl file), and S13.9 per-impl cleanup (the matrix had already ruled it ✅ in the v1.5.0 audit below; the per-impl row and obsolete `#[ignore]` test are now aligned with that canon).
+- **go**: S10.15 ❌→✅ (go#83), S11.8 ❌→✅ (go#66 — parseKey accepts TokenBool/TokenNull), S13.11 ⚠️→✅ (go#45, verified by nested-include runtime probe), S13.15 ❌→✅ (go#78), S17.7/S17.8 ⚠️→✅ (go#72 closed by-design: panic accessors satisfy the conversion-error requirement; Option accessors are a soft try-get matching rs).
+
+Rate change: ts 86.4% → **88.0%** spec-total / 97.0% → **98.9%** in-scope; rs 88.5% → **91.9%** / 96.4% → **100.0%** (zero in-scope ❌/⚠️ — first impl to reach a fully green in-scope board); go 86.4% → **88.0%** / 96.5% → **98.4%**. Remaining violations: 6 cells across 3 impls (ts S3.4/S8.1/S13a.3, go S1.1/S8.2/S13a.12).
 
 ### v1.5.0 work — S13.9 rs mis-classification corrected (Lightbend ground-truth verification, 2026-05-22)
 
