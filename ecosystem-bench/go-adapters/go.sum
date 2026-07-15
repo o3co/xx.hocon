@@ -1,0 +1,8 @@
+github.com/go-akka/configuration v0.0.0-20200606091224-a002c0330665 h1:Iz3aEheYgn+//VX7VisgCmF/wW3BMtXCLbvHV4jMQJA=
+github.com/go-akka/configuration v0.0.0-20200606091224-a002c0330665/go.mod h1:19bUnum2ZAeftfwwLZ/wRe7idyfoW2MfmXO464Hrfbw=
+github.com/gurkankaymak/hocon v1.2.23 h1:1ReQoih6/nOK4L7kBSjLEPp3ATYn7BuIT3s/b0te6FI=
+github.com/gurkankaymak/hocon v1.2.23/go.mod h1:dQCfhnuDKlLqAZRGhFTd81HkAfMx7STHv0w2JkJ6iq4=
+github.com/o3co/go.hocon v1.8.0 h1:0KB6q2yzGKTsezqxFLnUtQc7zKaCNuvesp0Djnfs1yg=
+github.com/o3co/go.hocon v1.8.0/go.mod h1:S/ziCpgzWC45bxfhEZ4TBjPo0CJxoSjJ/BLXKt83f6E=
+gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
+gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=

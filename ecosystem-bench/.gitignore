@@ -1,0 +1,9 @@
+# build artifacts — rebuilt by `make build`
+go-adapters/bin/
+rust-adapters/target/
+ts-adapters/node_modules/
+ts-adapters/package-lock.json
+py-adapters/venv/
+ruby-adapters/.gems/
+ruby-adapters/Gemfile.lock
+results.json
