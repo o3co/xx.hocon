@@ -19,6 +19,8 @@ Recent releases:
 
 Full breakdown: [docs/compliance-matrix.md](docs/compliance-matrix.md).
 
+**Ecosystem conformance:** fixture-pass results for the JVM-free HOCON libraries across five languages, measured against the same Lightbend-generated fixtures — [docs/ecosystem-conformance.md](docs/ecosystem-conformance.md). The harness is in [`ecosystem-bench/`](ecosystem-bench/).
+
 ## Structure
 
 - `testdata/hocon/` — Lightbend HOCON test suite `.conf` files (master copy)
