@@ -1,0 +1,6 @@
+{
+  "name": "diff-adapter-ts",
+  "private": true,
+  "type": "module",
+  "dependencies": { "@o3co/ts.hocon": "1.8.0" }
+}
