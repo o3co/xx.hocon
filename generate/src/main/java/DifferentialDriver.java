@@ -46,12 +46,13 @@ import java.util.concurrent.TimeUnit;
  *   -Dadapter.go="<dir>/bin/hocon-json"
  *   -Dadapter.rs="<dir>/target/debug/examples/hocon-json"
  *   -Dadapter.ts="node <dir>/tools/hocon-json.ts"
+ *   -Dadapter.py="<dir>/.venv/bin/python <dir>/tools/hocon_json.py"
  * Missing properties skip that engine.
  */
 public final class DifferentialDriver {
 
     static final long ADAPTER_TIMEOUT_SECONDS = 20;
-    static final String[] IMPLS = {"go", "rs", "ts"};
+    static final String[] IMPLS = {"go", "rs", "ts", "py"};
 
     // Unlike GenerateExpected.GSON (which drops nulls for the curated expected
     // files), the differential harness MUST preserve explicit nulls so the

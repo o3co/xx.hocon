@@ -17,11 +17,16 @@ clean:
 GO_ADAPTER ?= ../go.hocon/bin/hocon-json
 RS_ADAPTER ?= ../rs.hocon/target/debug/examples/hocon-json
 TS_SCRIPT  ?= ../ts.hocon/tools/hocon-json.mjs
+# py.hocon has no build step; the adapter imports the package, so it runs via
+# the dev venv `make setup` bootstraps (pip install -e .).
+PY_PYTHON  ?= ../py.hocon/.venv/bin/python
+PY_SCRIPT  ?= ../py.hocon/tools/hocon_json.py
 
 differential-adapters:
 	cd ../go.hocon && go build -o bin/hocon-json ./cmd/hocon-json
 	cd ../rs.hocon && cargo build --example hocon-json
 	cd ../ts.hocon && pnpm install && pnpm build
+	cd ../py.hocon && make setup
 
 differential-corpus:
 	cd generate && ./gradlew differentialCorpus
@@ -30,7 +35,8 @@ differential:
 	cd generate && ./gradlew differential \
 	  -Dadapter.go="$(abspath $(GO_ADAPTER))" \
 	  -Dadapter.rs="$(abspath $(RS_ADAPTER))" \
-	  -Dadapter.ts="node $(abspath $(TS_SCRIPT))"
+	  -Dadapter.ts="node $(abspath $(TS_SCRIPT))" \
+	  -Dadapter.py="$(abspath $(PY_PYTHON)) $(abspath $(PY_SCRIPT))"
 
 # Grammar fuzz: generate FUZZ_COUNT seeded docs (reproducible from FUZZ_SEED),
 # diff each against the oracle, shrink divergences to minimal repros under
@@ -43,4 +49,5 @@ differential-fuzz:
 	  -Dadapter.go="$(abspath $(GO_ADAPTER))" \
 	  -Dadapter.rs="$(abspath $(RS_ADAPTER))" \
 	  -Dadapter.ts="node $(abspath $(TS_SCRIPT))" \
+	  -Dadapter.py="$(abspath $(PY_PYTHON)) $(abspath $(PY_SCRIPT))" \
 	  -Dfuzz.seed=$(FUZZ_SEED) -Dfuzz.count=$(FUZZ_COUNT)
