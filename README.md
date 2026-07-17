@@ -1,6 +1,6 @@
 # xx.hocon
 
-Shared test resources for HOCON parser conformance testing across [rs.hocon](https://github.com/o3co/rs.hocon), [ts.hocon](https://github.com/o3co/ts.hocon), and [go.hocon](https://github.com/o3co/go.hocon).
+Shared test resources for HOCON parser conformance testing across [rs.hocon](https://github.com/o3co/rs.hocon), [ts.hocon](https://github.com/o3co/ts.hocon), [go.hocon](https://github.com/o3co/go.hocon), and [py.hocon](https://github.com/o3co/py.hocon).
 
 ## Implementation status
 
@@ -8,9 +8,10 @@ Current cross-impl release status:
 
 | impl | release | package | spec-total | spec-applicable |
 | --- | --- | --- | --- | --- |
-| ts.hocon | [v1.4.1](https://github.com/o3co/ts.hocon/releases/tag/v1.4.1) | npm `@o3co/ts.hocon@1.4.1` | **85.9%** | **96.5%** |
-| rs.hocon | [v1.4.1](https://github.com/o3co/rs.hocon/releases/tag/v1.4.1) | crates.io `hocon-parser 1.4.1` | **87.8%** | **95.6%** |
-| go.hocon | [v1.4.1](https://github.com/o3co/go.hocon/releases/tag/v1.4.1) | GOPROXY `github.com/o3co/go.hocon@v1.4.1` | **85.9%** | **96.0%** |
+| ts.hocon | [v1.8.0](https://github.com/o3co/ts.hocon/releases/tag/v1.8.0) | npm `@o3co/ts.hocon@1.8.0` | **88.0%** | **98.9%** |
+| rs.hocon | [v1.8.0](https://github.com/o3co/rs.hocon/releases/tag/v1.8.0) | crates.io `hocon-parser 1.8.0` | **91.9%** | **100.0%** |
+| go.hocon | [v1.8.0](https://github.com/o3co/go.hocon/releases/tag/v1.8.0) | GOPROXY `github.com/o3co/go.hocon@v1.8.0` | **88.0%** | **98.4%** |
+| py.hocon | [v1.8.0](https://github.com/o3co/py.hocon/releases/tag/v1.8.0) | PyPI `hocon-parser 1.8.0` | **53.1%** | **58.1%** |
 
 Recent releases:
 
