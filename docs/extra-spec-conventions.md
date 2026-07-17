@@ -1,14 +1,15 @@
 # Extra-Spec Conventions
 
-Cross-implementation behaviors **not enumerated by the [Lightbend HOCON spec](https://github.com/lightbend/config/blob/main/HOCON.md)** but agreed across the three implementations:
+Cross-implementation behaviors **not enumerated by the [Lightbend HOCON spec](https://github.com/lightbend/config/blob/main/HOCON.md)** but agreed across the four implementations:
 
 - [o3co/ts.hocon](https://github.com/o3co/ts.hocon)
 - [o3co/rs.hocon](https://github.com/o3co/rs.hocon)
 - [o3co/go.hocon](https://github.com/o3co/go.hocon)
+- [o3co/py.hocon](https://github.com/o3co/py.hocon)
 
 ## Role of this file
 
-The HOCON spec (`refs/lightbend-config/HOCON.md`) defines a finite set of normative behaviors. This file captures *behaviors that fall outside the spec's explicit scope* but that the three implementations have nevertheless aligned on. Typical sources:
+The HOCON spec (`refs/lightbend-config/HOCON.md`) defines a finite set of normative behaviors. This file captures *behaviors that fall outside the spec's explicit scope* but that the four implementations have nevertheless aligned on. Typical sources:
 
 - **Implicit-by-absence**: the spec enumerates a set (e.g. whitespace characters) without saying anything about non-members. The non-membership has observable consequences in some impls (typically when a stdlib helper is broader than the spec's enumeration).
 - **Cross-impl conventions agreed by project policy** that go beyond what HOCON.md requires (e.g. API shape, error message format, error-recovery behavior).
@@ -46,7 +47,7 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 
 **Source**: implicit-by-absence + cross-impl convention. HOCON.md §Conversion of numerically-indexed objects to arrays (L1184–L1219) requires conversion of objects whose keys "parse as positive integers" but does not specify whether `"00"` and `"0"` are the same key (they parse to the same `int` in every common stdlib parser). Lightbend's reference impl uses `Integer.parseInt(key, 10)` and `HashMap<Integer, ConfigValue>`, so `"00"` and `"0"` collide at the HashMap level — the surviving value depends on object key iteration order, which Java does not guarantee.
 
-**o3co convention**: each integer N is canonicalised to exactly one textual form (`Integer.toString(N)`). Keys with leading zeros (`"00"`, `"01"`, `"007"`) are pre-filtered out by the regex `^(0|[1-9][0-9]*)$` before integer parsing. This guarantees deterministic conversion across the three impls and avoids the Lightbend collision race.
+**o3co convention**: each integer N is canonicalised to exactly one textual form (`Integer.toString(N)`). Keys with leading zeros (`"00"`, `"01"`, `"007"`) are pre-filtered out by the regex `^(0|[1-9][0-9]*)$` before integer parsing. This guarantees deterministic conversion across the four impls and avoids the Lightbend collision race.
 
 **Why an E-item rather than an S-item**: the spec is silent on whether `"00"` is a "valid" integer key. We are tightening — Lightbend accepts the form, we reject it.
 
@@ -121,7 +122,7 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 
 **Cross-source applicability**: when `${X[]}` appears in an included file and `X` is defined in the including (parent) file at a path reachable via prefix-stripped lookup, the config wins. Example: `outer { include "inner.conf" }`, `inner.conf: y = ${X[]}`, `outer.conf: X = ["root-val"]` → `outer.y = ["root-val"]` (the env-var-list branch is NOT consulted even when no env vars are set). Pinned by [`ev12c-include-config-defined-wins`](../testdata/hocon/env-var-list/ev12c-include-config-defined-wins.conf).
 
-**Why an E-item rather than an S-item**: the spec text is silent on the config-key conflict case (same-source or cross-source). We are establishing a convention aligned with Lightbend 1.4.6's reference behavior to keep the three impls aligned and make user expectations predictable; tightening to reading (b) is a defensible alternative that the spec also allows.
+**Why an E-item rather than an S-item**: the spec text is silent on the config-key conflict case (same-source or cross-source). We are establishing a convention aligned with Lightbend 1.4.6's reference behavior to keep the four impls aligned and make user expectations predictable; tightening to reading (b) is a defensible alternative that the spec also allows.
 
 | Impl | Status | Test | Notes |
 | --- | --- | --- | --- |
@@ -272,7 +273,7 @@ Closest existing analogy: JVM `ServiceLoader` / JNDI, **not** classpath. The qua
 
 #### Spec decisions
 
-The following decisions are normative for all three impls:
+The following decisions are normative for all four impls:
 
 1. **Identifier shape — interoperability convention**: identifiers used in *portable* `.conf` files (intended to work across ts.hocon / go.hocon / rs.hocon) SHOULD be Go-module-path-style strings `<host>/<org>/<name>` (e.g., `github.com/o3co/auth`). Parsers MUST NOT validate identifier shape beyond requiring it to be a non-empty HOCON string — identifiers are opaque registry keys at the parser layer. Rationale: a parser-level validator is hard to specify exactly across language ecosystems (npm scopes, internal naming, private registries), and would block legitimate impl-local use cases; cross-impl portability of `.conf` files is a *.conf-author* responsibility enforced by convention. TS-only `.conf` files MAY use npm-style names (`@scope/foo`) when the application is not intended to be cross-impl portable.
 
@@ -307,7 +308,7 @@ The following decisions are normative for all three impls:
 
 The following are out of scope for E11 and are NOT to be inferred from the qualifier's name:
 
-- **Auto-discovery of packages**: no implementation scans the installed package set on its own initiative. Resolution requires either (a) explicit registration (go.hocon, rs.hocon) or (b) the host's existing module-resolution surface (ts.hocon via Node). In all three cases, only packages reachable by these mechanisms can be resolved; the parser does not enumerate.
+- **Auto-discovery of packages**: no implementation scans the installed package set on its own initiative. Resolution requires either (a) explicit registration (go.hocon, rs.hocon, and py.hocon via its `package_resolver` kwarg) or (b) the host's existing module-resolution surface (ts.hocon via Node). In all four cases, only packages reachable by these mechanisms can be resolved; the parser does not enumerate.
 - **Auto `reference.conf` merge**: no `ConfigFactory.load()` equivalent. Each `include package(...)` is its own explicit include statement in the consuming `.conf`.
 - **Transitive auto-resolution**: packages that include other packages' configs MUST cascade-register manually. A `register()` in Rust calling `dep_pkg::register()` is the recommended convention; in Go, transitive `_ "..."` imports propagate naturally via Go's import side-effects.
 - **Wildcard / glob lookups**: `include package("X", "*.conf")` or `include package("X", "conf/*")` is not supported. Each include statement targets exactly one registered file.
@@ -366,7 +367,7 @@ The existing `ParseString` / `parseString` / `parse` (no options) entry points r
 
 #### Spec decisions
 
-The following decisions are normative for all three impls:
+The following decisions are normative for all four impls:
 
 1. **Existing `ParseString` / `ParseFile` behavior preserved** for backward compatibility. They continue to parse and resolve in one shot. A future major version MAY flip this default to align with Lightbend's parse-only-by-default semantics; out of scope for v1. Rationale: cross-impl release cadence requires minor (not major) bump for E12; preserving existing parse-and-resolve avoids forcing downstream code changes.
 

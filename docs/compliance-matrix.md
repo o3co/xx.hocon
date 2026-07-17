@@ -1,6 +1,6 @@
 # HOCON Spec Compliance Matrix
 
-Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the three sibling implementations. This file is the public-facing one-page summary; per-item detail lives in each implementation's own `docs/spec-compliance.md`.
+Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the four sibling implementations. This file is the public-facing one-page summary; per-item detail lives in each implementation's own `docs/spec-compliance.md`.
 
 ## Top-line compliance rate
 
@@ -9,11 +9,12 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 | [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **88.0%** | **98.9%** | 183 | 2 | 1 | 0 | 23 |
 | [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **91.9%** | **100.0%** | 192 | 0 | 0 | 0 | 17 |
 | [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **88.0%** | **98.4%** | 184 | 0 | 3 | 0 | 22 |
+| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **53.1%** | **58.1%** | 103 | 16 | 0 | 72 | 18 |
 
 Where:
 
 - **Spec-total** = `(✅ + ⚠️·0.5) / 209`. Denominator includes ALL items, including out-of-scope. Out-of-scope items intentionally lower this number — it is the answer to "how much of HOCON.md does this implementation handle?".
-- **In-scope** = `(✅ + ⚠️·0.5) / (209 − ➖_per_impl)`. The denominator is **per-impl** because each implementation can additionally mark items ➖ for language-natural reasons that don't apply to its siblings (e.g. ts marks S1.1 ➖ because JS strings are pre-decoded Unicode at the I/O boundary, but go cannot — Go `string` permits arbitrary bytes). Globally shared ➖ count is 17; per-impl: ts=23 (+ S1.1, S13a.10, S20.1–S20.4), rs=17, go=22 (+ S13a.10, S20.1–S20.4). This is the answer to "of what the implementation chooses to support, how much is covered?".
+- **In-scope** = `(✅ + ⚠️·0.5) / (209 − ➖_per_impl)`. The denominator is **per-impl** because each implementation can additionally mark items ➖ for language-natural reasons that don't apply to its siblings (e.g. ts marks S1.1 ➖ because JS strings are pre-decoded Unicode at the I/O boundary, but go cannot — Go `string` permits arbitrary bytes). Globally shared ➖ count is 17; per-impl: ts=23 (+ S1.1, S13a.10, S20.1–S20.4), rs=17, go=22 (+ S13a.10, S20.1–S20.4), py=18 (+ S1.1). This is the answer to "of what the implementation chooses to support, how much is covered?".
 - `❌` and `🤷` contribute 0. `🤷` is treated as 0 because an unverified claim is, by policy, not a pass — pinning it as ✅/❌ requires a test. After Phase 5, all three impls reached `🤷 = 0`.
 
 Both numbers are shown side by side so neither over-claims nor under-claims. See [`spec-checklist.md`](spec-checklist.md) for the convention rationale.
@@ -26,25 +27,25 @@ Both numbers are shown side by side so neither over-claims nor under-claims. See
 | ⚠️ | Test exists, partial pass / pinning a spec-violating behavior |
 | ❌ | Test exists and fails, OR known spec violation documented in source |
 | 🤷 | No test — implementation claim only, unverified |
-| ➖ | Out of scope (rationale required). May be **globally out of scope** (excluded by all three impls — see [Globally out-of-scope items](#globally-out-of-scope-items-17)) or **per-impl out of scope** (one impl excludes for language-natural reasons that don't apply to siblings, e.g. ts S1.1 because JS strings are pre-decoded Unicode at the I/O boundary). |
+| ➖ | Out of scope (rationale required). May be **globally out of scope** (excluded by all four impls — see [Globally out-of-scope items](#globally-out-of-scope-items-17)) or **per-impl out of scope** (one impl excludes for language-natural reasons that don't apply to siblings, e.g. ts S1.1 because JS strings are pre-decoded Unicode at the I/O boundary). |
 
 ## Globally out-of-scope items (17)
 
-These 17 items are marked `➖` in **all three** implementations, by policy. Some impls also mark additional items `➖` for language-natural reasons (e.g. ts S1.1, ts/go S13a.10, **ts/go S20.1–S20.4 since Phase 6 #3d**) — those are noted in the impl's own `spec-compliance.md`, not here.
+These 17 items are marked `➖` in **all four** implementations, by policy. Some impls also mark additional items `➖` for language-natural reasons (e.g. ts S1.1, ts/go S13a.10, **ts/go S20.1–S20.4 since Phase 6 #3d**) — those are noted in the impl's own `spec-compliance.md`, not here.
 
 | Items | Rationale class |
 |---|---|
 | S14a.4, S14f.5 | classpath resources are a JVM-only concept |
 | S16.1 | MIME Type is set by HTTP servers, not parsers |
-| S17.5 | `"null"` → null when null requested — none of the three implementations has a `getNull()`-equivalent typed accessor; spec L1244 is structurally inapplicable to their API models (added in Phase 4) |
+| S17.5 | `"null"` → null when null requested — none of the four implementations has a `getNull()`-equivalent typed accessor; spec L1244 is structurally inapplicable to their API models (added in Phase 4) |
 | S23.5, S23.6 | `.properties` multi-line + Unicode escapes; documented simplification in each README |
 | S24.1, S24.2 | reference.conf / application.conf are JVM conventions |
 | S25.1 | System properties override is a JVM mechanism |
 | S26.3 | `SecurityException` is a JVM-specific exception type |
 | S1.2.6 | Unpaired surrogate codepoint — intentional language-natural divergence (Java accepts, Rust/Go reject) |
-| S14a.2, S14e.4, S14e.5, S14f.1, S14f.6, S14f.8 | URL include unsupported by design across all three READMEs |
+| S14a.2, S14e.4, S14e.5, S14f.1, S14f.6, S14f.8 | URL include unsupported by design across all four READMEs |
 
-**Note: S20.1–S20.4 (Period Format)** moved from globally-OOS to **per-impl OOS** in Phase 6 #3d: rs.hocon implemented a `Period { years: i32, months: i32, days: i32 }` struct + `get_period` / `get_period_option` accessors via [rs.hocon#91](https://github.com/o3co/rs.hocon/pull/91), so rs is ✅ on S20.1–S20.4. ts and go still mark these ➖ per-impl (no `getPeriod` / `GetPeriod` API). This drops globally-OOS count from 21 to 17 and reduces rs's per-impl ➖ count from 21 to 17 (denominator 188 → 192).
+**Note: S20.1–S20.4 (Period Format)** moved from globally-OOS to **per-impl OOS** in Phase 6 #3d: rs.hocon implemented a `Period { years: i32, months: i32, days: i32 }` struct + `get_period` / `get_period_option` accessors via [rs.hocon#91](https://github.com/o3co/rs.hocon/pull/91), so rs is ✅ on S20.1–S20.4. ts and go still mark these ➖ per-impl (no `getPeriod` / `GetPeriod` API); py.hocon also implements Period (`get_period` / `Period`) at rs parity, so py is ✅ on S20.1–S20.4 like rs. This drops globally-OOS count from 21 to 17 and reduces rs's per-impl ➖ count from 21 to 17 (denominator 188 → 192).
 
 See each item's `out-of-scope:` line in [`spec-checklist.md`](spec-checklist.md) for the full rationale.
 
@@ -63,13 +64,13 @@ Items where the test or implementation behavior contradicts the spec:
 
 ## Shared test debt
 
-Spec items with no test coverage in **any** of the three implementations. These are the natural targets for future test-debt PRs:
+Spec items with no test coverage in **any** of the four implementations. These are the natural targets for future test-debt PRs:
 
-- (Empty — Phase 4 cleared the last shared `🤷` cluster around S15/S17/S21; Phase 5 cleared per-impl `🤷` in all three impls. The `🤷` column in the top table is now `0` everywhere.)
+- (Empty — Phase 4 cleared the last shared `🤷` cluster around S15/S17/S21; Phase 5 cleared per-impl `🤷` in all three impls, so the `🤷` column is `0` for ts/rs/go. py.hocon carries 72 `🤷` (ported-but-not-yet-pinned items, its verification surface still expanding), but none are *shared* debt — every item is already verified by at least one sibling, so this list stays empty.)
 
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
-For behaviors that fall **outside** HOCON.md but should converge across the three impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+For behaviors that fall **outside** HOCON.md but should converge across the four impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
 
 ### 2026-07-14 re-roll-up — S19.8 cleared (ts/rs) + 11 stale cells synced to test ground truth
 

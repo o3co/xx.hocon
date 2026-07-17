@@ -47,6 +47,7 @@ language.
 | Library | Version | Spec corpus (134) | Lightbend suite (16) |
 |---|---|---:|---:|
 | [hocon](https://pypi.org/project/hocon/) | 0.3.0 | 106 (79.1%) | 8/16 |
+| [hocon-parser (o3co/py.hocon)](https://pypi.org/project/hocon-parser/) | 1.8.0 | 134 (100.0%) | 14/16 |
 | [pyhocon](https://github.com/chimpler/pyhocon) | 0.3.63 | 106 (79.1%) | 8/16 |
 
 ## Ruby
