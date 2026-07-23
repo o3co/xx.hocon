@@ -251,14 +251,14 @@ The subject of that paragraph is *JSON documents* — it describes the JSON base
 - Lightbend's own test suite pins the rule as JSON-scoped: `// JSON does not support empty documents` + `parseJSONFailuresTest("", "Empty document")` (`ConfigDocumentParserTest.scala`), and uses `ConfigFactory.parseString("")` freely as a valid empty config elsewhere.
 - Behavior verified across all 6 variants: `parseString("")`, `"   "`, `"\n\n"`, `"# only comment\n"`, BOM-only, `"  # x \n  \n"` — all return empty config, no exception.
 
-**Corrected convention**: empty / whitespace-only / comment-only / BOM-only documents are **valid HOCON** and parse to `{}`, at the top-level parse entry and on every include path alike. The former include-path-only "Lightbend-compat carve-out" ([go.hocon#105](https://github.com/o3co/go.hocon/issues/105)) is no longer a carve-out — it is the rule. S3.1 in `spec-checklist.md` has been redefined accordingly; the per-impl reject guards are spec violations tracked in the matrix ([Top spec violations](compliance-matrix.md#top-spec-violations-verified)) until removed.
+**Corrected convention**: empty / whitespace-only / comment-only / BOM-only documents are **valid HOCON** and parse to `{}`, at the top-level parse entry and on every include path alike. The former include-path-only "Lightbend-compat carve-out" ([go.hocon#105](https://github.com/o3co/go.hocon/issues/105)) is no longer a carve-out — it is the rule. S3.1 in `spec-checklist.md` has been redefined accordingly; the per-impl reject guards were removed in all four impls on 2026-07-23 (see the shipped-changes table below and the [matrix roll-up](compliance-matrix.md#2026-07-23--s31-correction-shipped-in-all-four-impls-same-day-roll-up)).
 
-| Impl | Status | Required change |
+| Impl | Status | Change shipped |
 | --- | --- | --- |
-| ts.hocon | ❌ (rejects since cluster 3h) | Remove `assertNonEmptyDocument` guard from `buildResolveContext()` + include-loader package paths; conformance tests drop the `IMPL_OVERRIDE_ERRORS` entries and assert `{}` per sidecars |
-| rs.hocon | ❌ (rejects since cluster 3h) | Remove empty-token-stream check at `lib.rs::parse_with_env`; conformance tests drop the per-impl override and assert `{}` |
-| go.hocon | ❌ (rejects since cluster 3h) | Remove empty-content check in `internal/parser/parser.go:Parse()`; conformance tests drop the per-impl override and assert `{}` |
-| py.hocon | ❌ (rejects; ported the o3co convention) | Remove parser-entry reject; `test_empty_file_rejected` becomes an `{}`-equality conformance case |
+| ts.hocon | ✅ ([#153](https://github.com/o3co/ts.hocon/pull/153), 2026-07-23) | `assertNonEmptyDocument` guard removed from `buildResolveContext()` + include-loader package paths (`empty-check.ts` deleted); conformance tests assert `{}` per sidecars, override list dropped |
+| rs.hocon | ✅ ([#146](https://github.com/o3co/rs.hocon/pull/146), 2026-07-23) | `assert_non_empty_document` + 4 entry-point call sites removed; file-include carve-out and package `has_content` short-circuit removed — every path flows through `parse_tokens` |
+| go.hocon | ✅ ([#155](https://github.com/o3co/go.hocon/pull/155), 2026-07-23) | `parseRoot` EOF-only reject removed; `isEmptyOrCommentOnlyHocon` carve-out + package zero-byte special-case removed |
+| py.hocon | ✅ ([#11](https://github.com/o3co/py.hocon/pull/11), 2026-07-23) | Parser-entry reject removed (`empty_check.py` deleted); empty-file group folded into conformance + adapter corpora asserting `{}` |
 
 **Fixtures**: `testdata/hocon/empty-file/ef01-empty.conf`, `ef02-whitespace-only.conf`, `ef03-newlines-only.conf`, `ef04-comment-only.conf`, `ef05-bom-only.conf`, `ef06-mixed-ws-comment.conf`. All 6 ship `-expected.json` sidecars containing `{}` (Lightbend-generated) — the sidecars were always correct and are now normative as-is; no per-impl override list applies.
 
