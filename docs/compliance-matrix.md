@@ -6,10 +6,10 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **87.6%** | **98.4%** | 182 | 2 | 2 | 0 | 23 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **91.4%** | **99.5%** | 191 | 0 | 1 | 0 | 17 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **87.6%** | **97.9%** | 183 | 0 | 4 | 0 | 22 |
-| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **52.6%** | **57.6%** | 102 | 16 | 1 | 72 | 18 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **88.0%** | **98.9%** | 183 | 2 | 1 | 0 | 23 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **91.9%** | **100.0%** | 192 | 0 | 0 | 0 | 17 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **88.0%** | **98.4%** | 184 | 0 | 3 | 0 | 22 |
+| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **53.1%** | **58.1%** | 103 | 16 | 0 | 72 | 18 |
 
 Where:
 
@@ -56,7 +56,6 @@ Items where the test or implementation behavior contradicts the spec:
 | Item | Impl | Status | Description |
 |---|---|---|---|
 | S1.1 | go | ❌ | Invalid UTF-8 (e.g. `string([]byte{0xff})` via `ParseString`) is silently substituted with U+FFFD instead of rejected; spec L117 requires rejection. Go `string` is `[]byte` and is not language-guaranteed UTF-8. ts ➖ (JS string is pre-decoded Unicode at the I/O boundary; the parser cannot observe raw bytes — see ts.hocon S1.1 entry). rs ✅ (Rust `&str` is language-guaranteed valid UTF-8; verified positively via `tests/testdata/hocon/bom.conf` fixture). |
-| S3.1 | ts, rs, go, py | ❌ | Empty document (`""`, whitespace-only, comment-only, BOM-only, mixed) is rejected with a parse error at the top-level parse entry; per the corrected S3.1 (L134 brace-omission relaxation) it must parse to `{}` — see [E10](extra-spec-conventions.md#e10) and the [2026-07-23 correction](#2026-07-23--s31-corrected-empty-document-is-valid-hocon--all-four-impls-regress). Regression introduced by cluster 3h (2026-05-19), which misread the L130-132 JSON baseline as HOCON-normative; behavior change vs. each impl's pre-3h releases, which accepted empty input as `{}`. The file-include path already returns `{}` (the [go.hocon#105](https://github.com/o3co/go.hocon/issues/105) carve-out — now the rule, not a carve-out). Fix = remove parser-entry + include-package guards, drop per-impl test overrides; ef01–ef06 `{}` sidecars are normative. |
 | S3.4 | ts | ❌ | Unbraced root + stray `}` accepted ([#55](https://github.com/o3co/ts.hocon/issues/55)) |
 | S8.1 | ts | ⚠️ | Lexer allows backtick in unquoted strings, contrary to spec L245 forbidden set |
 | S8.2 | go | ❌ | `//` inside an unquoted run without preceding whitespace is treated as literal content; spec L248 says `//` starts a comment anywhere outside a quoted string. ts/rs ✅. |
@@ -72,6 +71,35 @@ Spec items with no test coverage in **any** of the four implementations. These a
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the four impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### 2026-07-23 — S3.1 correction shipped in all four impls (same-day roll-up)
+
+The four impl PRs implementing the corrected S3.1 (see the correction entry
+below) merged the same day: [ts.hocon#153](https://github.com/o3co/ts.hocon/pull/153)
+(squash `5fd8ade`), [go.hocon#155](https://github.com/o3co/go.hocon/pull/155)
+(squash `0540e45`), [rs.hocon#146](https://github.com/o3co/rs.hocon/pull/146)
+(squash `2def39b`), [py.hocon#11](https://github.com/o3co/py.hocon/pull/11)
+(squash `d5a4aae`). Each removes the parser-entry reject guard, the include-path
+special-cases, and the per-impl test overrides; ef01–ef06 now assert the
+normative `{}` sidecars directly (py additionally folds the group into its
+conformance and adapter corpora). All four flipped S3.1 ❌ → ✅ under the
+corrected definition — a **behavior fix**, not a doc flip: empty / whitespace-only /
+comment-only / BOM-only documents parse to `{}` uniformly at top level and on
+every include path.
+
+- **Rate change (restores pre-correction numbers, now with compliant behavior)**:
+  ts 87.6% → **88.0%** spec-total / 98.4% → **98.9%** in-scope; rs 91.4% →
+  **91.9%** / 99.5% → **100.0%** (in-scope board fully green again); go 87.6% →
+  **88.0%** / 97.9% → **98.4%**; py 52.6% → **53.1%** / 57.6% → **58.1%**.
+- S3.1 row removed from [Top spec violations](#top-spec-violations-verified).
+- The ecosystem-conformance / bench empty-file holdout remains until the fixed
+  **releases** ship (the bench measures released versions); it folds into the
+  corpora at the next release cycle.
+- Review notes: multi-agent review (Claude + Codex) per impl PR; Copilot rounds
+  produced 7 minor fixes (assertion strengthening, wording, gofmt). A
+  pre-existing gap surfaced during py review — array-root documents
+  (`parse("[1,2]")`) are rejected by py.hocon (`_Parser.parse()` special-cases
+  only `{`) — adjacent to S3.2/S3.3, tracked as a follow-up candidate.
 
 ### 2026-07-23 — S3.1 corrected: empty document is valid HOCON (`{}`); all four impls regress
 
