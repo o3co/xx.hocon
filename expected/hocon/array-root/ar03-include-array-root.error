@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$WrongType
+Message: ../testdata/hocon/array-root/ar03-inner.conf: 1:  has type LIST rather than object at file root
