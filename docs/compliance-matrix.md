@@ -6,15 +6,15 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **88.0%** | **98.9%** | 183 | 2 | 1 | 0 | 23 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **91.9%** | **100.0%** | 192 | 0 | 0 | 0 | 17 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **88.0%** | **98.4%** | 184 | 0 | 3 | 0 | 22 |
-| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **53.1%** | **58.1%** | 103 | 16 | 0 | 72 | 18 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **87.9%** | **98.7%** | 183 | 3 | 1 | 0 | 23 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **91.7%** | **99.7%** | 192 | 1 | 0 | 0 | 17 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **87.9%** | **98.1%** | 184 | 1 | 3 | 0 | 22 |
+| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **53.1%** | **58.1%** | 103 | 17 | 0 | 72 | 18 |
 
 Where:
 
-- **Spec-total** = `(✅ + ⚠️·0.5) / 209`. Denominator includes ALL items, including out-of-scope. Out-of-scope items intentionally lower this number — it is the answer to "how much of HOCON.md does this implementation handle?".
-- **In-scope** = `(✅ + ⚠️·0.5) / (209 − ➖_per_impl)`. The denominator is **per-impl** because each implementation can additionally mark items ➖ for language-natural reasons that don't apply to its siblings (e.g. ts marks S1.1 ➖ because JS strings are pre-decoded Unicode at the I/O boundary, but go cannot — Go `string` permits arbitrary bytes). Globally shared ➖ count is 17; per-impl: ts=23 (+ S1.1, S13a.10, S20.1–S20.4), rs=17, go=22 (+ S13a.10, S20.1–S20.4), py=18 (+ S1.1). This is the answer to "of what the implementation chooses to support, how much is covered?".
+- **Spec-total** = `(✅ + ⚠️·0.5) / 210`. Denominator includes ALL items, including out-of-scope. Out-of-scope items intentionally lower this number — it is the answer to "how much of HOCON.md does this implementation handle?".
+- **In-scope** = `(✅ + ⚠️·0.5) / (210 − ➖_per_impl)`. The denominator is **per-impl** because each implementation can additionally mark items ➖ for language-natural reasons that don't apply to its siblings (e.g. ts marks S1.1 ➖ because JS strings are pre-decoded Unicode at the I/O boundary, but go cannot — Go `string` permits arbitrary bytes). Globally shared ➖ count is 17; per-impl: ts=23 (+ S1.1, S13a.10, S20.1–S20.4), rs=17, go=22 (+ S13a.10, S20.1–S20.4), py=18 (+ S1.1). This is the answer to "of what the implementation chooses to support, how much is covered?".
 - `❌` and `🤷` contribute 0. `🤷` is treated as 0 because an unverified claim is, by policy, not a pass — pinning it as ✅/❌ requires a test. After Phase 5, all three impls reached `🤷 = 0`.
 
 Both numbers are shown side by side so neither over-claims nor under-claims. See [`spec-checklist.md`](spec-checklist.md) for the convention rationale.
@@ -57,6 +57,7 @@ Items where the test or implementation behavior contradicts the spec:
 |---|---|---|---|
 | S1.1 | go | ❌ | Invalid UTF-8 (e.g. `string([]byte{0xff})` via `ParseString`) is silently substituted with U+FFFD instead of rejected; spec L117 requires rejection. Go `string` is `[]byte` and is not language-guaranteed UTF-8. ts ➖ (JS string is pre-decoded Unicode at the I/O boundary; the parser cannot observe raw bytes — see ts.hocon S1.1 entry). rs ✅ (Rust `&str` is language-guaranteed valid UTF-8; verified positively via `tests/testdata/hocon/bom.conf` fixture). |
 | S3.4 | ts | ❌ | Unbraced root + stray `}` accepted ([#55](https://github.com/o3co/ts.hocon/issues/55)) |
+| S3.5 | ts, rs, go, py | ⚠️ | Array-root document (`[1,2]`) is rejected — the right net outcome — but with a `expected key, got lbracket` **syntax** error from the parser, where the spec (L989-991) makes the document syntactically valid and the reference rejects at the Config boundary with a **type** error (`WrongType` "has type LIST rather than object at file root", `Parseable.forceParsedToObject`). Same 4-way shape for the S14b.1 include variant: an error is produced (✅ net), but it does not identify the array-at-root condition or the included file. Fix = parse the array root syntactically, reject at Config construction with each impl's type-mismatch error class; fixtures `array-root/ar01–ar03` (`.error` sidecars) pin ground truth. Surfaced during the py.hocon S3.1 review (2026-07-23); probing showed all four impls behave identically. |
 | S8.1 | ts | ⚠️ | Lexer allows backtick in unquoted strings, contrary to spec L245 forbidden set |
 | S8.2 | go | ❌ | `//` inside an unquoted run without preceding whitespace is treated as literal content; spec L248 says `//` starts a comment anywhere outside a quoted string. ts/rs ✅. |
 | S13a.3 | ts | ⚠️ | Self-reference before any prior value (`a = ${a}`) raises a cycle error, but the error type / message classifies this as a generic substitution error rather than the "undefined" path the spec describes at L795. rs/go ✅ (correct error class). |
@@ -71,6 +72,33 @@ Spec items with no test coverage in **any** of the four implementations. These a
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the four impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### 2026-07-23 — S3.5 added: array-root document is valid syntax; Config API rejects with a type error (4-way ⚠️)
+
+Follow-up from the py.hocon S3.1 review round: probing showed **all four impls**
+reject `parse("[1,2]")` with a `expected key, got lbracket` *syntax* error.
+HOCON.md L989-991 states "both JSON and HOCON allow arrays as root values in a
+document" — the document is syntactically valid; the reference implementation
+parses it, then rejects at the Config boundary with `ConfigException.WrongType`
+("has type LIST rather than object at file root", `Parseable.forceParsedToObject`).
+The include variant (S14b.1, L993-994) is likewise enforced by Lightbend via the
+same mechanism, with the error naming the *included* file.
+
+- **S3.5 added** to [`spec-checklist.md`](spec-checklist.md) — denominator
+  209 → **210**; rates re-rolled with S3.5 as 4-way ⚠️ (an error is produced —
+  the right net outcome — but as the wrong kind at the wrong layer): ts 88.0% →
+  **87.9%** / 98.9% → **98.7%**; rs 91.9% → **91.7%** / 100.0% → **99.7%**;
+  go 88.0% → **87.9%** / 98.4% → **98.1%**; py 53.1% → **53.1%** / 58.1% →
+  **58.1%**.
+- **Fixtures**: `array-root/ar01-basic` (`[1,2]`), `ar02-array-of-objects`,
+  `ar03-include-array-root` (+ `ar03-inner.conf` sibling include-target), with
+  Lightbend-generated `.error` sidecars (all `WrongType` "has type LIST rather
+  than object at file root"; ar03's message names the included file).
+- **Fix shape (per impl)**: parser accepts `[` at root and parses the array
+  value syntactically (malformed arrays stay syntax errors); Config
+  construction rejects non-object roots with the impl's type-mismatch error
+  class, message naming the array-at-file-root condition; include loading
+  surfaces the included file. Per-impl PRs follow.
 
 ### 2026-07-23 — S3.1 correction shipped in all four impls (same-day roll-up)
 

@@ -366,6 +366,18 @@ public class GenerateExpected {
         // Pins that whitespace adjacency does not relax the trailing-dot rule even after
         // we loosen key parsing in companion fixtures pw01-pw05 (xx.hocon issue #42, v1.5.3).
         "path-expr-whitespace/pw06-trailing-dot-before-separator.conf",
+        // S3.5 array-root fixtures: an array-root document is VALID HOCON at the
+        // document level (HOCON.md L989-991: "both JSON and HOCON allow arrays as
+        // root values"), but the object-rooted Config API rejects it with a TYPE
+        // error, not a syntax error — Lightbend parses the document then throws
+        // ConfigException.WrongType in Parseable.forceParsedToObject ("object at
+        // file root" vs LIST). ar03 pins S14b.1: an INCLUDED file with an array
+        // root is invalid per HOCON.md L993-994. Per-impl tests assert an error
+        // of the impl's type-mismatch class raised after a successful syntax
+        // parse (not "expected key").
+        "array-root/ar01-basic.conf",
+        "array-root/ar02-array-of-objects.conf",
+        "array-root/ar03-include-array-root.conf",
     };
 
     // Conf files that should produce a parse/resolve error (traditional JSON error record format)

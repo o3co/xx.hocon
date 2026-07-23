@@ -82,6 +82,7 @@ The two numbers, side by side, neutralize "we look bad because we don't do class
 - **S3.2** Root non-object/non-array is invalid (when explicitly enclosed) — §Omit root braces (L131)
 - **S3.3** Implicit `{}` when file does not start with `[` or `{` — §Omit root braces (L134)
 - **S3.4** Unbalanced trailing `}` without opening `{` is invalid — §Omit root braces (L138)
+- **S3.5** Array-root document (`[1,2]`) is syntactically valid HOCON — §Include semantics: merging (L989-991: "both JSON and HOCON allow arrays as root values in a document") — but the object-rooted parse API rejects it with a **type** error at the Config boundary, produced after a successful syntax parse (Lightbend: `ConfigException.WrongType` "has type LIST rather than object at file root" via `Parseable.forceParsedToObject`; NOT a "expected key"-style syntax error). Malformed array documents (e.g. `[1,2`) remain syntax errors. See S14b.1 for the included-file variant (L993-994). *(Added 2026-07-23; fixtures `array-root/ar01–ar03`.)*
 
 ## S4. Key-value separator
 

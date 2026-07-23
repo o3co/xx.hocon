@@ -518,6 +518,7 @@ directly to the step sequence.
 | `dr01`–`dr30` (with `dr11a`/`dr11b`) | `deferred-resolution/` | E12 deferred substitution resolution lifecycle — multi-step scenario YAML format (parse / withFallback / resolve); Lightbend ground truth via `DeferredResolutionRunner`; 2 `lightbendSkip` (dr11b, dr17) per "Scenario YAML fixtures (E12)" section above |
 | `kh01`–`kh08` | `key-hyphen-position/` | S8.6 in key position (xx.hocon [#42](https://github.com/o3co/xx.hocon/issues/42), v1.5.3) — hyphen-start segments accepted in field keys per Lightbend; previously over-strict in ts/rs/go. kh08 pins the hyphen-then-digit branch (`-1bar` accepted verbatim, not number-lexed) |
 | `pw01`–`pw07` | `path-expr-whitespace/` | Path-expression literal whitespace preservation (xx.hocon [#42](https://github.com/o3co/xx.hocon/issues/42), v1.5.3) — whitespace adjacent to dots in path expressions taken verbatim per Lightbend; `pw04` is a combined-regression guard (no whitespace at dot); `pw06` pins trailing-dot rule still errors (BadPath); `pw07` pins HOCON_WS tab coverage adjacent to dot |
+| `ar01`–`ar03` | `array-root/` | S3.5 array-root document rejected with a **type** error at the Config boundary after a successful syntax parse (Lightbend `WrongType` "has type LIST rather than object at file root"); `ar03` pins S14b.1 — an included file with array root is invalid (L993-994), error names the *included* file. `.error` sidecars; per-impl tests assert the impl's type-mismatch error class, not a syntax error |
 
 ### Sibling include-target files
 
