@@ -78,7 +78,7 @@ The two numbers, side by side, neutralize "we look bad because we don't do class
 
 ## S3. Omit root braces
 
-- **S3.1** Empty file is invalid — §Omit root braces (L130)
+- **S3.1** Empty document (empty / whitespace-only / comment-only / BOM-only file) parses to the empty object `{}` — §Omit root braces (L130-136). L130-132 ("Empty files are invalid documents") is the *JSON baseline* description; the L134 HOCON relaxation applies (an empty file does not begin with `[` or `{`, so it is parsed as if enclosed in `{}`). *(Corrected 2026-07-23 — the item previously read "Empty file is invalid", a misreading of the JSON baseline as HOCON-normative; see [E10](extra-spec-conventions.md#e10).)*
 - **S3.2** Root non-object/non-array is invalid (when explicitly enclosed) — §Omit root braces (L131)
 - **S3.3** Implicit `{}` when file does not start with `[` or `{` — §Omit root braces (L134)
 - **S3.4** Unbalanced trailing `}` without opening `{` is invalid — §Omit root braces (L138)

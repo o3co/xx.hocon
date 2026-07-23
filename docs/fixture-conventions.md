@@ -311,10 +311,10 @@ ir10 `include += [1]`, ir12 `include` + newline + `foo.conf`, ir13
 parser (text after `include` is not a valid include argument); these live in
 `SIDECAR_ERROR_CONFS` with `.error` sidecars produced.
 
-### ef01–ef06 (cluster 3h, S3.1 strict-spec divergence)
+### ef01–ef06 (cluster 3h, S3.1 — empty document parses to `{}`)
 
-Six fixtures encode strict-HOCON-spec behaviour where Lightbend silently
-accepts empty documents as `{}`:
+Six fixtures pin the S3.1 rule that an empty document is valid HOCON parsing
+to the empty object:
 
 - `ef01-empty.conf` — fully empty file
 - `ef02-whitespace-only.conf` — three spaces
@@ -323,17 +323,22 @@ accepts empty documents as `{}`:
 - `ef05-bom-only.conf` — only the UTF-8 BOM (`ef bb bf`)
 - `ef06-mixed-ws-comment.conf` — whitespace + comment + blank lines
 
-HOCON.md L130-132 says empty files are invalid documents; Lightbend's
-`ConfigFactory.parseString("")` returns `SimpleConfigObject({})` instead of
-throwing — verified across all 6 variants.
+HOCON.md L130-132 describes the *JSON baseline* ("Empty files are invalid
+documents"); the L134 HOCON relaxation parses any file not beginning with `[`
+or `{` as if enclosed in `{}`, so an empty document is `{}`. Lightbend's
+`ConfigFactory.parseString("")` returns `SimpleConfigObject({})` — verified
+across all 6 variants.
 
 **Conformance test treatment:** all 6 are processed as `SUCCESS_CONFS` so the
 generator emits `expected/hocon/empty-file/<name>-expected.json = {}` matching
-Lightbend's silent-accept output. Per the o3co strict-HOCON-spec posture
-(see [extra-spec-conventions.md E10](extra-spec-conventions.md#e10)),
-**implementations MUST reject these fixtures** per HOCON.md L130 — load them
-via each impl's per-impl override list, asserting a parse error rather than
-matching `{}`. Same pattern as ce05 / ir03 / ir04 / us02 / us03 / us13.
+Lightbend's output, and **the sidecars are normative as-is** — implementations
+must parse each fixture to `{}`; no per-impl override list applies.
+
+*(History: cluster 3h originally shipped these under a strict-spec divergence
+posture — impls rejected via per-impl override lists, treating Lightbend's
+accept as a quirk. That posture rested on misreading the L130-132 JSON
+baseline as HOCON-normative and was revoked 2026-07-23; see
+[extra-spec-conventions.md E10](extra-spec-conventions.md#e10).)*
 
 ### properties-conflict/pc01–pc04 (cluster 3h, S23.4)
 
@@ -506,7 +511,7 @@ directly to the step sequence.
 | `us01`–`us16` | `unquoted-starts/` | S8.6 strict-spec unquoted-string-starts (cluster 3c) |
 | `ir01`–`ir14` | `include-reservation/` | S12.5 strict-spec `include` reservation at key-path start (cluster 3e) |
 | `sr01`–`sr11` | `self-ref-lookback/` | S13a.13 optional self-ref in value concatenation look-back (cluster 3f) |
-| `ef01`–`ef06` | `empty-file/` | S3.1 strict-spec empty file rejection (cluster 3h) — Lightbend silently accepts; impls must reject |
+| `ef01`–`ef06` | `empty-file/` | S3.1 empty document parses to `{}` (cluster 3h; reject-posture revoked 2026-07-23 per [E10](extra-spec-conventions.md#e10)) — `{}` sidecars normative, no override |
 | `bsl01`–`bsl09` | `byte-single-letter/` | S21.4 binary single-letter K/M/G/T/P/E byte abbreviations (cluster 3h) — per-impl `getBytes()` assertion |
 | `pc01`–`pc04` | `properties-conflict/` | S23.4 `.properties` object-wins conflict (cluster 3h) — direct `.properties` parse, no `.conf` wrapper |
 | `ipk01`–`ipk14` | `include-package/` | E11 `include package(...)` qualifier — service-locator pattern; no Lightbend sidecars; per-impl registry-population model (see "Test-package registry fixtures" section above) |

@@ -235,25 +235,32 @@ Lightbend 1.4.3 enforces this rule only for the bare form (`include = 1`, `inclu
 
 <a id="e10"></a>
 
-### E10 — Empty file is invalid (Lightbend silently accepts as `{}`)
+### E10 — Empty document parses to `{}` (REVOKED reject-convention; corrected 2026-07-23)
 
-**Source**: cross-impl convention. HOCON.md §Omit root braces L130-132 states:
+**Status: REVOKED as a divergence.** E10 originally (cluster 3h, 2026-05-19) mandated that every o3co impl reject empty documents at the parser entry, reading HOCON.md L130-132 as the canonical rule and classifying Lightbend's silent accept as a quirk. That reading was wrong; the entry is retained (with its anchor) as the correction record, because per-impl code comments and matrix history reference E10.
 
-> Empty files are invalid documents, as are files containing only a non-array non-object value such as a string.
+**The misreading**: HOCON.md §Omit root braces L130-132 states:
 
-Lightbend 1.4.3 silently accepts empty input as `SimpleConfigObject({})`. Verified: `ConfigFactory.parseString("")`, `parseString("   ")`, `parseString("\n\n")`, `parseString("# only comment\n")`, `parseString("﻿")` (BOM only), `parseString("  # x \n  \n")` — all return empty config, no exception.
+> JSON documents must have an array or object at the root. Empty files are invalid documents, as are files containing only a non-array non-object value such as a string.
 
-**o3co convention**: each of ts.hocon / rs.hocon / go.hocon MUST reject empty documents at the parser entry. "Empty" includes any combination of whitespace, newlines, BOM, and comments with no other content. Detection runs post-tokenize on the token stream, excluding skip-tokens (EOF, Newline, and any whitespace/comment tokens the lexer emits) — uniform across all "comments-only" / "whitespace-only" / "BOM-only" variants.
+The subject of that paragraph is *JSON documents* — it describes the JSON baseline that the section then relaxes. The HOCON-normative sentence is the next paragraph (L134-136): "In HOCON, if the file does not begin with a square bracket or curly brace, it is parsed as if it were enclosed with `{}` curly braces." An empty document does not begin with `[` or `{`, so it is parsed as if enclosed in `{}` — i.e. the empty object. When this section wants to state a HOCON-normative invalidity it says so explicitly (L138: "A **HOCON file** is invalid if…"); L130-132 never mentions HOCON.
 
-**Why an E-item rather than purely S12.5-style**: HOCON.md L130 IS the canonical spec rule; the matrix marks S3.1 as ❌/⚠️/❌ in ts/rs/go. E10 documents the specific Lightbend divergence pattern (silent accept) and the per-fixture treatment, parallel to E5/E8/E9.
+**Reference-implementation confirmation** (decisive under the lightbend-as-spec-interpretation-authority rule, `differential/known-divergences.json`):
 
-| Impl | Status | Test | Notes |
-| --- | --- | --- | --- |
-| ts.hocon | ❌ → ✅ | `empty-file/ef01–ef06.conf` loaded by `tests/conformance/empty-file.test.ts` with per-impl `IMPL_OVERRIDE_ERRORS` (no xx.hocon `.error` sidecar; Lightbend doesn't throw) | (cluster 3h target) Empty-check inside `buildResolveContext()` after `tokenize()`, before `parseTokens()` |
-| rs.hocon | ⚠️ → ✅ | `empty-file/ef01–ef06.conf` loaded by `tests/conformance_empty_file.rs` with per-impl override | (cluster 3h target) Empty-token-stream check at `lib.rs::parse_with_env` after `tokenize()` |
-| go.hocon | ❌ → ✅ | `empty-file/ef01–ef06.conf` loaded by `s3_1_empty_file_test.go` with per-impl override | (cluster 3h target) Empty-content check inside `internal/parser/parser.go:Parse()` |
+- `ConfigDocumentParser.parse()` throws `"Empty document"` **only** in the `ConfigSyntax.JSON` branch; CONF mode routes an empty token stream through the brace-omission path to an empty root object.
+- Lightbend's own test suite pins the rule as JSON-scoped: `// JSON does not support empty documents` + `parseJSONFailuresTest("", "Empty document")` (`ConfigDocumentParserTest.scala`), and uses `ConfigFactory.parseString("")` freely as a valid empty config elsewhere.
+- Behavior verified across all 6 variants: `parseString("")`, `"   "`, `"\n\n"`, `"# only comment\n"`, BOM-only, `"  # x \n  \n"` — all return empty config, no exception.
 
-**Fixtures**: `testdata/hocon/empty-file/ef01-empty.conf`, `ef02-whitespace-only.conf`, `ef03-newlines-only.conf`, `ef04-comment-only.conf`, `ef05-bom-only.conf`, `ef06-mixed-ws-comment.conf`. All 6 ship `-expected.json` sidecars containing `{}` (Lightbend's silent-accept output). Per-impl conformance tests apply the override list to assert error.
+**Corrected convention**: empty / whitespace-only / comment-only / BOM-only documents are **valid HOCON** and parse to `{}`, at the top-level parse entry and on every include path alike. The former include-path-only "Lightbend-compat carve-out" ([go.hocon#105](https://github.com/o3co/go.hocon/issues/105)) is no longer a carve-out — it is the rule. S3.1 in `spec-checklist.md` has been redefined accordingly; the per-impl reject guards are spec violations tracked in the matrix ([Top spec violations](compliance-matrix.md#top-spec-violations-verified)) until removed.
+
+| Impl | Status | Required change |
+| --- | --- | --- |
+| ts.hocon | ❌ (rejects since cluster 3h) | Remove `assertNonEmptyDocument` guard from `buildResolveContext()` + include-loader package paths; conformance tests drop the `IMPL_OVERRIDE_ERRORS` entries and assert `{}` per sidecars |
+| rs.hocon | ❌ (rejects since cluster 3h) | Remove empty-token-stream check at `lib.rs::parse_with_env`; conformance tests drop the per-impl override and assert `{}` |
+| go.hocon | ❌ (rejects since cluster 3h) | Remove empty-content check in `internal/parser/parser.go:Parse()`; conformance tests drop the per-impl override and assert `{}` |
+| py.hocon | ❌ (rejects; ported the o3co convention) | Remove parser-entry reject; `test_empty_file_rejected` becomes an `{}`-equality conformance case |
+
+**Fixtures**: `testdata/hocon/empty-file/ef01-empty.conf`, `ef02-whitespace-only.conf`, `ef03-newlines-only.conf`, `ef04-comment-only.conf`, `ef05-bom-only.conf`, `ef06-mixed-ws-comment.conf`. All 6 ship `-expected.json` sidecars containing `{}` (Lightbend-generated) — the sidecars were always correct and are now normative as-is; no per-impl override list applies.
 
 <a id="e11"></a>
 

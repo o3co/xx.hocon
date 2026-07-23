@@ -84,9 +84,10 @@ public final class FuzzRunner {
 
     // Statement-level delta debugging that preserves the ORIGINAL divergence
     // signature (oracle + per-engine ok/error pattern). Without the signature
-    // guard the shrinker drifts to a smaller-but-different divergence — e.g. it
-    // would collapse any document down to an empty file, which itself diverges
-    // (all impls reject empty input, Lightbend returns {}).
+    // guard the shrinker drifts to a smaller-but-different divergence — e.g.
+    // while the impls carried the S3.1 empty-file regression (rejecting empty
+    // input where Lightbend returns {}), it would collapse any document down
+    // to an empty file, reporting that unrelated divergence instead.
     static FuzzDoc shrink(FuzzDoc doc, String sig, Path probeRoot, Map<String, String[]> adapters) throws IOException {
         boolean changed = true;
         int guard = 0;
