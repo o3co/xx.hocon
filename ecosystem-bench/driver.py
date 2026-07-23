@@ -93,7 +93,10 @@ def run():
         detail = []
         for base, conf, exp in fixtures:
             if base.startswith("empty-file/"):
-                layer = "diverge"   # documented Lightbend-vs-strict split; report separately
+                # Known open S3.1 violation in released o3co libs (reject where
+                # Lightbend returns {}); report separately until fixed releases
+                # ship, then fold into the corpora. See E10 (revoked 2026-07-23).
+                layer = "diverge"
             else:
                 layer = "up" if is_upstream(base) else "o3co"
             argv, cwd, env = builder(conf)

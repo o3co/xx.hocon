@@ -209,10 +209,12 @@ public class GenerateExpected {
         "self-ref-lookback/sr14-cache-prior-external.conf",
         "self-ref-lookback/sr15-double-self-ref.conf",
         "self-ref-lookback/sr16-external-before-self-ref.conf",
-        // S3.1 empty-file fixtures (cluster 3h). Lightbend silently accepts empty
-        // documents as `{}`, contradicting spec L130. Documented as E10 in
-        // docs/extra-spec-conventions.md. Per-impl conformance tests load these and
-        // assert parse error (override list pattern, matching E9/ir03-ir04).
+        // S3.1 empty-file fixtures (cluster 3h). An empty document is valid HOCON
+        // parsing to `{}` (L134 brace-omission relaxation; L130-132 is the JSON
+        // baseline). The `{}` sidecars emitted here are normative — per-impl
+        // conformance tests assert them directly, no override list. (The original
+        // cluster 3h reject-posture was revoked 2026-07-23; see E10 in
+        // docs/extra-spec-conventions.md.)
         "empty-file/ef01-empty.conf",
         "empty-file/ef02-whitespace-only.conf",
         "empty-file/ef03-newlines-only.conf",

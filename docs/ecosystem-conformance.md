@@ -76,10 +76,12 @@ normalization is applied to every library:
 
 Two fixture categories are held outside the reported corpora:
 
-- **Empty-file group (6 fixtures)** — a documented Lightbend-vs-strict
-  divergence: Lightbend accepts an empty or comment-only file as `{}`; the o3co
-  implementations reject it per spec §L130 ([E10](extra-spec-conventions.md)).
-  Libraries differ here by design, so the group is excluded from the score.
+- **Empty-file group (6 fixtures)** — a known open S3.1 violation in the o3co
+  libraries: Lightbend accepts an empty or comment-only file as `{}`, which is
+  the correct spec reading (the former "strict-spec divergence" posture was
+  revoked 2026-07-23 — see [E10](extra-spec-conventions.md#e10)); the released
+  o3co libraries still reject it. The group stays out of the score until the
+  fixed releases ship, at which point it folds into the corpora.
 - **JVM system-property fixtures** — `test01` and `test03` in the Lightbend
   suite reference `${?java.version}` / `${?user.home}`, which resolve only
   inside a JVM. This is why the Lightbend-suite column tops out at 14/16 for a

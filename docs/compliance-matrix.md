@@ -6,10 +6,10 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **88.0%** | **98.9%** | 183 | 2 | 1 | 0 | 23 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **91.9%** | **100.0%** | 192 | 0 | 0 | 0 | 17 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **88.0%** | **98.4%** | 184 | 0 | 3 | 0 | 22 |
-| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **53.1%** | **58.1%** | 103 | 16 | 0 | 72 | 18 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **87.6%** | **98.4%** | 182 | 2 | 2 | 0 | 23 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **91.4%** | **99.5%** | 191 | 0 | 1 | 0 | 17 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **87.6%** | **97.9%** | 183 | 0 | 4 | 0 | 22 |
+| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **52.6%** | **57.6%** | 102 | 16 | 1 | 72 | 18 |
 
 Where:
 
@@ -56,6 +56,7 @@ Items where the test or implementation behavior contradicts the spec:
 | Item | Impl | Status | Description |
 |---|---|---|---|
 | S1.1 | go | ❌ | Invalid UTF-8 (e.g. `string([]byte{0xff})` via `ParseString`) is silently substituted with U+FFFD instead of rejected; spec L117 requires rejection. Go `string` is `[]byte` and is not language-guaranteed UTF-8. ts ➖ (JS string is pre-decoded Unicode at the I/O boundary; the parser cannot observe raw bytes — see ts.hocon S1.1 entry). rs ✅ (Rust `&str` is language-guaranteed valid UTF-8; verified positively via `tests/testdata/hocon/bom.conf` fixture). |
+| S3.1 | ts, rs, go, py | ❌ | Empty document (`""`, whitespace-only, comment-only, BOM-only, mixed) is rejected with a parse error at the top-level parse entry; per the corrected S3.1 (L134 brace-omission relaxation) it must parse to `{}` — see [E10](extra-spec-conventions.md#e10) and the [2026-07-23 correction](#2026-07-23--s31-corrected-empty-document-is-valid-hocon--all-four-impls-regress). Regression introduced by cluster 3h (2026-05-19), which misread the L130-132 JSON baseline as HOCON-normative; behavior change vs. each impl's pre-3h releases, which accepted empty input as `{}`. The file-include path already returns `{}` (the [go.hocon#105](https://github.com/o3co/go.hocon/issues/105) carve-out — now the rule, not a carve-out). Fix = remove parser-entry + include-package guards, drop per-impl test overrides; ef01–ef06 `{}` sidecars are normative. |
 | S3.4 | ts | ❌ | Unbraced root + stray `}` accepted ([#55](https://github.com/o3co/ts.hocon/issues/55)) |
 | S8.1 | ts | ⚠️ | Lexer allows backtick in unquoted strings, contrary to spec L245 forbidden set |
 | S8.2 | go | ❌ | `//` inside an unquoted run without preceding whitespace is treated as literal content; spec L248 says `//` starts a comment anywhere outside a quoted string. ts/rs ✅. |
@@ -71,6 +72,21 @@ Spec items with no test coverage in **any** of the four implementations. These a
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the four impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### 2026-07-23 — S3.1 corrected: empty document is valid HOCON (`{}`); all four impls regress
+
+The S3.1 checklist item previously read "Empty file is invalid — L130". That was a **misreading of the spec**: HOCON.md L130-132 ("JSON documents must have an array or object at the root. Empty files are invalid documents…") describes the *JSON baseline* that §Omit root braces then relaxes — the HOCON-normative sentence is L134-136, which parses any file not beginning with `[` or `{` (an empty file vacuously qualifies) as if enclosed in `{}`. The reference implementation confirms decisively: `ConfigDocumentParser.parse()` throws `"Empty document"` **only** in the `ConfigSyntax.JSON` branch, Lightbend's own test suite pins the rule as JSON-scoped (`// JSON does not support empty documents`), and `ConfigFactory.parseString("")` is used as a valid empty config throughout its tests. Full correction record: [E10](extra-spec-conventions.md#e10).
+
+Consequences:
+
+- **S3.1 redefined** in [`spec-checklist.md`](spec-checklist.md): empty / whitespace-only / comment-only / BOM-only documents parse to `{}`.
+- **All four impls flip S3.1 ✅ → ❌** — each rejects at the parser entry via the cluster 3h (2026-05-19) guard, a behavior regression vs. their pre-3h releases (verified on ts.hocon v1.2.0: all 6 ef variants returned `{}`). The [cluster 3h entry](#cleared-in-phase-6-3h-2026-05-19) below records the original (now-revoked) rationale; it is retained as history.
+- **E10 revoked as a divergence** — rewritten as the correction record. The go.hocon#105 include-path "carve-out" is now simply the rule; the remaining asymmetries (top-level parse rejects; ts package-include rejects whitespace-only but accepts zero-byte) are part of the S3.1 violation.
+- **ef01–ef06 `{}` sidecars are normative as-is**; per-impl override lists (`IMPL_OVERRIDE_ERRORS` and equivalents) must be dropped. `GenerateExpected.java` already emits `{}` — no fixture regeneration needed.
+- **Rate change**: ts 88.0% → **87.6%** spec-total / 98.9% → **98.4%** in-scope; rs 91.9% → **91.4%** / 100.0% → **99.5%**; go 88.0% → **87.6%** / 98.4% → **97.9%**; py 53.1% → **52.6%** / 58.1% → **57.6%**. Per-impl `spec-compliance.md` rows flip in each impl's fix PR.
+- **Triage rule alignment**: this is the first application of the lightbend-as-spec-interpretation-authority rule (`differential/known-divergences.json`) to an existing E-item — Lightbend's behaviour is not "indefensible under any reasonable reading of the spec" here; it is the plain reading.
+
+Fix tracking: per-impl PRs remove the guards + overrides (ts.hocon, go.hocon, rs.hocon, py.hocon), then the ecosystem-conformance empty-file exclusion is lifted once fixed releases ship.
 
 ### 2026-07-14 re-roll-up — S19.8 cleared (ts/rs) + 11 stale cells synced to test ground truth
 
