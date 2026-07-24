@@ -1,0 +1,6 @@
+{
+  "a": "hello from properties! ^^",
+  "b": "from json",
+  "c": "from hocon",
+  "common": "hocon"
+}

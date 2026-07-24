@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/harvested/mikai233-hocon-rs/substitution_cycle.conf: 3: Could not resolve substitution to a value: ${a} was part of a cycle of substitutions involving ${c}, ${b}, ${a}, ${c}

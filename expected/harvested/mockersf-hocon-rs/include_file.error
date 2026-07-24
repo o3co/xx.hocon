@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/harvested/mockersf-hocon-rs/include_file.conf: 3: expecting a close parentheses ')' here, not: '{'

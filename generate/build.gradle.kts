@@ -17,6 +17,14 @@ application {
     mainClass.set("GenerateExpected")
 }
 
+tasks.register<JavaExec>("generateHarvested") {
+    group = "build"
+    description = "Regenerate expected/harvested/ from the harvested ecosystem corpus (testdata/harvested/)"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("GenerateHarvested")
+}
+
 tasks.register<JavaExec>("probeIssue31") {
     group = "verification"
     description = "Probe Lightbend behavior for xx.hocon issue #31 matrix"

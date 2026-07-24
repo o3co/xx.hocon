@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/harvested/mikai233-hocon-rs/object1.conf: 19: expecting a close parentheses ')' here, not: ','

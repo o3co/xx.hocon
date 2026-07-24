@@ -1,0 +1,18 @@
+{
+  "arrays": {
+    "ofObject": [
+      {
+        "a": "a",
+        "b": "b",
+        "new-a": "a",
+        "new-ab": "ab"
+      }
+    ]
+  },
+  "strings": {
+    "a": "a",
+    "b": "b",
+    "new-a": "a",
+    "new-ab": "ab"
+  }
+}
