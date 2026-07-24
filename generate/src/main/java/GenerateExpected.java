@@ -316,6 +316,29 @@ public class GenerateExpected {
         "properties-conflict/pc02-reverse.properties",
         "properties-conflict/pc03-deep-forward.properties",
         "properties-conflict/pc04-deep-reverse.properties",
+        // properties-syntax fixtures: what java.util.Properties actually does,
+        // recorded from the Lightbend oracle.
+        //
+        // These do NOT assert a required behaviour today. S23.5 (backslash
+        // continuation) and S23.6 (unicode escapes) are marked out-of-scope in
+        // spec-checklist.md, and each implementation's README says the
+        // .properties reader handles basic key=value only. The fixtures exist so
+        // that the decision can be revisited against real numbers rather than
+        // guesses, and so any implementation that does go further has an oracle
+        // to check itself against.
+        //
+        // Two of the behaviours here are covered by no checklist item at all:
+        // whitespace alone separating key from value (ps03), and a value keeping
+        // its trailing whitespace (ps04). Those are undeclared divergences
+        // rather than declared carve-outs.
+        //
+        // ps04 depends on TRAILING SPACES in the fixture: do not let an editor
+        // or formatter strip them.
+        "properties-syntax/ps01-continuation.properties",
+        "properties-syntax/ps02-escapes.properties",
+        "properties-syntax/ps03-separators.properties",
+        "properties-syntax/ps04-value-whitespace.properties",
+        "properties-syntax/ps05-astral.properties",
     };
 
     // Conf files expected to produce a parse/resolve error and have a plain-text
