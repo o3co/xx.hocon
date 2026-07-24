@@ -27,18 +27,48 @@ existing spec-corpus fixture.
 Recorded for future fixture triage; none of these currently feed the
 compliance matrix.
 
-- **Nested `+=`** (`mikai233/add_assign.conf`, `object7.conf`): upstream's own
-  expectation resolves the nested self-referential `+=` forms; the reference
-  parser rejects them ("Due to current limitations of the config parser, +=
-  does not work nested inside a list").
-- **Root-level `include` followed by a braced root object**
-  (`mockersf/include.conf`, `include_file.conf`): reference parse error — a
-  file that uses root braces cannot have content outside them.
-- **`include` in value position** (`mockersf/includes_no_separator.conf`):
-  parses as unquoted-string concatenation (`b = "include basic.conf"`); no
-  inclusion is performed. Upstream performs the inclusion here.
-- **`include` nested inside a list element** (`mockersf/test03.conf`,
-  `include_and_subst.conf`): reference parser limitation error.
+### Spec cross-check of the 13 error classifications
+
+The reference implementation is the interpretation authority, but its errors
+are not automatically spec rules — each `.error` was cross-checked against
+HOCON.md. Two groups emerged.
+
+**Spec-derivable errors (9)** — a conforming implementation must also fail:
+
+| Fixture | Spec basis (HOCON.md) |
+|---|---|
+| `mikai233/object1.conf`, `object4.conf` | §Separators comma rules ("two commas in a row" invalid; "these same comma rules apply to fields in objects") |
+| `mikai233/object3.conf` | §Include semantics: `required()` on a missing resource is an error |
+| `mikai233/substitution2.conf` | §Self-Referential Substitutions: "In isolation … a self-referential field is an error" |
+| `mikai233/substitution_cycle.conf` | §Self-Referential Substitutions: unbreakable cycles generate an error |
+| `mikai233/include_cycle.conf` | Spec-silent on include cycles, but no terminating interpretation can succeed; the 50-depth detection mechanism is an implementation detail |
+| `mockersf/include.conf`, `include_file.conf` | §Omit root braces: a file not beginning with `{` is parsed as brace-omitted root, making the subsequent keyless `{…}` value a syntax error |
+| `mockersf/substitution.conf` | §Substitutions: undefined non-optional `${b}` is an error (resolves only when composed with `basic.conf`, as upstream's `include.conf` does) |
+
+**Lightbend-limitation errors (4)** — the reference parser self-declares
+"current limitations of the config parser"; the spec permits the construct.
+Each carries a sibling `<name>.divergence.md` with full analysis:
+
+| Fixture | Construct | Spec basis for validity |
+|---|---|---|
+| `mikai233/add_assign.conf` | `+=` nested inside another `+=` element | §The `+=` field separator: pure sugar for `a = ${?a} [b]`, no nesting restriction |
+| `mikai233/object7.conf` | same (an unbreakable substitution cycle follows, so the fixture errors either way; only stage/type differ) | same + §Self-Referential Substitutions |
+| `mockersf/include_and_subst.conf`, `test03.conf` | include inside an object that is an array element | §Include syntax: "An include statement can appear in place of an object field" — an object in an array is still an object |
+
+Consumers must not treat the limitation-derived `.error` files as
+spec-normative must-error fixtures; a conforming implementation may
+legitimately succeed on them (except `object7.conf`, which fails at resolve
+time regardless). Per-implementation posture is decided at conformance-runner
+wiring time.
+
+### Other observations
+
+- **`include` in value position** (`mockersf/includes_no_separator.conf`,
+  success fixture): per §Include syntax, `include` is only special where an
+  object key is expected; in value position it is an ordinary unquoted string,
+  so `b = include "basic.conf"` concatenates to `"include basic.conf"`; no
+  inclusion is performed. Upstream performs the inclusion here, deviating
+  from the spec text, so the reference behaviour stands.
 - **Composition-dependent fixtures** (`mockersf/substitution.conf`): resolves
   only when included together with `basic.conf` (as upstream's `include.conf`
   does); standalone resolution fails on `${b}` and is classified as an error

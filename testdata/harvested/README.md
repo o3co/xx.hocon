@@ -33,6 +33,12 @@ expected/harvested/<source>/         generated expected outputs (do not edit)
 - **Roots vs companions.** Every `*.conf` in a source directory is a fixture
   root unless listed in that directory's `companions.txt` (include targets,
   cycle-chain members). Non-`.conf` files are never roots.
+- **Spec cross-check.** Reference-implementation errors are not automatically
+  spec rules. Every `.error` classification is checked against HOCON.md; when
+  the cause is a self-declared Lightbend parser limitation rather than a spec
+  rule, the fixture carries a sibling `<name>.divergence.md` and consumers
+  must not treat it as a spec-normative must-error case (see
+  `docs/harvested-corpus.md`).
 - **Determinism gate.** Fixtures that reach the network (URL includes) are
   excluded at harvest time and recorded under `excluded:` in PROVENANCE.yaml,
   as are exact content duplicates of existing spec-corpus fixtures.
