@@ -129,6 +129,11 @@ public class GenerateExpected {
         //
         // SIDECAR_ERROR_CONFS still handles us15 (`a = 1e+x`) — `+` is reserved (HOCON `+=`
         // operator), error in both value-start and concat-continuation positions.
+        // S11.6 guard for the path-empty-segment group: a QUOTED empty segment is
+        // legal (`a."".b` is a three-element path), unlike the unquoted forms.
+        "path-empty-segment/pe07-quoted-empty-segment-ok.conf",
+        // S8.1 guard: a backtick inside a quoted string is ordinary content.
+        "unquoted-forbidden/uf04-backtick-quoted-ok.conf",
         "unquoted-starts/us01-digit-prefix-with-tail.conf",
         "unquoted-starts/us02-hyphen-no-digit.conf",
         "unquoted-starts/us03-hyphen-alone.conf",
@@ -320,6 +325,24 @@ public class GenerateExpected {
     // (no exact message matching required). Shared convention for clusters 3b, 3c, 3e, 3f
     // and any future cluster using the .error sidecar pattern (see docs/fixture-conventions.md).
     static final String[] SIDECAR_ERROR_CONFS = {
+        // S11.7 empty path segments in KEY position (xx.hocon#68). The spec's own
+        // examples: "`a..b` is invalid", "a path that starts or ends with a `.` is
+        // invalid". pe07 (quoted empty segment, S11.6) is the SUCCESS_CONFS guard,
+        // and pe08 pins the substitution-path position that all four impls already
+        // reject — the key position is the gap.
+        "path-empty-segment/pe01-adjacent-dots.conf",
+        "path-empty-segment/pe02-leading-dot.conf",
+        "path-empty-segment/pe03-trailing-dot.conf",
+        "path-empty-segment/pe04-triple-dots.conf",
+        "path-empty-segment/pe05-adjacent-dots-nested.conf",
+        "path-empty-segment/pe06-triple-dots-quoted-empty.conf",
+        "path-empty-segment/pe08-subst-adjacent-dots.conf",
+        // S8.1 backtick — the one forbidden character (HOCON.md L245-247) that the
+        // impls' unquoted-string lexers still accept (xx.hocon#68). uf04 (backtick
+        // inside a quoted string, legal) is the SUCCESS_CONFS guard.
+        "unquoted-forbidden/uf01-backtick-value.conf",
+        "unquoted-forbidden/uf02-backtick-key.conf",
+        "unquoted-forbidden/uf03-backtick-mid-token.conf",
         "concat-errors/ce01-array-plus-object.conf",
         "concat-errors/ce02-object-plus-array.conf",
         "concat-errors/ce03-array-plus-scalar.conf",
