@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$BadPath
+Message: ../testdata/harvested/pushcorn-hocon-parser/path-keys-7.error/test.conf: 1: path has a leading, trailing, or two adjacent period '.' (use quoted "" empty string if you want an empty element)

@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/harvested/pushcorn-hocon-parser/object-2.error/test.conf: 2: Expecting a value but got wrong token: end of file

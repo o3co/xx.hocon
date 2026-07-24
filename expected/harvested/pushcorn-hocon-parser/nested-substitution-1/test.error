@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$BadPath
+Message: ../testdata/harvested/pushcorn-hocon-parser/nested-substitution-1/test.conf: 12: Token not allowed in path expression: '${'region'}' (you can double-quote this token if you really want it here)

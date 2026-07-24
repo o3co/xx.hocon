@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/harvested/pushcorn-hocon-parser/array-3.error/test.conf: 2: List should have had new element after a comma, instead had token: end of file (if you want the comma or end of file to be part of a string value, then double-quote it)

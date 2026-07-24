@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/harvested/pushcorn-hocon-parser/error-1.error/test.conf: 1: Document has trailing tokens after first object or array: '}'

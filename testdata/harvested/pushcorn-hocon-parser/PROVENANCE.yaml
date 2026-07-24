@@ -1,0 +1,57 @@
+# Provenance for harvested fixtures in this directory.
+# Files are verbatim copies from the upstream repository — never edit them here.
+source:
+  repo: https://github.com/josephtzeng/hocon-parser
+  commit: bff7090150c4938ade2baecd3dc50d3a50294748
+  path: tests/resources/configs/
+  license: ISC (upstream notice vendored as LICENSE.upstream)
+  retrieved: 2026-07-24
+
+# Layout: one upstream test case per subdirectory; the fixture root is always
+# <case>/test.conf and other files in the case dir are include targets
+# (listed in companions.txt). Upstream's own expectations (result.json per
+# case) are NOT vendored.
+#
+# Upstream directory-name conventions (informational only — our
+# classification comes from observed reference-implementation behaviour):
+#   <case>.error   — upstream expects the parse to fail
+#   <case>.default — upstream runs the case with its builder's default mode
+#
+# Several cases are regression fixtures for upstream Lightbend issues, cited
+# in comments inside the fixtures themselves (lightbend/config #30, #134,
+# #160, #532, #533).
+
+# Upstream cases intentionally NOT copied (61 of 156: by category name, by
+# extension-syntax content, or both). This corpus keeps spec-HOCON only;
+# @pushcorn/hocon-parser extension features are out of scope:
+excluded:
+  - category: "*transform* (eval/map/filter/sort/slice/unique/trim/reduce/invoke/…)"
+    reason: pushcorn transform pipeline extension (`| <transform>` syntax)
+  - category: base64*, pipe, require*, at-*, dynamic-include, include-params,
+      loader, classpath*, modulepath*, url*,
+      include-{url,classpath,modulepath}-cycle, bean-config
+    reason: pushcorn-specific include/builder/content extensions (@-includes,
+      parameterized includes, JS require, classpath/modulepath resolution) or
+      network-dependent URL includes
+  - category: file-content, multiple-builder, object-overwrite, source-without-url
+    reason: pushcorn extension syntax in content — `include file(content(…))` /
+      `include config(content(…))` / the `:=` overwrite operator (hyphenated
+      case names the category-name screen missed; caught by the content-syntax
+      sweep)
+  - category: include-from-list, includes
+    reason: "`include strict(…)` — pushcorn-specific include flag (upstream
+      FLAGS = [required, strict, env]); the reference parser rejects the
+      unknown wrapper, so any .error classification would be an artifact of
+      the extension syntax, not spec behaviour (found in review of the
+      phase-2 PR; strict( added to the sweep list below)"
+  - name: <case>/result.json (all cases), env/result.js, simple/test.js,
+      simple/nodejs.png
+    reason: upstream expectations / test-harness artifacts, not fixture inputs
+
+notes: |
+  - Kept cases were additionally screened (comments stripped) for extension
+    syntax: `@`-includes, `| transform` pipes, URL includes, `content(` /
+    `config(` / `strict(` wrappers, and the `:=` / `?=` operators.
+  - Upstream issue-regression cases kept: array-1 (lightbend/config#30),
+    nested-substitution-1/2/3 (#134), srac-1..5 (#160 self-referential array
+    concatenation), key-substitutions (#532), local-scope (#533).

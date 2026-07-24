@@ -42,7 +42,7 @@ public class GenerateHarvested {
             Set<String> companions = loadCompanions(sourceDir.resolve("companions.txt"));
 
             List<Path> confs;
-            try (Stream<Path> s = Files.list(sourceDir)) {
+            try (Stream<Path> s = Files.walk(sourceDir)) {
                 confs = s.filter(p -> p.getFileName().toString().endsWith(".conf"))
                          .sorted()
                          .collect(Collectors.toList());
@@ -53,7 +53,10 @@ public class GenerateHarvested {
             clearGeneratedOutputs(outDir);
 
             for (Path confPath : confs) {
-                String name = confPath.getFileName().toString();
+                // Relative path within the source dir (slash-normalized) — source
+                // trees may nest (per-case dirs, include trees), and companions.txt
+                // entries use the same relative form.
+                String name = sourceDir.relativize(confPath).toString().replace('\\', '/');
                 if (companions.contains(name)) {
                     System.out.println("  companion (skipped): " + source + "/" + name);
                     companionCount++;
@@ -72,13 +75,25 @@ public class GenerateHarvested {
                     caught = e;
                 }
 
+                // Strip the ".conf" suffix (suffix-only — a plain replace()
+                // would also mangle a mid-path ".conf" like "foo.conf.d/").
+                String stem = name.substring(0, name.length() - ".conf".length());
+
                 if (caught == null) {
                     String json = GenerateExpected.toSortedJson(config.root()) + "\n";
-                    Files.writeString(outDir.resolve(name.replace(".conf", "-expected.json")), json);
+                    Path outPath = outDir.resolve(stem + "-expected.json");
+                    Files.createDirectories(outPath.getParent());
+                    Files.writeString(outPath, json);
                     System.out.println("  OK: " + source + "/" + name);
                     jsonCount++;
-                    Path divergenceDoc = sourceDir.resolve(name.replace(".conf", ".divergence.md"));
-                    if (Files.exists(divergenceDoc)) {
+                    // Stale-doc alarm: a divergence doc usually documents a
+                    // reference-side error, so success + doc means a reference
+                    // upgrade may have changed behaviour. Docs whose first line
+                    // contains "quirk" describe sanctioned quirk SUCCESSES
+                    // (e.g. array-5.error) and are expected to coexist.
+                    Path divergenceDoc = sourceDir.resolve(stem + ".divergence.md");
+                    if (Files.exists(divergenceDoc)
+                            && !Files.readAllLines(divergenceDoc).get(0).toLowerCase().contains("quirk")) {
                         System.err.println("  WARN: " + source + "/" + name + " classifies as success but has a "
                             + ".divergence.md sibling — check whether a reference-implementation upgrade "
                             + "changed behaviour and the divergence doc is stale.");
@@ -86,7 +101,9 @@ public class GenerateHarvested {
                 } else {
                     String sidecar = "Exception class: " + caught.getClass().getName() + "\n"
                                    + "Message: " + caught.getMessage() + "\n";
-                    Files.writeString(outDir.resolve(name.replace(".conf", ".error")), sidecar);
+                    Path outPath = outDir.resolve(stem + ".error");
+                    Files.createDirectories(outPath.getParent());
+                    Files.writeString(outPath, sidecar);
                     System.out.println("  OK (.error sidecar): " + source + "/" + name);
                     errorCount++;
                 }
@@ -104,10 +121,12 @@ public class GenerateHarvested {
      * <name>.error after a classification flip on a reference-impl upgrade).
      */
     static void clearGeneratedOutputs(Path outDir) throws Exception {
-        try (Stream<Path> s = Files.list(outDir)) {
+        try (Stream<Path> s = Files.walk(outDir)) {
             for (Path p : s.collect(Collectors.toList())) {
                 String n = p.getFileName().toString();
-                if (n.endsWith("-expected.json") || n.endsWith(".error")) {
+                // isRegularFile guard: source case DIRECTORIES may themselves be
+                // named *.error (upstream convention) and mirror into outDir.
+                if (Files.isRegularFile(p) && (n.endsWith("-expected.json") || n.endsWith(".error"))) {
                     Files.delete(p);
                 }
             }
