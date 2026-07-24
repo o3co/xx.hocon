@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/hocon/unquoted-forbidden/uf02-backtick-key.conf: 1: expecting a close parentheses ')' here, not: '`' (Reserved character '`' is not allowed outside quotes)

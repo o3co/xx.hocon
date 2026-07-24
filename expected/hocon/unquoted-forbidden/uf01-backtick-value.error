@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/hocon/unquoted-forbidden/uf01-backtick-value.conf: 1: Expecting a value but got wrong token: '`' (Reserved character '`' is not allowed outside quotes) (if you intended '`' (Reserved character '`' is not allowed outside quotes) to be part of a key or string value, try enclosing the key or value in double quotes, or you may be able to rename the file .properties rather than .conf)
