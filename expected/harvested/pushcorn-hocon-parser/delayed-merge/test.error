@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/harvested/pushcorn-hocon-parser/delayed-merge/test.conf: 6: Could not resolve substitution to a value: ${sub} was part of a cycle of substitutions involving ${sub}, ${sub}

@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$WrongType
+Message: ../testdata/harvested/pushcorn-hocon-parser/array-8/test.conf: 1:  has type LIST rather than object at file root

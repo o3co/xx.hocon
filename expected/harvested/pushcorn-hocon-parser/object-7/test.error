@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$BugOrBroken
+Message: tried to replace ConfigDelayedMerge(null,${?options.a.b.c.vh}[{"name":"dashboard"}]) which is not in [SimpleConfigObject({"vh":null,"vh":${?options.a.b.c.vh}[{"name":"dashboard"}]}), ConfigNull(null)]

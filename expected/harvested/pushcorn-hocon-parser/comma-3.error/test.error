@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/harvested/pushcorn-hocon-parser/comma-3.error/test.conf: 1: List should have had new element after a comma, instead had token: ',' (if you want the comma or ',' to be part of a string value, then double-quote it)

@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/harvested/pushcorn-hocon-parser/comma-1.error/test.conf: 1: expecting a close parentheses ')' here, not: ','

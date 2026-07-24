@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/harvested/pushcorn-hocon-parser/object-5.error/test.conf: 4: expecting a close parentheses ')' here, not: '{'

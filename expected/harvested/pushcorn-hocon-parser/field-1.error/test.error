@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/harvested/pushcorn-hocon-parser/field-1.error/test.conf: 2: Key 'a' may not be followed by token: end of file

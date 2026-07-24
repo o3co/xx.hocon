@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/harvested/pushcorn-hocon-parser/quotes-2.error/test.conf: 2: Expecting a value but got wrong token: '' (End of input but triple-quoted string was still open) (if you intended '' (End of input but triple-quoted string was still open) to be part of a key or string value, try enclosing the key or value in double quotes, or you may be able to rename the file .properties rather than .conf)

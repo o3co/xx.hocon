@@ -1,0 +1,20 @@
+{
+  "foo": {
+    "bar": {
+      "abracadabra": "hi",
+      "baz": 42,
+      "boom": [
+        1,
+        2,
+        {
+          "derp": "duh"
+        },
+        4
+      ],
+      "empty": [],
+      "falsy": false,
+      "truthy": true,
+      "yahoo": "yippee"
+    }
+  }
+}

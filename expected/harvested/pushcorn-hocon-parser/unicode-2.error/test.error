@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/harvested/pushcorn-hocon-parser/unicode-2.error/test.conf: 1: Expecting a value but got wrong token: '03GG' (Malformed hex digits after \u escape in string: '03GG') (if you intended '03GG' (Malformed hex digits after \u escape in string: '03GG') to be part of a key or string value, try enclosing the key or value in double quotes)

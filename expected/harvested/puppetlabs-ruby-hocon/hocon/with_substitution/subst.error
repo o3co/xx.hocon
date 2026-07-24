@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/harvested/puppetlabs-ruby-hocon/hocon/with_substitution/subst.conf: 3: Could not resolve substitution to a value: ${ENVARRAY}

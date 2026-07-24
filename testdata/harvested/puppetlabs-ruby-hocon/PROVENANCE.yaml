@@ -1,0 +1,44 @@
+# Provenance for harvested fixtures in this directory.
+# Files are verbatim copies from the upstream repository — never edit them here.
+source:
+  repo: https://github.com/puppetlabs/ruby-hocon
+  commit: 55c38f85971a6d4bbd2dbad814bc9059205ed1f4
+  path: spec/fixtures/
+  license: Apache-2.0 (upstream notice vendored as LICENSE.upstream)
+  retrieved: 2026-07-24
+
+# Upstream expectations are NOT vendored: parse_render/example*/output*.conf
+# are ruby-hocon's render expectations; by_extension/cat.test and
+# cat.test-json are its by-extension parse expectations. Only the inputs are
+# harvested; expected/harvested/ is regenerated from the reference
+# implementation.
+
+# No companions.txt: every harvested .conf is a fixture root. The non-conf
+# test_utils/resources/test01.json is copied because `include "test01"`
+# (extension-less heuristic in test03.conf) merges the .conf/.json siblings.
+
+# Upstream files intentionally NOT copied.
+excluded:
+  - name: test_utils/resources/{bom,cycle,file-include}.conf, subdir/{foo,bar,baz}.conf
+    reason: exact content duplicates of the Lightbend-mirror files already in testdata/hocon/
+  - name: parse_render/example*/output.conf, output_nocomments.conf, by_extension/cat.test*
+    reason: upstream expectations, not inputs (see above)
+  - name: parse_render/example4/input.json
+    reason: JSON-input render test; not a HOCON fixture
+
+notes: |
+  - test01.conf / test03.conf / include-from-list.conf are upstream-modified
+    variants of the Lightbend suite files (test01 adds leading-dot float
+    cases like `.33`; test03 drops the test03-included.conf companion, whose
+    include is then silently ignored per spec).
+  - include-from-list.conf uses include inside an array-element object — the
+    same reference-parser limitation shape as mockersf test03 (see that
+    fixture's .divergence.md).
+  - utf16.conf is UTF-16LE-encoded on purpose; the expected output records
+    the reference implementation's behaviour for a non-UTF-8 file.
+  - ᚠᛇᚻ.conf exercises a non-ASCII fixture filename.
+  - hocon/with_substitution/subst.conf references ${ENVARRAY}, which
+    upstream's spec_helper sets in the test environment. Under this corpus's
+    hermetic generation it is deterministically undefined, so the fixture
+    classifies as an error (required substitution missing) — it does not
+    exercise upstream's env-array scenario here.

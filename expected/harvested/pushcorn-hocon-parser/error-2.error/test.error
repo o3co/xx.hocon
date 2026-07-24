@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/harvested/pushcorn-hocon-parser/error-2.error/test.conf: 1: Could not resolve substitution to a value: ${a."b.c".d}

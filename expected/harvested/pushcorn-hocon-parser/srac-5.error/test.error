@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$WrongType
+Message: ../testdata/harvested/pushcorn-hocon-parser/srac-5.error/test.conf: 1: Cannot concatenate object or list with a non-object-or-list, ConfigInt(3) and SimpleConfigList([4]) are not compatible

@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$BadPath
+Message: ../testdata/harvested/pushcorn-hocon-parser/nested-substitution-2/test.conf: 11: Token not allowed in path expression: '${'os.name'}' (you can double-quote this token if you really want it here)

@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/harvested/pushcorn-hocon-parser/unquoted-3.error/test.conf: 1: Expecting end of input or a comma, got 'a' ('$' not followed by {, 'a' not allowed after '$') (if you intended 'a' ('$' not followed by {, 'a' not allowed after '$') to be part of a key or string value, try enclosing the key or value in double quotes)

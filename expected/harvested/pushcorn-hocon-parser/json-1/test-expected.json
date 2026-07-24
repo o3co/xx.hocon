@@ -1,0 +1,46 @@
+{
+  "actions": [
+    {
+      "comment": "Update user profile.",
+      "method": "PUT",
+      "name": "updateProfile",
+      "parameters": [
+        {
+          "name": "X-Access-Token",
+          "paramType": "header",
+          "type": "string"
+        },
+        {
+          "constraints": [
+            {
+              "choices": [
+                "in",
+                "out"
+              ],
+              "name": "choice"
+            }
+          ],
+          "name": "status",
+          "paramType": "form",
+          "type": "string"
+        },
+        {
+          "name": "firstname",
+          "paramType": "form",
+          "type": "string"
+        },
+        {
+          "name": "lastname",
+          "paramType": "form",
+          "type": "string"
+        }
+      ],
+      "path": "/profile",
+      "responses": [
+        "accessUnauthorized",
+        "profileUpdated"
+      ]
+    }
+  ],
+  "models": []
+}
