@@ -2,7 +2,9 @@
 
 **Observed (reference impl, typesafe-config 1.4.6):** `ConfigException$Parse` —
 "Due to current limitations of the config parser, when an include statement is
-nested inside a list value, it cannot be the empty object or a list."
+nested inside a list value, ${} substitutions inside the included file cannot
+be resolved correctly. Either move the include outside of the list value or
+remove the ${} statements from the included file."
 
 **Spec analysis (HOCON.md §"Include syntax"):** "An include statement can
 appear in place of an object field." An object literal inside an array is

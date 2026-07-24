@@ -42,9 +42,13 @@ expected/harvested/<source>/         generated expected outputs (do not edit)
 - **Determinism gate.** Fixtures that reach the network (URL includes) are
   excluded at harvest time and recorded under `excluded:` in PROVENANCE.yaml,
   as are exact content duplicates of existing spec-corpus fixtures.
-- **Licensing.** Each PROVENANCE.yaml records the upstream license. Only
-  fixtures from permissively licensed projects (Apache-2.0 / MIT / ISC / BSD)
-  are harvested.
+  Determinism is asserted for POSIX runners: some fixtures reference
+  developer-machine Windows paths (`F:/...`) and rely on those paths never
+  existing; a Windows runner with such a drive could flip their outcome.
+- **Licensing.** Each PROVENANCE.yaml records the upstream license, and each
+  source directory vendors the upstream license text as `LICENSE.upstream`.
+  Only fixtures from permissively licensed projects (Apache-2.0 / MIT / ISC /
+  BSD) are harvested.
 
 ## Adding a source
 

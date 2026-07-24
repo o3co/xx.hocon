@@ -4,7 +4,7 @@ source:
   repo: https://github.com/mockersf/hocon.rs
   commit: cbaf6d04b0c693cd3f15909b3d15ad083f7f3fa2
   path: tests/data/
-  license: MIT
+  license: MIT (upstream notice vendored as LICENSE.upstream)
   retrieved: 2026-07-24
 
 # Upstream treats every tests/data/*.conf as a test root via

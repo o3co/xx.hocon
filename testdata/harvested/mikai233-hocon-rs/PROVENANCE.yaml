@@ -4,7 +4,7 @@ source:
   repo: https://github.com/mikai233/hocon-rs
   commit: 574cfb6636bdd5bcb46313d8fc989e23ece3c0b3
   path: resources/
-  license: MIT
+  license: MIT (upstream notice vendored as LICENSE.upstream)
   retrieved: 2026-07-24
 
 # Upstream keeps its own expected outputs as sibling *.json files at the same
