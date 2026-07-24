@@ -79,6 +79,41 @@ wiring time.
   compared success fixtures (numeric formatting differences like `1E10` vs
   `10000000000` are value-equal).
 
+## Four-implementation dry run — 2026-07-24
+
+All 48 roots were run through the four o3co implementations at **v1.9.0**
+(registry builds, hermetic env, ecosystem-bench normalization; error fixtures
+pass when the implementation also rejects). Not yet wired into the per-impl
+conformance runners — this is a corpus-side smoke run.
+
+| impl | pass | non-pass detail |
+|---|---:|---|
+| go.hocon | 45/48 | mismatch: `concat3` ([go.hocon#158](https://github.com/o3co/go.hocon/issues/158)), `object6` ([xx.hocon#67](https://github.com/o3co/xx.hocon/issues/67)); succeeds on limitation-derived `add_assign` |
+| rs.hocon | 44/48 | mismatch: `demo` ([rs.hocon#149](https://github.com/o3co/rs.hocon/issues/149)), `object6` (#67); `max_depth` timeout (>15 s); succeeds on `add_assign` |
+| ts.hocon | 45/48 | `max_depth` call-stack overflow; mismatch: `object6` (#67); succeeds on `add_assign` |
+| py.hocon | 45/48 | `max_depth` recursion-limit error; mismatch: `object6` (#67); succeeds on `add_assign` |
+
+Findings, in triage order:
+
+1. **Two single-impl defects** (three-sibling + reference consensus against
+   them): go.hocon drops a field whose concat is only whitespace-separated
+   undefined `${?}` substitutions (go.hocon#158); rs.hocon wipes sibling
+   fields when an optional `include file()` misses inside an object literal
+   (rs.hocon#149).
+2. **`object6.conf` — four-way unanimous divergence from the reference**
+   (delayed-merge cycle-breaking lookback), spec-analyzed and filed as
+   xx.hocon#67 with micro-probes; verdict: sibling gap, align to Lightbend.
+   Related to the existing go.hocon#147 / rs.hocon#135 cluster.
+3. **Deep-nesting robustness** (`max_depth.conf`, ~6.9 KB nested): go passes;
+   rs exceeds 15 s; ts overflows the call stack; py hits the recursion limit.
+   Not yet filed as issues.
+4. **`add_assign.conf` validates the limitation-derived classification**: all
+   four implementations parse the nested `+=` (per spec) and produce
+   identical output where the reference parser self-limits; the sibling
+   `.divergence.md` guidance is exercised exactly as written. The other three
+   limitation-derived error fixtures currently error on all four
+   implementations as well, so no runner conflict arises today.
+
 ## Planned next phases
 
 1. Wire the four implementations' conformance runners to this corpus
