@@ -6,7 +6,7 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **88.1%** | **98.9%** | 184 | 2 | 1 | 0 | 23 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **88.3%** | **99.2%** | 185 | 1 | 1 | 0 | 23 |
 | [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **91.9%** | **100.0%** | 193 | 0 | 0 | 0 | 17 |
 | [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **88.1%** | **98.4%** | 185 | 0 | 3 | 0 | 22 |
 | [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **53.8%** | **58.9%** | 105 | 16 | 0 | 71 | 18 |
@@ -57,8 +57,6 @@ Items where the test or implementation behavior contradicts the spec:
 |---|---|---|---|
 | S1.1 | go | ❌ | Invalid UTF-8 (e.g. `string([]byte{0xff})` via `ParseString`) is silently substituted with U+FFFD instead of rejected; spec L117 requires rejection. Go `string` is `[]byte` and is not language-guaranteed UTF-8. ts ➖ (JS string is pre-decoded Unicode at the I/O boundary; the parser cannot observe raw bytes — see ts.hocon S1.1 entry). rs ✅ (Rust `&str` is language-guaranteed valid UTF-8; verified positively via `tests/testdata/hocon/bom.conf` fixture). |
 | S3.4 | ts | ❌ | Unbraced root + stray `}` accepted ([#55](https://github.com/o3co/ts.hocon/issues/55)) |
-| S8.1 | ts, rs, go, py | ⚠️ | Lexer allows backtick in unquoted strings, contrary to spec L245 forbidden set. **Widened from ts-only on 2026-07-24** ([#68](https://github.com/o3co/xx.hocon/issues/68)): a probe of the full forbidden set across all four impls found every other character rejected and backtick accepted by all four, in both value and key position. Pinned by `unquoted-forbidden/uf01`–`uf04` |
-| S11.7 | ts, rs, go, py | ❌ | Empty path segments accepted in **key** position: `a..b`, `.a`, `a...c`, `a...c.""` all parse (segments silently collapsed) although L517-519 names them invalid outright. Trailing dot (`a.`) and every substitution-position form are already rejected by all four, so the gap is specific to key-position parsing. Found via the harvested ecosystem corpus ([#66](https://github.com/o3co/xx.hocon/pull/66) pushcorn `path-keys-*`); pinned by `path-empty-segment/pe01`–`pe08` ([#68](https://github.com/o3co/xx.hocon/issues/68)) |
 | S8.2 | go | ❌ | `//` inside an unquoted run without preceding whitespace is treated as literal content; spec L248 says `//` starts a comment anywhere outside a quoted string. ts/rs ✅. |
 | S13a.3 | ts | ⚠️ | Self-reference before any prior value (`a = ${a}`) raises a cycle error, but the error type / message classifies this as a generic substitution error rather than the "undefined" path the spec describes at L795. rs/go ✅ (correct error class). |
 | S13a.12 | go | ❌ | Self-ref in a path expression (`${foo.a}` where `foo.a` is being defined) does not resolve to the "below" value per L831; the looked-up sub-object is discarded in the merge. ts/rs ✅. |
@@ -72,6 +70,78 @@ Spec items with no test coverage in **any** of the four implementations. These a
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the four impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### 2026-07-24 — S11.7 + S8.1 cleared in all four impls (same-day roll-up)
+
+Both items were **already normative S-rows** — no spec change was involved.
+The matrix was simply wrong about them, and the harvested ecosystem corpus
+([#66](https://github.com/o3co/xx.hocon/pull/66)) is what exposed that:
+pushcorn's `path-keys-*` and `unquoted-1` fixtures failed on all four impls,
+and a full probe of both rules ([#68](https://github.com/o3co/xx.hocon/issues/68))
+narrowed the gaps to exactly two shapes.
+
+- **S11.7** (4-way ❌ → ✅) — empty path segments were accepted in **key**
+  position (`a..b`, `.a`, `a...c`, `a...c.""` parsed with the segment silently
+  collapsed) while the substitution-path position and the trailing-dot form
+  were already correct everywhere. Root cause was identical in all four: the
+  key-path parser split the unquoted token on `.` and then dropped empty pieces
+  unconditionally, so a genuine empty element was indistinguishable from the
+  structural empties the splitter legitimately produces (E13 path-whitespace
+  forms, separator dots after a quoted segment). Each impl now validates before
+  filtering, exempting only a leading empty when a real prior segment exists and
+  a trailing empty (already governed by the trailing-dot guard). All four
+  independently concluded the substitution-path validation could not be reused:
+  it is inline char-scanner state, whereas key paths are token-level with
+  context-dependent emptiness, and a post-hoc check over the finished segment
+  list cannot work either (`a."".b` and `a..b` both yield an empty segment).
+- **S8.1** (4-way ⚠️ → ✅) — backtick was the last member of the L245-247
+  forbidden set still accepted, in both value and key position; every other
+  member was already rejected everywhere. The matrix had recorded this as
+  ts-only; the probe showed it was never ts-specific. (go's const holding the
+  forbidden set was a backtick-delimited raw string literal, which is why the
+  character could not be listed there in the first place.)
+
+Fixtures: `path-empty-segment/pe01`–`pe08` (pe03/pe08 are regression guards for
+the already-correct forms; **pe07 is the S11.6 success guard** — a *quoted*
+empty segment stays legal) and `unquoted-forbidden/uf01`–`uf04` (uf04 = backtick
+inside a quoted string, success guard). Spec PR
+[xx.hocon#70](https://github.com/o3co/xx.hocon/pull/70); impl PRs
+[ts.hocon#167](https://github.com/o3co/ts.hocon/pull/167),
+[rs.hocon#151](https://github.com/o3co/rs.hocon/pull/151),
+[go.hocon#160](https://github.com/o3co/go.hocon/pull/160),
+[py.hocon#14](https://github.com/o3co/py.hocon/pull/14).
+
+Verification: a cross-impl review ran ~4230 probe inputs across the four impls
+plus typesafe-config 1.4.3 — exhaustive sweeps of the dot/whitespace key grammar
+and the backtick grammar, plus every adjacent-dot variant outside the fixtures
+(`""..b`, `a.."".b`, `"a"..b`, `123..abc`, non-ASCII keys). Zero divergence
+between the siblings and zero divergence from the reference implementation in
+both grammars. Re-probed after merge: all 23 spot cases agree with the spec
+expectation in all four impls.
+
+**Rate change — smaller than the cleared-cell count suggests, and worth reading
+carefully.** The rates published through 2026-07-23 were computed against a
+board that scored S11.7 as ✅ for all four and S8.1 as ✅ for rs/go/py (⚠️ ts
+only). That board was wrong: none of those cells passed. [#70](https://github.com/o3co/xx.hocon/pull/70)
+corrected the violation *rows* but deliberately did not re-roll the rates, so
+the published numbers kept describing the state the code has only now actually
+reached. Consequently:
+
+- **ts** is the only impl whose rate moves, and only for S8.1 (the one cell that
+  was honestly recorded as ⚠️): 88.1% → **88.3%** spec-total, 98.9% → **99.2%**
+  in-scope (+0.5 credit / denominator 187).
+- **rs, go, py** are unchanged (rs 91.9% / 100.0%; go 88.1% / 98.4%; py 53.8% /
+  58.9%) — their two cells were already being counted as ✅, so the fix restores
+  the rate's accuracy rather than raising it.
+
+The lesson is bookkeeping, not compliance: a ✅ that no fixture pins is an
+assertion, not a measurement. Both cells carried ✅ in three impls' own
+`docs/spec-compliance.md` as well, citing only substitution-position fixtures
+(S11.7) or a forbidden-set test that omitted backtick (S8.1); every impl's PR in
+this cluster corrected its own rows and added the missing citations.
+
+Remaining violations: 5 cells across 2 impls — ts S3.4/S13a.3, go
+S1.1/S8.2/S13a.12. rs and py carry none.
 
 ### 2026-07-23 — S3.5 shipped in all four impls (same-day roll-up)
 
