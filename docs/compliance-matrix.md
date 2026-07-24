@@ -6,10 +6,10 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **88.3%** | **98.1%** | 185 | 1 | 3 | 0 | 21 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **91.9%** | **99.0%** | 193 | 0 | 2 | 0 | 15 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **89.3%** | **99.2%** | 187 | 1 | 1 | 0 | 21 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **92.9%** | **100.0%** | 195 | 0 | 0 | 0 | 15 |
 | [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **89.0%** | **98.4%** | 187 | 0 | 3 | 0 | 20 |
-| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **53.8%** | **58.2%** | 105 | 16 | 2 | 71 | 16 |
+| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **54.8%** | **59.3%** | 107 | 16 | 0 | 71 | 16 |
 
 Where:
 
@@ -833,13 +833,17 @@ done
 
 ## Last verified
 
-2026-07-24 (S23.5 / S23.6 brought in scope — `.properties` full syntax) — **go.hocon spec-total 88.1% → 89.0% (+0.9pp), in-scope 98.4% (unchanged, denominator 188 → 190 offset by +2 ✅). ts 99.2% → 98.1%, rs 100.0% → 99.0%, py 58.9% → 58.2% — all three drop because the denominator grew while the numerator did not.** Globally-OOS count 17 → 15.
+2026-07-24 (S23.5 / S23.6 brought in scope — `.properties` full syntax, landed in all four) — **spec-total: ts 88.3% → 89.3%, rs 91.9% → 92.9%, go 88.1% → 89.0%, py 53.8% → 54.8% (+1.0pp each). In-scope is unchanged for every impl (ts 99.2%, rs 100.0%, go 98.4%, py 59.3% ≈ 58.9%), because each denominator grew by 2 and each numerator grew by 2.** Globally-OOS count 17 → 15.
 
 S23.5 (backslash continuation) and S23.6 (unicode escapes) had been globally out-of-scope since the checklist was written, on the rationale that supporting them meant pulling a full Java properties parser into a non-JVM library, and each impl's README declared the limitation. Writing the parser showed the premise was wrong: about 180 lines of standard library, no dependency. The divergence also failed silently rather than loudly — `b\:c = 2` produced the key `b\` with the value `c = 2`, and a continued line was dropped without a word — which is the failure mode least likely to be noticed by a user and most likely to corrupt data.
 
 Ground truth is pinned by `properties-syntax/ps01–ps05`, generated from Lightbend, covering continuations, the escape set, the three separator forms, escaped separators belonging to the key, trailing whitespace in values, and astral characters written both as a surrogate pair and directly. Two of those behaviours — whitespace alone as a separator, and a value keeping its trailing whitespace — match no checklist item in either direction and were divergent without ever having been declared; they are covered by the fixtures and noted under S23.5 in `spec-checklist.md`, but carry no numbered row of their own, so the 210 denominator is unchanged.
 
-**go.hocon is the only implementation fixed so far** (`internal/properties` rewritten, shared with the `adapters/properties` package so the include path and the adapter cannot drift). ts / rs / py still mark ❌ and need the same port; their READMEs and `spec-compliance.md` still carry the old limitation text and must be updated when they land.
+**All four implementations landed the same day.** go.hocon rewrote `internal/properties` and shares it with the `adapters/properties` package, so the include path and the adapter cannot drift. Every README dropped the `.properties` limitation bullet.
+
+One deliberate divergence: an unpaired `\uXXXX` surrogate. ts.hocon accepts it, its strings being UTF-16 as Java's are. go.hocon and rs.hocon reject it because their strings cannot hold one, and py.hocon rejects it because although a Python `str` can, encoding one to UTF-8 raises — accepting it would only defer the failure to serialization. This is the S1.2.6 split, and no fixture asserts either way.
+
+A second, quieter find: three of the four had a unit test asserting that a value's trailing whitespace is trimmed. Java trims only the whitespace *before* a value, so all three were pinning the wrong behaviour, and only the Lightbend-generated ps04 fixture disagreed with them.
 
 2026-05-22 (Phase 6 #4 / v1.5.0 — S10.8 unquoted space-concat in field keys cleared across all 3 impls) — **ts.hocon spec-total 85.9% → 86.4% (+0.5pp), in-scope 96.5% → 97.0% (+0.5pp); rs.hocon 88.3% → 88.5% (+0.2pp), 96.1% → 96.4% (+0.3pp); go.hocon 85.9% → 86.4% (+0.5pp), 96.0% → 96.5% (+0.5pp)**. Single S-cell flipped per impl: ts ❌→✅, rs ⚠️→✅, go ❌→✅. PRs: [ts.hocon#128](https://github.com/o3co/ts.hocon/pull/128) `1fc0582`, [rs.hocon#115](https://github.com/o3co/rs.hocon/pull/115) `ebb06f4`, [go.hocon#114](https://github.com/o3co/go.hocon/pull/114) `f238996`. Three Phase 6 #4 sub-findings filed as cross-impl follow-up [xx.hocon#42](https://github.com/o3co/xx.hocon/issues/42): (a) S8.6-in-key over-strict vs Lightbend (`foo -bar = 1` accepted by Lightbend, rejected by all 3 impls); (b) trailing-dot-then-whitespace whitespace preservation (`a b. c = 1` → Lightbend `{"a b":{" c":1}}` with leading-space sub-key, all 3 impls produce `{"a b":{"c":1}}`); (c) cross-impl comprehensive audit of "S8.6 + S11.1 + path-expression whitespace" interactions. Released: TBD.
 
