@@ -1,0 +1,11 @@
+{
+  "colon": "2",
+  "empty-value": "",
+  "equals": "1",
+  "escaped-colon:key": "6",
+  "escaped-equals=key": "7",
+  "escaped-space key": "8",
+  "space": "3",
+  "spaced": "5",
+  "tab": "4"
+}

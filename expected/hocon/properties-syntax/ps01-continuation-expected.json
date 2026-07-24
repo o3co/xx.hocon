@@ -1,0 +1,7 @@
+{
+  "continued-into-hash": "seven#not-a-comment",
+  "escaped-backslash": "five\\",
+  "indented": "threefour",
+  "next": "six",
+  "simple": "onetwo"
+}

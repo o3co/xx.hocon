@@ -371,9 +371,20 @@ See also: [E12 § "S13a × WithFallback — Self-reference lookback across fallb
 - **S23.3** Properties values are always strings — §Java properties (L1471)
 - **S23.4** Object wins over string on conflicting key — §Java properties (L1485)
 - **S23.5** Multi-line values (backslash continuation) — §Note on Java properties similarity (L1587)
-  out-of-scope: declared in each implementation's README — the `.properties` reader supports only basic `key=value` syntax to avoid pulling a full Java properties parser into a non-JVM library.
 - **S23.6** Unicode escapes in `.properties` — §Note on Java properties similarity (L1587)
-  out-of-scope: same rationale as S23.5.
+
+  S23.5 and S23.6 were **out-of-scope until 2026-07-24**, on the rationale that supporting them
+  meant "pulling a full Java properties parser into a non-JVM library". Writing one showed the
+  cost to be about 180 lines of standard library and no dependency, while the divergence produces
+  silently wrong data rather than an error: `b\:c = 2` yielded the key `b\` with the value
+  `c = 2`, and a continued line vanished entirely. Both are now **in scope**.
+
+  A reader that satisfies these two necessarily also handles the rest of `java.util.Properties`:
+  the three separator forms (`=`, `:`, whitespace), escaped separators belonging to the key, and
+  a value keeping its trailing whitespace (Java skips whitespace before a value, never after).
+  Those carry no checklist item of their own and were divergent without ever being declared;
+  ground truth for all of it is recorded in `testdata/hocon/properties-syntax/ps01–ps05` with
+  expectations generated from Lightbend.
 
 ## S24. Conventional config files (JVM)
 

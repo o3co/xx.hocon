@@ -1,0 +1,9 @@
+{
+  "carriage": "a\rb",
+  "formfeed": "a\fb",
+  "literal-backslash": "a\\b",
+  "newline": "a\nb",
+  "tab": "a\tb",
+  "unicode": "é",
+  "unknown-escape": "qzr"
+}
