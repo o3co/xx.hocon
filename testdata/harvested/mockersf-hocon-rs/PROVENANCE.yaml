@@ -1,0 +1,31 @@
+# Provenance for harvested fixtures in this directory.
+# Files are verbatim copies from the upstream repository — never edit them here.
+source:
+  repo: https://github.com/mockersf/hocon.rs
+  commit: cbaf6d04b0c693cd3f15909b3d15ad083f7f3fa2
+  path: tests/data/
+  license: MIT
+  retrieved: 2026-07-24
+
+# Upstream treats every tests/data/*.conf as a test root via
+# test_generator::test_expand_paths! (snapshot + load tests), so every .conf
+# here is a fixture root. file_with_different_types.{json,properties} are
+# include companions of include_multiple_file.conf (extension-less include
+# merges .conf/.json/.properties siblings) — non-.conf files are never
+# fixture roots, so no companions.txt is needed.
+
+# Upstream files intentionally NOT copied.
+excluded:
+  - name: include_url.conf
+    reason: includes a GitHub raw URL — network-dependent, non-deterministic
+
+notes: |
+  - test01.conf / test03.conf derive from the Lightbend test suite but are
+    upstream-modified variants (not content-identical to the mirror files at
+    testdata/hocon/test01.conf / test03.conf), so they are kept.
+  - issue-26-*.conf / issue-27.conf are upstream regression fixtures from real
+    user reports (mockersf/hocon.rs issues #26, #27).
+  - include.conf / include_and_subst.conf / includes_no_separator.conf use
+    `include` in value position, which the HOCON spec does not define; the
+    reference implementation's observed behaviour (whatever it is) becomes the
+    expected output here.

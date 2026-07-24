@@ -1,7 +1,10 @@
-.PHONY: generate clean differential differential-corpus differential-adapters differential-fuzz
+.PHONY: generate generate-harvested clean differential differential-corpus differential-adapters differential-fuzz
 
 generate:
 	cd generate && ./gradlew run
+
+generate-harvested:
+	cd generate && ./gradlew generateHarvested
 
 clean:
 	find expected/hocon -name '*.json' -delete

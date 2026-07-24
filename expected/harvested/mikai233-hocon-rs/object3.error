@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$IO
+Message: F:/IdeaProjects/demo/config/src/main/resources/demo2.conf: java.io.FileNotFoundException: F:/IdeaProjects/demo/config/src/main/resources/demo2.conf (No such file or directory)

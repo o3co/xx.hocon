@@ -1,0 +1,38 @@
+# Provenance for harvested fixtures in this directory.
+# Files are verbatim copies from the upstream repository — never edit them here.
+source:
+  repo: https://github.com/mikai233/hocon-rs
+  commit: 574cfb6636bdd5bcb46313d8fc989e23ece3c0b3
+  path: resources/
+  license: MIT
+  retrieved: 2026-07-24
+
+# Upstream keeps its own expected outputs as sibling *.json files at the same
+# path (e.g. base.json, add_assign_expected.json). They are NOT vendored here;
+# expected/harvested/ is regenerated from the reference implementation instead
+# (see testdata/harvested/README.md). Consult the pinned commit above to
+# compare against upstream's own expectations.
+
+# Copied but not fixture roots (include targets / cycle chain members).
+# Machine-readable mirror: companions.txt (read by GenerateHarvested).
+companions:
+  - foo.conf            # include target of include.conf
+  - include_cycle2.conf # cycle chain member (root: include_cycle.conf)
+  - include_cycle3.conf # cycle chain member (root: include_cycle.conf)
+
+# Upstream files intentionally NOT copied.
+excluded:
+  - name: empty.conf
+    reason: exact content duplicate of testdata/hocon/empty-file/ef01-empty.conf
+  - name: included.conf
+    reason: includes http://localhost:8000/... — network-dependent, non-deterministic
+  - name: main.conf
+    reason: transitively pulls included.conf (see above) via `include required("included")`
+
+notes: |
+  - demo.conf / object1.conf / object3.conf reference a developer-machine
+    Windows path (F:/IdeaProjects/...) in include directives. On POSIX runners
+    the path never exists, so behaviour is deterministic: optional includes are
+    silently skipped, required() ones fail — the failure is part of the fixture.
+  - object7.conf ends in a substitution cycle (qq -> dd -> hh -> qq); it is an
+    error fixture by construction.

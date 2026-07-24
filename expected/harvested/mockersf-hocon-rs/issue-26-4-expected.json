@@ -1,0 +1,9 @@
+{
+  "DefaultParsers": [
+    "asdf",
+    "qwer"
+  ],
+  "WazuhParsers": [
+    "qwer"
+  ]
+}

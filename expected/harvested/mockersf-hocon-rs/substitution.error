@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/harvested/mockersf-hocon-rs/substitution.conf: 2: Could not resolve substitution to a value: ${b}

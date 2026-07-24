@@ -1,0 +1,6 @@
+{
+  "a": 1,
+  "b": "include basic.conf",
+  "c": "include file(basic.conf)",
+  "d": 5
+}

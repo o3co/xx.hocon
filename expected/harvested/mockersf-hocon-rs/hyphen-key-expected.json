@@ -1,0 +1,9 @@
+{
+  "concurrency": {
+    "client-threads": 8,
+    "foo-bar": {
+      "nested-config": true
+    },
+    "server-threads": 16
+  }
+}
