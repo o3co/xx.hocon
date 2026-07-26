@@ -112,6 +112,29 @@
       "note": "F0.3 a config root must be an object"
     },
     {
+      "id": "fi23-comment-splices-tokens",
+      "format": "jsonc",
+      "input": "jsonc/fi23-comment-splices-tokens.jsonc",
+      "expect": "error",
+      "note": "F3.2 comment stripping is token-separating: a comment is replaced by whitespace, never the empty string, so 1/*x*/2 stays two tokens and fails the JSON decode instead of silently reading as 12. No cites — the message is the underlying JSON decoder's and differs per implementation."
+    },
+    {
+      "id": "fi24-cr-terminated-comment",
+      "format": "jsonc",
+      "input": "jsonc/fi24-cr-terminated-comment.jsonc",
+      "expect": "ok",
+      "expected": "jsonc/fi24-cr-terminated-comment-expected.json",
+      "note": "F3.2 a // comment ends at LF *or* CR. The input separates the comment from \"b\" with a lone CR (0x0D). Scanning only for \\n makes the comment swallow that line, and because the trailing-comma pass then tidies the dangling comma the document still parses — losing the key \"b\" with no error at all. CAVEAT: a harness that reads the input in text mode with universal-newline translation (Python's Path.read_text default) turns the CR into an LF before the adapter sees it and the case passes vacuously; read the fixture as bytes, or with newline=\"\", to keep it load-bearing."
+    },
+    {
+      "id": "fi25-line-separator-in-comment",
+      "format": "jsonc",
+      "input": "jsonc/fi25-line-separator-in-comment.jsonc",
+      "expect": "ok",
+      "expected": "jsonc/fi25-line-separator-in-comment-expected.json",
+      "note": "F3.2 the mirror image of fi24: U+2028 deliberately does NOT terminate a // comment. node-jsonc-parser, which defines this dialect, treats only LF and CR as line breaks, so the comment runs through the U+2028 and \"b\" is commented out — the document is {\"a\":1,\"c\":3}. Ending the comment early would make the file mean one thing in the editor that owns the format and another here."
+    },
+    {
       "id": "fi30-datetimes",
       "format": "toml",
       "input": "toml/fi30-datetimes.toml",
