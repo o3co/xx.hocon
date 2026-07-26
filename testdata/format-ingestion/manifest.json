@@ -52,6 +52,42 @@
       "note": "F1.7 a trailing # is refused rather than guessed at"
     },
     {
+      "id": "fi14-dot-in-name",
+      "format": "env",
+      "input": "env/fi14-dot-in-name.env.json",
+      "kind": "env-vars",
+      "expect": "ok",
+      "expected": "env/fi14-dot-in-name-expected.json",
+      "note": "F1.2 only __ creates hierarchy: a literal . in a variable name is key text, so APP_FOO.BAR is the single top-level key \"foo.bar\" and coexists with APP_FOO__BAR (two segments) instead of colliding with it under F1.6. Requires the mapped path to be carried as a segment list end-to-end — joining on . and re-splitting manufactures a boundary the environment never had."
+    },
+    {
+      "id": "fi15-ascii-fold",
+      "format": "env",
+      "input": "env/fi15-ascii-fold.env.json",
+      "kind": "env-vars",
+      "expect": "ok",
+      "expected": "env/fi15-ascii-fold-expected.json",
+      "note": "F1.3 case folding is ASCII-only: A-Z lowercase, every other codepoint is left alone. APP_İ (U+0130) must not collide with APP_I under F1.6, and APP_K (U+212A KELVIN SIGN) must not collide with APP_K — full Unicode lowercasing folds both away, and it folds them differently per language (Go's simple mapping turns U+0130 into i, everyone else's full mapping into i + U+0307), so the mapping is pinned rather than inherited from each stdlib."
+    },
+    {
+      "id": "fi16-proto-keys",
+      "format": "env",
+      "input": "env/fi16-proto-keys.env.json",
+      "kind": "env-vars",
+      "expect": "ok",
+      "expected": "env/fi16-proto-keys-expected.json",
+      "note": "F2.9 no key denylist on the shared key-nesting path: constructor and prototype are ordinary keys, at the root and nested. __proto__ cannot be reached through env at all — it begins and ends with the __ separator, so it would map to empty segments — which is why fi50 pins it through properties."
+    },
+    {
+      "id": "fi17-bom",
+      "format": "env",
+      "input": "env/fi17-bom.env",
+      "kind": "dotenv",
+      "expect": "ok",
+      "expected": "env/fi17-bom-expected.json",
+      "note": "F0.9 a leading UTF-8 BOM is stripped rather than glued to the first key. Left in place it yields the key \"\\ufefffoo\", so a lookup of foo misses and the value is silently unreachable — the plausible-but-wrong output F0.9 exists to prevent."
+    },
+    {
       "id": "fi20-comments",
       "format": "jsonc",
       "input": "jsonc/fi20-comments.jsonc",
