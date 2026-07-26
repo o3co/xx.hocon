@@ -410,6 +410,101 @@ always "E11 spec says X".
 
 ---
 
+## Format-ingestion fixtures (F-items — the format adapters)
+
+`testdata/format-ingestion/` is structurally different from every group above
+because **there is no oracle**. Lightbend has no equivalent of these adapters,
+so the expectations are not generated: they encode the project's own F-item
+decisions from `docs/specs/format-ingestion-mapping.md`, and their entire value
+is differential — the four implementations must agree with them and with each
+other. Nothing under this directory is produced by `generate/`, and it lives
+under `testdata/` rather than `expected/` for that reason (`make clean` deletes
+generated JSON).
+
+### File layout
+
+```text
+testdata/format-ingestion/
+  manifest.json                        — the case list; the only entry point
+  env/fi1*.env.json                    — `env-vars` inputs: {prefix, vars}
+  env/fi1*.env                         — `dotenv` inputs
+  jsonc/fi2*.jsonc
+  toml/fi3*.toml
+  yaml/fi4*.yaml
+  properties/fi5*.properties
+  <dir>/<id>-expected.json             — success expectation, compact + key-sorted
+```
+
+Prefix blocks follow the format: `fi1x` env, `fi2x` JSONC, `fi3x` TOML,
+`fi4x` YAML, `fi5x` Properties.
+
+### Manifest schema
+
+Each entry of `cases[]`:
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `id` | yes | Case id; also the origin description passed to the adapter. |
+| `format` | yes | `env` / `jsonc` / `toml` / `yaml` / `properties`. |
+| `input` | yes | Path to the input, relative to the manifest. |
+| `kind` | `env` only | `env-vars` (a JSON `{prefix, vars}` document mounted through the bulk-mount entry point) or `dotenv` (`.env` text). |
+| `expect` | yes | `ok` or `error`. |
+| `expected` | when `ok` | Path to the expected JSON. |
+| `cites` | optional | Substring the error message must contain. Present only where the wording is the adapter's own; omitted where the message comes from an underlying decoder and therefore differs per language. |
+| `note` | yes | Which F-item the case pins, and why the case is shaped that way. |
+
+### Per-impl runner contract
+
+A runner reads `manifest.json`, and for each case reads `input`, dispatches on
+`format` (and `kind`), then:
+
+- `expect: "error"` — the adapter must raise the implementation's adapter-error
+  type. When `cites` is present, the message must contain it verbatim; there is
+  no other message assertion.
+- `expect: "ok"` — the produced config, rendered as JSON, must equal `expected`.
+
+Two properties of the *reading* step are load-bearing and easy to get wrong:
+
+1. **Read the input verbatim.** `fi24-cr-terminated-comment` separates a `//`
+   comment from the next line with a lone CR, which is the whole point of the
+   case. A text-mode read with universal-newline translation (Python's
+   `Path.read_text()` default) rewrites that CR to an LF before the adapter sees
+   it and the case passes without testing anything. Read bytes, or open with
+   `newline=""`.
+2. **Do not decode the BOM away.** `fi17-bom` and `fi51-bom` pin F0.9, so the
+   U+FEFF has to reach the adapter. Decoding with `utf-8-sig` (or any
+   BOM-consuming reader) makes both cases vacuous.
+
+### Adding a format
+
+`properties` was added after the first four, and the shape of that change is the
+template: the fixtures and the manifest entries land here, and **each of the four
+runners needs a dispatch branch for the new `format` value** — one `case` arm
+calling that implementation's Properties adapter. Until a runner has it, an
+unknown `format` hits its `default` arm, which panics or throws in all four. So
+a new format is not a xx.hocon-only change: land the runner branches alongside
+it, or the corpus sync breaks the consuming repos.
+
+### Deliberate gaps
+
+Not every F-item can be a shared fixture, and the ones that cannot are listed so
+their absence reads as a decision rather than an oversight:
+
+- **F1.9** (a process-environment entry that is not valid UTF-8) needs invalid
+  bytes injected into a real process environment — `env-vars` fixtures are JSON
+  documents, so they cannot carry an undecodable name or value at all, and the
+  behaviour differs on Windows, where the environment is UTF-16. Covered by
+  per-impl unit tests only.
+- **F5.1 / YAML scalar resolution** (`010`, `no`, timestamps) is delegated to
+  the YAML library in use; a fixture would report the libraries' differences as
+  divergences of ours. See the F5 "Scope" section of the spec — YAML fixtures
+  quote any scalar whose resolution is not portable.
+- **F5.3 on the YAML parse path** depends on what each library hands over, and
+  the injected-tree entry point (`FromValue` / `from_value`) that F5.3 also
+  governs is not reachable from a manifest-driven runner.
+
+---
+
 ## Scenario YAML fixtures (E12 — deferred substitution resolution)
 
 The `deferred-resolution/` fixture group is structurally different from all other
