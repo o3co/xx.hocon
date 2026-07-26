@@ -12,7 +12,21 @@
     "YAML fixtures deliberately quote any scalar whose resolution differs between",
     "YAML 1.1 and 1.2 (010, no, 1:30 and friends). Scalar resolution belongs to",
     "the YAML library in use, not to this spec, so asserting on those forms would",
-    "test the library rather than the adapter. See F5 'Scope'."
+    "test the library rather than the adapter. See F5 'Scope'.",
+    "",
+    "The `properties` format was added after the first four, so a runner that",
+    "predates it hits its unknown-format branch (a panic or throw in all four).",
+    "A new format value is not a xx.hocon-only change: each runner needs a",
+    "dispatch arm for it.",
+    "",
+    "Two reading rules the runner must honour, because two cases are silently",
+    "vacuous otherwise: read the input verbatim (fi24 turns on a lone CR, which",
+    "universal-newline text reads rewrite), and do not decode the BOM away",
+    "(fi17 and fi51 need the U+FEFF to reach the adapter, so no utf-8-sig).",
+    "",
+    "Schema, runner contract and the F-items that deliberately have no fixture",
+    "(F1.9, F5.1, F5.3 on the parse path): docs/fixture-conventions.md,",
+    "'Format-ingestion fixtures'."
   ],
   "cases": [
     {
@@ -205,6 +219,30 @@
       "expect": "error",
       "cites": "F0.6",
       "note": "F0.6 NaN is not representable in HOCON"
+    },
+    {
+      "id": "fi50-proto-keys",
+      "format": "properties",
+      "input": "properties/fi50-proto-keys.properties",
+      "expect": "ok",
+      "expected": "properties/fi50-proto-keys-expected.json",
+      "note": "F2.9 no key denylist: __proto__, constructor and prototype survive as ordinary keys, at the root and under a dotted parent. Dropping them would be data loss; JS implementations get prototype-pollution safety by construction (null-prototype carriers, own-property definition), never by dropping keys."
+    },
+    {
+      "id": "fi51-bom",
+      "format": "properties",
+      "input": "properties/fi51-bom.properties",
+      "expect": "ok",
+      "expected": "properties/fi51-bom-expected.json",
+      "note": "F0.9 a leading UTF-8 BOM is stripped rather than glued to the first key. This is the flat-format shape of the failure: left in place the key is \"\\ufeffa\", so a lookup of a misses and the value is silently unreachable."
+    },
+    {
+      "id": "fi52-dotted-keys",
+      "format": "properties",
+      "input": "properties/fi52-dotted-keys.properties",
+      "expect": "ok",
+      "expected": "properties/fi52-dotted-keys-expected.json",
+      "note": "F2.1/F2.2/F2.4 baseline for the format: dotted keys nest, all values are strings, = / : / whitespace all separate, # and ! comment, \\: is an escaped key character. F0.2 ${a.b} stays literal."
     }
   ]
 }
