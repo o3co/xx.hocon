@@ -106,7 +106,23 @@ Findings, in triage order:
    Related to the existing go.hocon#147 / rs.hocon#135 cluster.
 3. **Deep-nesting robustness** (`max_depth.conf`, ~6.9 KB nested): go passes;
    rs exceeds 15 s; ts overflows the call stack; py hits the recursion limit.
-   Not yet filed as issues.
+   **Filed 2026-07-30**, with measured thresholds from a synthetic probe
+   (`{"a":` × n) rather than the single fixture. The failure modes are not
+   equally bad, which is why they are three issues and not one parity item:
+
+   | impl | threshold | outcome | recoverable by the caller? |
+   |---|---:|---|---|
+   | rs.hocon | ~2 500 (15 kB) | stack overflow → `SIGABRT` | **no** ([rs.hocon#162](https://github.com/o3co/rs.hocon/issues/162)) |
+   | ts.hocon | ~2 000 core, ~10 000 adapters | `RangeError` | yes, but outside the `ConfigError` contract ([ts.hocon#177](https://github.com/o3co/ts.hocon/issues/177)) |
+   | py.hocon | ~400 core, ~500 adapters | `RecursionError` | was outside the contract; **fixed** ([py.hocon#18](https://github.com/o3co/py.hocon/issues/18) → [#26](https://github.com/o3co/py.hocon/pull/26)) |
+   | go.hocon | survives 10 000; killed near 100 000 | process killed | n/a at any realistic size |
+
+   The cheapest route in is not a nested document at all: an environment
+   variable name or a Properties dotted key produces **one arbitrarily deep
+   chain from one string**, so ~1.5 kB of variable name reached 497 levels in
+   py.hocon. py.hocon and rs.hocon both cap that mapping at 64 segments;
+   go.hocon and ts.hocon do not cap it. Whether 64 becomes the common number is
+   the open part.
 4. **`add_assign.conf` validates the limitation-derived classification**: all
    four implementations parse the nested `+=` (per spec) and produce
    identical output where the reference parser self-limits; the sibling
