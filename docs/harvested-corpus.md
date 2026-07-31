@@ -61,6 +61,17 @@ legitimately succeed on them (except `object7.conf`, which fails at resolve
 time regardless). Per-implementation posture is decided at conformance-runner
 wiring time.
 
+**Reference-success an implementation may legitimately refuse (1)** — the
+opposite direction, and the only fixture in this class:
+
+| Fixture | Construct | Why an implementation may refuse it |
+|---|---|---|
+| `mikai233/max_depth.conf` | 1728 levels of nesting in ~6.9 kB | No implementation can recurse without a stack, and what happens when one runs out is a property of the host language. rs.hocon must declare a limit (128) because a Rust stack overflow is `SIGABRT` and cannot be caught; ts.hocon and py.hocon catch their runtime's own error and rethrow; go.hocon parses it. Full analysis in `max_depth.divergence.md`. |
+
+What this fixture is actually good for is the property *below* pass/fail: an
+implementation that refuses it with its own error type conforms, one that
+**crashes** on it does not.
+
 ### Other observations
 
 - **`include` in value position** (`mockersf/includes_no_separator.conf`,
@@ -120,9 +131,20 @@ Findings, in triage order:
    The cheapest route in is not a nested document at all: an environment
    variable name or a Properties dotted key produces **one arbitrarily deep
    chain from one string**, so ~1.5 kB of variable name reached 497 levels in
-   py.hocon. py.hocon and rs.hocon both cap that mapping at 64 segments;
-   go.hocon and ts.hocon do not cap it. Whether 64 becomes the common number is
-   the open part.
+   py.hocon.
+
+   **Closed 2026-07-31.** All four now cap a mapped path at **64 segments**
+   ([py.hocon#26](https://github.com/o3co/py.hocon/pull/26),
+   [ts.hocon#178](https://github.com/o3co/ts.hocon/pull/178),
+   [go.hocon#176](https://github.com/o3co/go.hocon/pull/176), rs.hocon already
+   did). Document nesting stayed deliberately uncapped in three of the four —
+   refusing a 65-level JSON file would be a claim about the format — and each
+   turns its runtime's own recursion error into the type its callers are told to
+   catch. rs.hocon is the exception and had to be
+   ([#163](https://github.com/o3co/rs.hocon/pull/163)): a Rust stack overflow is
+   `SIGABRT`, so it refuses at 128 rather than catching anything. That divergence
+   is recorded in `max_depth.divergence.md` as the S1.2.6-shaped,
+   language-natural kind.
 4. **`add_assign.conf` validates the limitation-derived classification**: all
    four implementations parse the nested `+=` (per spec) and produce
    identical output where the reference parser self-limits; the sibling
