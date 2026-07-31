@@ -1,1 +1,1 @@
-hocon-parser==1.8.0
+hocon-parser==1.12.0

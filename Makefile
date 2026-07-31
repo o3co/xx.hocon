@@ -26,7 +26,7 @@ ADAPTERS        := differential/adapters
 # Sibling release the adapters are pinned to. Bump together on the next release;
 # the per-language manifests (requirements.txt / package.json / Cargo.toml) pin
 # the same version and must be kept in sync with this.
-GO_IMPL_VERSION ?= v1.8.0
+GO_IMPL_VERSION ?= v1.12.0
 # The py adapter needs Python >= 3.11 (hocon-parser's requires-python). Override
 # if `python3` on your PATH is older, e.g. `make differential-adapters PYTHON=python3.11`.
 PYTHON          ?= python3
