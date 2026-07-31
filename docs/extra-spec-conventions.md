@@ -33,7 +33,7 @@ Same glyphs as `spec-checklist.md`:
 
 **Source**: implicit-by-absence. HOCON.md §Whitespace (L165–184) enumerates the whitespace set but does not list U+0085 (NEL). The "newline" definition at L182–184 restricts newline to U+000A specifically. Therefore NEL is a non-whitespace, non-newline character — it falls into ordinary unquoted-string content per S8.8 ("control characters not in the forbidden set are allowed").
 
-**Why an E-item rather than an S-item**: the spec asserts what *is* in HOCON_WS, not what is *not* in HOCON_WS. Treating "X is not in HOCON_WS" as a canonical spec item would force a row for every Unicode codepoint not enumerated — infeasible and not the spec's intent. NEL is called out separately because **Go's `unicode.IsSpace()` and Rust's `char::is_whitespace()` both include NEL**, making it a real footgun for stdlib-using implementations. ECMAScript regex `\s` also includes NEL.
+**Why an E-item rather than an S-item**: the spec asserts what *is* in HOCON_WS, not what is *not* in HOCON_WS. Treating "X is not in HOCON_WS" as a canonical spec item would force a row for every Unicode codepoint not enumerated — infeasible and not the spec's intent. NEL is called out separately because **Go's `unicode.IsSpace()` and Rust's `char::is_whitespace()` both include NEL**, making it a real footgun for stdlib-using implementations. ECMAScript regex `\s` does **not** include NEL — enumerated over the whole codepoint space on 2026-07-31, `\s` is the Unicode `White_Space` property minus U+0085 plus U+FEFF, so a JS implementation reaching for `\s` gets the right answer here for the wrong reason and the wrong answer for U+FEFF. (An earlier revision of this line claimed the opposite.)
 
 | Impl | Status | Test | Notes |
 |---|---|---|---|

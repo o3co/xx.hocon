@@ -438,6 +438,10 @@ testdata/format-ingestion/
 Prefix blocks follow the format: `fi1x` env, `fi2x` JSONC, `fi3x` TOML,
 `fi4x` YAML, `fi5x` Properties.
 
+The env block `fi10`–`fi19` is now full. A further env case takes the two-digit
+form (`fi110`); case order is the `cases[]` array, never lexical order of the ids, so
+the widened id sorts where the manifest puts it.
+
 ### Manifest schema
 
 Each entry of `cases[]`:
@@ -448,6 +452,7 @@ Each entry of `cases[]`:
 | `format` | yes | `env` / `jsonc` / `toml` / `yaml` / `properties`. |
 | `input` | yes | Path to the input, relative to the manifest. |
 | `kind` | `env` only | `env-vars` (a JSON `{prefix, vars}` document mounted through the bulk-mount entry point) or `dotenv` (`.env` text). |
+| `prefix` | optional, `dotenv` only | Mount prefix handed to the `.env` entry point; absent means `""` (mount everything). `env-vars` inputs carry their prefix inside the JSON document instead. |
 | `expect` | yes | `ok` or `error`. |
 | `expected` | when `ok` | Path to the expected JSON. |
 | `cites` | optional | Substring the error message must contain. Present only where the wording is the adapter's own; omitted where the message comes from an underlying decoder and therefore differs per language. |
@@ -462,6 +467,11 @@ A runner reads `manifest.json`, and for each case reads `input`, dispatches on
   type. When `cites` is present, the message must contain it verbatim; there is
   no other message assertion.
 - `expect: "ok"` — the produced config, rendered as JSON, must equal `expected`.
+
+A `dotenv` case may carry `prefix`; pass it to the `.env` entry point (all four accept
+an optional prefix and default to `""`). `fi18-dotenv-prefix` is vacuous without it —
+the line it expects to be filtered away is one the dialect otherwise refuses, so a
+runner that ignores `prefix` fails the case rather than silently passing it.
 
 Two properties of the *reading* step are load-bearing and easy to get wrong:
 
