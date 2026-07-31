@@ -415,7 +415,7 @@ always "E11 spec says X".
 `testdata/format-ingestion/` is structurally different from every group above
 because **there is no oracle**. Lightbend has no equivalent of these adapters,
 so the expectations are not generated: they encode the project's own F-item
-decisions from `docs/specs/format-ingestion-mapping.md`, and their entire value
+decisions from [`format-ingestion-mapping.md`](format-ingestion-mapping.md), and their entire value
 is differential — the four implementations must agree with them and with each
 other. Nothing under this directory is produced by `generate/`, and it lives
 under `testdata/` rather than `expected/` for that reason (`make clean` deletes
