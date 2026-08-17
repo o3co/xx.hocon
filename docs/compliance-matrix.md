@@ -6,10 +6,16 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **90.0%** | **100.0%** | 189 | 0 | 0 | 0 | 21 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **92.9%** | **100.0%** | 195 | 0 | 0 | 0 | 15 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **89.0%** | **98.4%** | 187 | 0 | 3 | 0 | 20 |
-| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **54.8%** | **59.3%** | 107 | 16 | 0 | 71 | 16 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **89.5%** | **99.5%** | 188 | 0 | 1 | 0 | 21 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **92.4%** | **99.5%** | 194 | 0 | 1 | 0 | 15 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **90.0%** | **99.5%** | 189 | 0 | 1 | 0 | 20 |
+| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **54.8%** | **59.3%** | 107 | 16 | 1 | 70 | 16 |
+
+The single ❌ shared by all four rows is S13a.12 — see
+[Top spec violations](#top-spec-violations-verified). ts/rs per-impl docs
+still record it as ✅ pending their correction PRs (this matrix reflects the
+2026-08-18 probe of the published v1.12.0 releases); py already carried the
+honest 🤷 with a note that the test06 citation is indirect, now hardened to ❌.
 
 Where:
 
@@ -54,9 +60,7 @@ Items where the test or implementation behavior contradicts the spec:
 
 | Item | Impl | Status | Description |
 |---|---|---|---|
-| S1.1 | go | ❌ | Invalid UTF-8 (e.g. `string([]byte{0xff})` via `ParseString`) is silently substituted with U+FFFD instead of rejected; spec L117 requires rejection. Go `string` is `[]byte` and is not language-guaranteed UTF-8. ts ➖ (JS string is pre-decoded Unicode at the I/O boundary; the parser cannot observe raw bytes — see ts.hocon S1.1 entry). rs ✅ (Rust `&str` is language-guaranteed valid UTF-8; verified positively via `tests/testdata/hocon/bom.conf` fixture). |
-| S8.2 | go | ❌ | `//` inside an unquoted run without preceding whitespace is treated as literal content; spec L248 says `//` starts a comment anywhere outside a quoted string. ts/rs ✅. |
-| S13a.12 | go | ❌ | Self-ref in a path expression (`${foo.a}` where `foo.a` is being defined) does not resolve to the "below" value per L831; the looked-up sub-object is discarded in the merge. ts/rs ✅. |
+| S13a.12 | **all four** | ❌ | **Reclassified 2026-08-18** from "go-only" after probing the published v1.12.0 releases: `foo:{a:{c:1}}; foo:${foo.a}; foo:{a:2}` yields `{a:2}` (c lost) in go, ts, py, AND rs — spec L791 expects `{a:2, c:1}`. The recorded ts/rs ✅ were misclassifications: rs cited `lightbend_test06`, whose later object overrides every key the substitution contributes, so discard and merge produce identical output (the fixture cannot discriminate); ts cited a stale test line. Root cause is shared: a substitution whose target lies *inside* the field being defined (`foo` is a prefix of `foo.a`) is not detected as a self-reference (ts's `isOwner` requires `rfp.length >= segments.length`, which excludes the prefix direction), so it resolves against the final tree ("above") instead of the stack "below". Non-self-ref delayed merge (2-layer and 3-layer) works in all four. Fix plan: discriminating xx fixtures + same-window fixes in all four impls + per-impl doc corrections (ts/rs ✅→❌→✅; ts's in-scope 100.0% claim retracts until fixed). |
 
 ## Shared test debt
 
@@ -67,6 +71,26 @@ Spec items with no test coverage in **any** of the four implementations. These a
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the four impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### 2026-08-18 — go S1.1 + S8.2 fixed; S13a.12 reclassified as a four-impl gap
+
+[go.hocon#190](https://github.com/o3co/go.hocon/pull/190) (S1.1: invalid UTF-8
+is now a parse error at `parser.Parse`, the single choke point for top-level
+and include documents) and [go.hocon#191](https://github.com/o3co/go.hocon/pull/191)
+(S8.2: `//` starts a comment mid-run in an unquoted token, mirroring
+ts.hocon's `isUnquotedContinue`). Both BREAKING in the accept→reject /
+value-changing direction, shipped per the S19.8 minor precedent.
+
+Rate change: go 89.0% → **90.0%** spec-total / 98.4% → **99.5%** in-scope.
+
+**S13a.12 is NOT cleared** — probing the published v1.12.0 releases showed the
+recorded "go-only" classification was wrong: all four implementations produce
+`{a:2}` for the spec L791 example (see the amended row in
+[Top spec violations](#top-spec-violations-verified) for the full probe matrix
+and root cause). The ts/rs ✅ came from a non-discriminating fixture
+(`lightbend_test06` masks the difference) and a stale test pointer. Until the
+four-impl fix lands, ts.hocon's 2026-08-17 "in-scope 100.0%" claim below is
+retracted; the go row above already counts S13a.12 as its one remaining ❌.
 
 ### 2026-08-17 — ts S3.4 fixed + stale S13a.3 ⚠️ corrected (ts in-scope 100%)
 
