@@ -20,6 +20,7 @@ import java.util.Map;
  *   E. literal whitespace in value concatenation           (go.hocon#132)
  *   F. numeric source lexeme in string concatenation       (go.hocon#133)
  *   G. self-referential append + mixed neighbours
+ *   H. superseded delayed-merge stack entries              (xx.hocon#67, E16)
  *
  * Optional substitutions reference guaranteed-unset, namespaced env names
  * ({@code GH_DIFF_UNSET_*}) so every engine resolves them as undefined. The
@@ -109,6 +110,21 @@ public final class CorpusGenerator {
             "main.conf", "a = [1]\na = ${a} [2]\n"));
         n += emit(corpusDir, "g2-subst-into-string-ws", Map.of(
             "main.conf", "host = example.com\nurl = \"http://\"${host}\"/path\"\n"));
+
+        // ---- Group H: superseded delayed-merge stack entries (E16, #67) ----
+        // Whether the entries a later definition supersedes still participate in
+        // resolution is decided by the winning value's type: an object winner
+        // merges, so the stack below stays reachable; an array or scalar winner
+        // replaces, so it does not. h1/h2 are live-stack cases where the four
+        // impls diverge from Lightbend and must be fixed; h3 is the dead-stack
+        // case where Lightbend errors on a config that has no cycle, suppressed
+        // in differential/known-divergences.json against E16.
+        n += emit(corpusDir, "h1-live-stack-lookback-cycle-break", Map.of(
+            "main.conf", "a = hello\na = ${b}\nb = ${a}\na = {}\n"));
+        n += emit(corpusDir, "h2-live-stack-object-winner", Map.of(
+            "main.conf", "a = hello\na = ${a}\na = ${b}\nb = [1, 2]\nb += ${a}\na = {}\n"));
+        n += emit(corpusDir, "h3-dead-stack-array-winner", Map.of(
+            "main.conf", "sub = [ ${sub} ]\nsub = [ 10 ]\nmerged = ${sub} [5]\n"));
 
         return n;
     }

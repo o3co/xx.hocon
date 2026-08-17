@@ -642,6 +642,54 @@ The three dimensions are: (a) **integer-collapse** of integral doubles (`1.0` �
 
 **Tracking issue**: [#53](https://github.com/o3co/xx.hocon/issues/53).
 
+### E16 — Superseded delayed-merge stack entries resolve only when the winning value can merge with them
+
+**Source**: [#67](https://github.com/o3co/xx.hocon/issues/67). Two harvested fixtures exercise the same machinery from opposite sides, and the reference implementation and the four siblings split in **opposite directions on each**:
+
+| Fixture | Winning value for the path | Lightbend 1.4.6 | go / rs / ts / py |
+| --- | --- | --- | --- |
+| `harvested/mikai233-hocon-rs/object6.conf` | `a = {}` — an **object** | `b = [1, 2, "hello"]` | `b = [1, 2, {}]` |
+| `harvested/pushcorn-hocon-parser/delayed-merge/test.conf` | `sub = [ ${will.be.overwritten} ]` — an **array** | `UnresolvedSubstitution: ${sub} was part of a cycle` | `sub = [10]`, `merged_array = [10, 5, 6]` |
+
+Described as a *mechanism* the split is symmetric — Lightbend engages the superseded entries of a path's merge stack in both cases (resolving through them in the first, erroring on them in the second) and the siblings shortcut past them in both. The triage nevertheless lands **differently on the two cases**, because a consistent mechanism does not make both of its outcomes derivable. What decides reachability is the winning value's type:
+
+- **Object winner → the stack below is live.** HOCON merge is defined between objects, so `a = {}` cannot be known to replace `a = ${b}` until `${b}` has been resolved and found to be a non-object. Resolving it engages `b += ${a}`, which forms the a↔b cycle, and HOCON.md §Self-Referential Substitutions then requires that "when this would create a cycle, when possible the cycle **must** be broken by looking backward only" — reaching `a = ${a}` and below it `a = hello`. Hence `b = [1, 2, "hello"]`, after which the resolved array does not merge with `{}` and `a = {}` stands. Every step follows spec text: **Lightbend is right, the four siblings are wrong.**
+- **Array or scalar winner → the stack below is dead.** Arrays and scalars replace rather than merge, so `sub = [ ${will.be.overwritten} ]` discards the earlier `sub = [ ${sub} ]` and `sub = [ ${sub}, 4 ]` outright. Those entries are unreachable, the self-references inside them are unreachable, and no cycle exists to detect. `sub = [10]` is derivable; Lightbend's error is not, and is best explained as its resolver evaluating stack entries before discovering they are discarded. Here **the four siblings are right and Lightbend is wrong.**
+
+**o3co convention**: a superseded entry of a path's merge stack participates in substitution resolution — and therefore in cycle detection — **if and only if the winning value for that path can merge with it**: the winning value is an object, or a not-yet-resolved substitution that may still resolve to one. When the winning value is an array or a scalar, the entries below it are discarded without being resolved, and substitutions occurring only inside discarded entries never participate in cycle detection.
+
+Two consequences each implementation must satisfy:
+
+1. **Live stack**: a cycle reached through it MUST be broken by lookback, not reported as an error. The false-positive `circular reference` / `circular substitution` that all four impls raise on `a = hello; a = ${b}; b = ${a}; a = {}` (probe P2 in #67) violates the spec MUST quoted above and is a bug on its own terms — it is not part of the divergence this E-item sanctions.
+2. **Dead stack**: no error may be raised on account of substitutions appearing only in discarded entries.
+
+The control probe P1 (`a = ${b}; b = {x: 1}; a = {y: 2}` → `{x:1, y:2}`) already passes in all five engines and is what establishes that a later object genuinely may need to merge through a substitution; it is the premise the live-stack half rests on.
+
+**Relationship to the "Lightbend as interpretation authority" posture**: this produces the first entry in [`differential/known-divergences.json`](../differential/known-divergences.json), and it is deliberately narrow. The authority rule is read as *Lightbend decides what the spec means where the spec is open*. It does not extend to behaviour contradicting a rule the spec states outright — that arrays replace rather than merge is not an open question. Aligning to Lightbend on the dead-stack case would mean all four libraries rejecting configurations that contain no cycle under any reading, which is strictly worse for their users than the divergence.
+
+**Status** — pre-fix. The matrix below is the #67 measurement at v1.9.0; no cycle or delayed-merge change has landed in any impl's resolver between v1.9.0 and v1.12.0 (verified against the four CHANGELOGs), so it is carried forward unchanged rather than re-measured.
+
+| Impl | object6 (live stack) | P2 (lookback cycle-break) | delayed-merge (dead stack) |
+| --- | --- | --- | --- |
+| go.hocon | ❌ `b = [1, 2, {}]` | ❌ `circular reference detected` | ✅ `sub = [10]` |
+| ts.hocon | ❌ `b = [1, 2, {}]` | ❌ `circular substitution: b` | ✅ |
+| rs.hocon | ❌ `b = [1, 2, {}]` | ❌ `circular substitution: b` | ✅ |
+| py.hocon | ❌ `b = [1, 2, {}]` | ❌ `circular substitution: b` | ✅ |
+
+**Fixtures**:
+
+- `testdata/harvested/mikai233-hocon-rs/object6.conf` — live-stack case. `object6-expected.json` already encodes the required answer, so the harvested conformance phase red-flags all four impls until they are fixed; no fixture change is needed for this half.
+- `testdata/harvested/pushcorn-hocon-parser/delayed-merge/test.conf` — dead-stack case. The `.error` sidecar records **observed** reference behaviour and is not spec-normative; see the accompanying `test.divergence.md`.
+- Differential seed corpus group H (`generate/src/main/java/CorpusGenerator.java`): `h1-live-stack-lookback-cycle-break` (P2) and `h2-live-stack-object-winner` (object6) are action items and are **not** suppressed; `h3-dead-stack-array-winner` is the minimal dead-stack discriminator and is suppressed against this E-item.
+
+**Out of scope**:
+
+- The forward-looking final-value rule itself is unchanged. This E-item governs only which superseded entries are reachable, not how the winning value is chosen.
+- Self-reference lookback within a single field (S13a.13 / E14, fixtures sr01–sr16) is unchanged; E16 concerns lookback reached *across* fields through a live merge stack.
+- Comment or formatting preservation, and the `+=` desugaring itself (`b += x` ≡ `b = ${?b} [x]`), are untouched.
+
+**Tracking issue**: [#67](https://github.com/o3co/xx.hocon/issues/67).
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -675,3 +723,5 @@ The three dimensions are: (a) **integer-collapse** of integral doubles (`1.0` �
 2026-05-20 — E8 **rewritten** to adopt Lightbend's pragmatic reading of HOCON.md L270-276 "begin" as value-position (not token-position at any lexer offset). Driven by external issue [xx.hocon#31](https://github.com/o3co/xx.hocon/issues/31) (@cgordon, first external issue), which surfaced `b = ${a}-bar` rejected under the strict reading. Concat-continuation cases (`${a}-bar`, `${a}--bar`, `${a}-1`, `${a}1bar`, `${a}.bar`, `"foo"-bar`, etc.) now accepted; us02 (`a = -foo`) / us03 (`a = -`) / us13 (`a = 01`) moved from per-impl error overrides to `SUCCESS_CONFS`. **BREAKING for downstream**: F3 (`a = 01` → `1` number, was `"01"` string) is a value-type change; other changes are additive. `+` rejection retained in both value-start and concat-continuation positions (HOCON `+=` operator reservation, distinct from number-lex). Lightbend probe matrix recorded at [`generate/src/main/java/ProbeIssue31.java`](../generate/src/main/java/ProbeIssue31.java) (groups A–F). Project principle established alongside this amendment: where xx.hocon and Lightbend differ and both behaviors derive from a reasonable reading of the spec, xx.hocon is the side that needs correcting (E5/E9/E10 to be re-audited under this principle as separate follow-ups; E10 may be a genuine Lightbend spec violation rather than an interpretation difference and will be raised upstream).
 
 2026-05-26 — E6 **extended** from same-source to cross-source. Original wording ("`${X[]}` config-defined wins, in the same source") tightened to apply anywhere reachable via the standard substitution lookup path — prefixed lookup plus S14c.2 original-path fallback when the substitution originates from an included file. Aligns with **Lightbend 1.4.6** (`ResolveSource.java::lookupSubst`), which shipped native `${X[]}` support via [PR lightbend/config#833](https://github.com/lightbend/config/pull/833) on 2026-02-24. xx.hocon's generator Lightbend dep bumped 1.4.3 → 1.4.6 in the same PR (verified bit-identical output for all 191 pre-existing fixtures — zero cascading drift from the version bump). New fixture [`ev12c-include-config-defined-wins`](../testdata/hocon/env-var-list/ev12c-include-config-defined-wins.conf) pins the cross-source case; existing `test03.conf` revived to `SUCCESS_CONFS` (with `filterPath(root, "test01.system")` to strip machine-dependent env vars from test03's transitively-included subtree) to pin the `${X}` non-list cross-source case (S14c.2). Status flips: rs.hocon ✅ same+cross (S14c.2 already shipped in [rs.hocon#44](https://github.com/o3co/rs.hocon/pull/44)); go.hocon ✅ same / ⏳ cross (lands via per-impl PR — resolver branch reorder); ts.hocon ✅ same / ⏳ cross (lands via per-impl PR — new S14c.2 implementation + spec-compliance.md row correction, the row was mis-classified ✅ but cited test covered S14c.1 relativization not S14c.2 fallback). Tracking issue [xx.hocon#22](https://github.com/o3co/xx.hocon/issues/22); originating Copilot review thread [go.hocon#86 discussion_r3256065883](https://github.com/o3co/go.hocon/pull/86#discussion_r3256065883). Env-var fallback base path divergence (impls' `[full_base, bare_base]` vs Lightbend's `unprefixed` only) deferred to separate tracking issue — not user-surfaced by current fixtures.
+
+2026-08-17 — E16 (superseded delayed-merge stack entries resolve only when the winning value can merge with them) added as the triage of [#67](https://github.com/o3co/xx.hocon/issues/67). The pair of harvested fixtures is decided **together**, as the phase-2 harvest comment required, but not in the same direction: the live-stack half (`object6`, plus probe P2's false-positive cycle error) aligns to Lightbend and is a bug in all four impls; the dead-stack half (`delayed-merge`) keeps the sibling behaviour and becomes the first entry in `differential/known-divergences.json`. Status ❌ in all four impls pending the per-impl resolver PRs.

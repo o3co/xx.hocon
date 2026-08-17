@@ -16,9 +16,18 @@ o3co implementations produce, unanimously.
 This is the mirror image of the `mikai233-hocon-rs/object6.conf` divergence
 (xx.hocon#67): both cases hinge on whether superseded entries of a delayed
 merge stack participate in cycle detection. The reference implementation
-engages them here (erroring) but resolves through them in object6 — the pair
-is tracked together in xx.hocon#67.
+engages them here (erroring) but resolves through them in object6.
 
-**Consumer guidance:** the `.error` sidecar records observed reference
-behaviour; a conforming implementation may legitimately succeed here. Do not
-treat this as a spec-normative must-error case pending the #67 triage.
+**Triage (xx.hocon#67, settled 2026-08-17 as [E16](../../../../docs/extra-spec-conventions.md)):**
+the pair was decided together, but not in the same direction — what makes a
+superseded entry reachable is the *winning value's type*. An object winner
+merges, so the stack below it stays live (object6: Lightbend is right, and all
+four impls must be fixed). An array or scalar winner replaces, so the stack
+below it is dead — which is this case, and here Lightbend is the one diverging
+from the spec it defines. The o3co implementations keep their current
+behaviour and the divergence is recorded in
+`differential/known-divergences.json` against E16.
+
+**Consumer guidance:** the `.error` sidecar records **observed** reference
+behaviour and is not spec-normative. A conforming implementation MUST succeed
+here, producing `sub = [10]` and `merged_array = [10, 5, 6]`.

@@ -1,4 +1,10 @@
 {
   "$comment": "Machine-readable suppression list for the cross-impl differential harness (generate/DifferentialDriver.java). Each entry marks an INTENTIONAL divergence from the Lightbend reference implementation — an extra-spec E-item, normally also documented as an expected/hocon/.../*.divergence.md. The driver downgrades a listed corpus case from DIVERGE_FROM_LIGHTBEND to SUPPRESSED so only NEW divergences surface as action items. Before adding an entry, triage the divergence per the lightbend-as-spec-interpretation-authority rule: align the impl to Lightbend (treat as a bug) unless Lightbend's behaviour is itself indefensible under any reasonable reading of the spec.",
-  "divergences": []
+  "divergences": [
+    {
+      "case": "h3-dead-stack-array-winner",
+      "eRef": "E16",
+      "reason": "An array winner replaces rather than merges, so the superseded `sub = [ ${sub} ]` entry below it is unreachable and its self-reference cannot form a cycle. Lightbend reports `${sub} was part of a cycle` anyway, evaluating stack entries before discovering they are discarded; the four impls resolve to `sub = [10]`, which is what the spec's forward-looking final-value rule yields. Suppressed rather than aligned because Lightbend's error rejects a config that contains no cycle under any reading — see E16 and testdata/harvested/pushcorn-hocon-parser/delayed-merge/test.divergence.md. The mirror case (object winner, live stack) is NOT suppressed: h1/h2 are action items where Lightbend is right."
+    }
+  ]
 }
