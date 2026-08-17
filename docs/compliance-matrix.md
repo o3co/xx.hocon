@@ -6,7 +6,7 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **89.3%** | **99.2%** | 187 | 1 | 1 | 0 | 21 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **90.0%** | **100.0%** | 189 | 0 | 0 | 0 | 21 |
 | [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **92.9%** | **100.0%** | 195 | 0 | 0 | 0 | 15 |
 | [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **89.0%** | **98.4%** | 187 | 0 | 3 | 0 | 20 |
 | [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **54.8%** | **59.3%** | 107 | 16 | 0 | 71 | 16 |
@@ -55,9 +55,7 @@ Items where the test or implementation behavior contradicts the spec:
 | Item | Impl | Status | Description |
 |---|---|---|---|
 | S1.1 | go | ❌ | Invalid UTF-8 (e.g. `string([]byte{0xff})` via `ParseString`) is silently substituted with U+FFFD instead of rejected; spec L117 requires rejection. Go `string` is `[]byte` and is not language-guaranteed UTF-8. ts ➖ (JS string is pre-decoded Unicode at the I/O boundary; the parser cannot observe raw bytes — see ts.hocon S1.1 entry). rs ✅ (Rust `&str` is language-guaranteed valid UTF-8; verified positively via `tests/testdata/hocon/bom.conf` fixture). |
-| S3.4 | ts | ❌ | Unbraced root + stray `}` accepted ([#55](https://github.com/o3co/ts.hocon/issues/55)) |
 | S8.2 | go | ❌ | `//` inside an unquoted run without preceding whitespace is treated as literal content; spec L248 says `//` starts a comment anywhere outside a quoted string. ts/rs ✅. |
-| S13a.3 | ts | ⚠️ | Self-reference before any prior value (`a = ${a}`) raises a cycle error, but the error type / message classifies this as a generic substitution error rather than the "undefined" path the spec describes at L795. rs/go ✅ (correct error class). |
 | S13a.12 | go | ❌ | Self-ref in a path expression (`${foo.a}` where `foo.a` is being defined) does not resolve to the "below" value per L831; the looked-up sub-object is discarded in the merge. ts/rs ✅. |
 
 ## Shared test debt
@@ -69,6 +67,26 @@ Spec items with no test coverage in **any** of the four implementations. These a
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the four impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### 2026-08-17 — ts S3.4 fixed + stale S13a.3 ⚠️ corrected (ts in-scope 100%)
+
+[ts.hocon#186](https://github.com/o3co/ts.hocon/pull/186):
+
+- **S3.4 ❌ → ✅** — the unbraced-root parse path now verifies all tokens are
+  consumed, so a stray `}` after unbraced root content is a `ParseError`
+  ([ts#55](https://github.com/o3co/ts.hocon/issues/55)). The braced-root and
+  array-root paths already validated this. BREAKING in the accept→reject
+  direction; ships as a minor per the S19.8 precedent.
+- **S13a.3 ⚠️ → ✅** — the recorded ⚠️ was stale: ts.hocon's #120
+  self-reference widening (cross-impl with rs.hocon v1.5.1) had already routed
+  `a = ${a}` (no prior value) to the undefined classification
+  (`could not resolve substitution`), distinct from a genuine two-step cycle's
+  `circular substitution`. Both classifications are now pinned by tests so a
+  regression to the cycle message fails the suite.
+
+Rate change: ts 89.3% → **90.0%** spec-total / 99.2% → **100.0%** in-scope —
+the second impl after rs.hocon with a fully green in-scope board. Remaining
+verified violations: 3 cells in 1 impl (go S1.1 / S8.2 / S13a.12).
 
 ### 2026-07-24 — S11.7 + S8.1 cleared in all four impls (same-day roll-up)
 
