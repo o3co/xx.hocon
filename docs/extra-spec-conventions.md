@@ -690,6 +690,41 @@ The control probe P1 (`a = ${b}; b = {x: 1}; a = {y: 2}` → `{x:1, y:2}`) alrea
 
 **Tracking issue**: [#67](https://github.com/o3co/xx.hocon/issues/67).
 
+### E17 — Env-var fallback also consults the prefixed base; Lightbend consults only the unprefixed one
+
+**Source**: [#55](https://github.com/o3co/xx.hocon/issues/55), deferred out of the [#22](https://github.com/o3co/xx.hocon/issues/22) cluster (Decision 6) to keep E6's cross-source wording from over-claiming parity on env-base ordering.
+
+When a substitution originates in an included file it is relativized, so `${a.b}` inside a file mounted at `foo` carries `prefixLen = 1` and has two possible env-var names: the **full** base `foo.a.b` and the **bare** base `a.b`. Lightbend consults only the bare one (`ResolveSource.java::lookupSubst`); all four o3co implementations consult both.
+
+**Measured** at v1.12.0 via the differential adapters (registry builds), with `foo { include "child.conf" }` and `child.conf` = `v = ${a.b}` / `v = ${a.b[]}`, setting the full and bare env names independently:
+
+| form | go.hocon | rs.hocon | ts.hocon | py.hocon | Lightbend 1.4.6 |
+| --- | --- | --- | --- | --- | --- |
+| scalar `${a.b}` | `[bare, full]` → **fixed to `[full, bare]`** | `[full, bare]` | `[full, bare]` | `[full, bare]` | bare only |
+| list `${a.b[]}` | `[full, bare]` | `[full, bare]` | `[full, bare]` | `[full, bare]` | bare only |
+
+With only the full name set, all four resolve it; Lightbend would leave the substitution unresolved. The Lightbend column is the source reading cited in #55 (`ResolveSource.java`), not re-measured here — the other four columns are measured.
+
+Two axes, decided differently:
+
+1. **Consulting the prefixed base at all** — accepted as an o3co divergence. POSIX env-var names match `[A-Za-z_][A-Za-z0-9_]*`, so a name like `foo.a.b` cannot be set from a shell and the prefixed candidate always misses when the environment comes from one. The divergence is reachable only through a programmatic `setenv` with a dotted name or an API-injected environment (`ParseOptions.env` in ts/rs). Removing the lookup would be a behaviour change with no shell-reachable beneficiary, so the lookup stays and is documented here.
+2. **The order within the pair** — *not* accepted. go.hocon alone put bare first for the scalar form, disagreeing both with its own list form and with the other three. That is an internal asymmetry rather than an interpretation, and it is fixed rather than recorded (see status below).
+
+**o3co convention**: when `prefixLen > 0` and config lookup misses in both the prefixed and original-path scopes (S14c.2), an implementation MAY consult env-var names built from either base. When it consults both, the order MUST be **full base first, then bare base**, uniformly for the scalar `${X}` and list `${X[]}` forms. Config exhaustion still runs before any env-var lookup — E17 governs only the ordering *within* the env-var stage and does not relax E6.
+
+| Impl | Status | Notes |
+| --- | --- | --- |
+| ts.hocon | ✅ | `substitution-resolver.ts` — full then bare, both forms. |
+| rs.hocon | ✅ | `substitution_resolver.rs` — full then bare, both forms. |
+| py.hocon | ✅ | Symmetric with ts/rs. Not covered by #55's original table, which predates py.hocon. |
+| go.hocon | ✅ | List form was already full-first. Scalar form moved from bare-first to full-first in [go.hocon#188](https://github.com/o3co/go.hocon/pull/188); the bare-base env lookup now sits after the full-base one instead of inside the S14c.2 original-path block. |
+
+**Fixtures**: none. Pinning this needs an env-injection mechanism the fixture corpus does not have — the generator and the conformance runners resolve against the ambient process environment, and a fixture that depends on dotted env names being set would not reproduce. If the differential harness gains per-case env injection, `ev`-style cases for both bases become possible; until then the matrix above is the record.
+
+**Out of scope**: precedence of config-defined values over env vars (that is E6 / #22, closed) and S13c.5 (a list-suffix substitution must not fall back to the bare *scalar* env var), both unchanged.
+
+**Tracking issue**: [#55](https://github.com/o3co/xx.hocon/issues/55).
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -725,3 +760,5 @@ The control probe P1 (`a = ${b}; b = {x: 1}; a = {y: 2}` → `{x:1, y:2}`) alrea
 2026-05-26 — E6 **extended** from same-source to cross-source. Original wording ("`${X[]}` config-defined wins, in the same source") tightened to apply anywhere reachable via the standard substitution lookup path — prefixed lookup plus S14c.2 original-path fallback when the substitution originates from an included file. Aligns with **Lightbend 1.4.6** (`ResolveSource.java::lookupSubst`), which shipped native `${X[]}` support via [PR lightbend/config#833](https://github.com/lightbend/config/pull/833) on 2026-02-24. xx.hocon's generator Lightbend dep bumped 1.4.3 → 1.4.6 in the same PR (verified bit-identical output for all 191 pre-existing fixtures — zero cascading drift from the version bump). New fixture [`ev12c-include-config-defined-wins`](../testdata/hocon/env-var-list/ev12c-include-config-defined-wins.conf) pins the cross-source case; existing `test03.conf` revived to `SUCCESS_CONFS` (with `filterPath(root, "test01.system")` to strip machine-dependent env vars from test03's transitively-included subtree) to pin the `${X}` non-list cross-source case (S14c.2). Status flips: rs.hocon ✅ same+cross (S14c.2 already shipped in [rs.hocon#44](https://github.com/o3co/rs.hocon/pull/44)); go.hocon ✅ same / ⏳ cross (lands via per-impl PR — resolver branch reorder); ts.hocon ✅ same / ⏳ cross (lands via per-impl PR — new S14c.2 implementation + spec-compliance.md row correction, the row was mis-classified ✅ but cited test covered S14c.1 relativization not S14c.2 fallback). Tracking issue [xx.hocon#22](https://github.com/o3co/xx.hocon/issues/22); originating Copilot review thread [go.hocon#86 discussion_r3256065883](https://github.com/o3co/go.hocon/pull/86#discussion_r3256065883). Env-var fallback base path divergence (impls' `[full_base, bare_base]` vs Lightbend's `unprefixed` only) deferred to separate tracking issue — not user-surfaced by current fixtures.
 
 2026-08-17 — E16 (superseded delayed-merge stack entries resolve only when the winning value can merge with them) added as the triage of [#67](https://github.com/o3co/xx.hocon/issues/67). The pair of harvested fixtures is decided **together**, as the phase-2 harvest comment required, but not in the same direction: the live-stack half (`object6`, plus probe P2's false-positive cycle error) aligns to Lightbend and is a bug in all four impls; the dead-stack half (`delayed-merge`) keeps the sibling behaviour and becomes the first entry in `differential/known-divergences.json`. Status ❌ in all four impls pending the per-impl resolver PRs.
+
+2026-08-17 — E17 (env-var fallback base path) added as the resolution of [#55](https://github.com/o3co/xx.hocon/issues/55), which the #22 cluster had deferred. The two axes are decided differently: consulting the prefixed base at all is **accepted** (not shell-reachable — POSIX env names cannot contain a dot), while go.hocon's scalar bare-first order is **fixed** to match its own list form and the three siblings. The four impl columns are measured at v1.12.0 via the differential adapters; py.hocon is measured for the first time here (#55's table predates it) and is symmetric with ts/rs. No fixtures — pinning this needs per-case env injection the corpus does not have.
