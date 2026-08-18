@@ -6,16 +6,16 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 
 | Implementation | Spec-total | In-scope | ✅ | ⚠️ | ❌ | 🤷 | ➖ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **89.5%** | **99.5%** | 188 | 0 | 1 | 0 | 21 |
-| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **92.4%** | **99.5%** | 194 | 0 | 1 | 0 | 15 |
-| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **90.0%** | **99.5%** | 189 | 0 | 1 | 0 | 20 |
-| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **54.8%** | **59.3%** | 107 | 16 | 1 | 70 | 16 |
+| [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **90.0%** | **100.0%** | 189 | 0 | 0 | 0 | 21 |
+| [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **92.9%** | **100.0%** | 195 | 0 | 0 | 0 | 15 |
+| [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **90.5%** | **100.0%** | 190 | 0 | 0 | 0 | 20 |
+| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **55.2%** | **59.8%** | 108 | 16 | 0 | 70 | 16 |
 
-The single ❌ shared by all four rows is S13a.12 — see
-[Top spec violations](#top-spec-violations-verified). ts/rs per-impl docs
-still record it as ✅ pending their correction PRs (this matrix reflects the
-2026-08-18 probe of the published v1.12.0 releases); py already carried the
-honest 🤷 with a note that the test06 citation is indirect, now hardened to ❌.
+**All four implementations are in-scope full green as of 2026-08-18** — the
+shared S13a.12 ❌ was fixed in lockstep (ts#188 / py#37+#38 / go#192 / rs#173;
+discriminating fixtures sr17–sr18 in xx#90). ts/rs/go show in-scope 100.0%;
+py's in-scope rate is bounded by its 70 remaining 🤷 (ported-but-unpinned
+items), not by any known violation.
 
 Where:
 
@@ -58,19 +58,57 @@ See each item's `out-of-scope:` line in [`spec-checklist.md`](spec-checklist.md)
 
 Items where the test or implementation behavior contradicts the spec:
 
-| Item | Impl | Status | Description |
-|---|---|---|---|
-| S13a.12 | **all four** | ❌ | **Reclassified 2026-08-18** from "go-only" after probing the published v1.12.0 releases: `foo:{a:{c:1}}; foo:${foo.a}; foo:{a:2}` yields `{a:2}` (c lost) in go, ts, py, AND rs — spec L791 expects `{a:2, c:1}`. The recorded ts/rs ✅ were misclassifications: rs cited `lightbend_test06`, whose later object overrides every key the substitution contributes, so discard and merge produce identical output (the fixture cannot discriminate); ts cited a stale test line. Root cause is shared: a substitution whose target lies *inside* the field being defined (`foo` is a prefix of `foo.a`) is not detected as a self-reference (ts's `isOwner` requires `rfp.length >= segments.length`, which excludes the prefix direction), so it resolves against the final tree ("above") instead of the stack "below". Non-self-ref delayed merge (2-layer and 3-layer) works in all four. Fix plan: discriminating xx fixtures + same-window fixes in all four impls + per-impl doc corrections (ts/rs ✅→❌→✅; ts's in-scope 100.0% claim retracts until fixed). |
+- (Empty — the last entry, S13a.12, was fixed in all four implementations on
+  2026-08-18: ts#188 / py#37+#38 / go#192 / rs#173, pinned by the sr17–sr18
+  discriminating fixtures from xx#90. See the history entry below for the
+  original probe matrix and root cause.)
 
 ## Shared test debt
 
 Spec items with no test coverage in **any** of the four implementations. These are the natural targets for future test-debt PRs:
 
-- (Empty — Phase 4 cleared the last shared `🤷` cluster around S15/S17/S21; Phase 5 cleared per-impl `🤷` in all three impls, so the `🤷` column is `0` for ts/rs/go. py.hocon carries 72 `🤷` (ported-but-not-yet-pinned items, its verification surface still expanding), but none are *shared* debt — every item is already verified by at least one sibling, so this list stays empty.)
+- (Empty — Phase 4 cleared the last shared `🤷` cluster around S15/S17/S21; Phase 5 cleared per-impl `🤷` in all three impls, so the `🤷` column is `0` for ts/rs/go. py.hocon carries 70 `🤷` (ported-but-not-yet-pinned items, its verification surface still expanding), but none are *shared* debt — every item is already verified by at least one sibling, so this list stays empty.)
 
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the four impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### 2026-08-18 — S13a.12 fixed in lockstep; all four impls reach in-scope full green
+
+The four-impl S13a.12 gap (reclassified the same day, see the entry below) was
+fixed in the same window across all siblings:
+[ts.hocon#188](https://github.com/o3co/ts.hocon/pull/188),
+[py.hocon#37](https://github.com/o3co/py.hocon/pull/37) +
+[py.hocon#38](https://github.com/o3co/py.hocon/pull/38) (allow_prefix
+narrowing follow-up), [go.hocon#192](https://github.com/o3co/go.hocon/pull/192),
+[rs.hocon#173](https://github.com/o3co/rs.hocon/pull/173). Discriminating
+fixtures sr17 (sandwich) / sr18 (two-layer) landed in
+[xx.hocon#90](https://github.com/o3co/xx.hocon/pull/90); their expected
+sidecars are hand-written from the normative spec L791 example and
+cross-checked against all four impls (Lightbend oracle regeneration pending a
+JVM host).
+
+Original probe matrix and root cause (recorded here from the retired
+[Top spec violations](#top-spec-violations-verified) row): probing the
+published v1.12.0 releases, `foo:{a:{c:1}}; foo:${foo.a}; foo:{a:2}` yielded
+`{a:2}` (c lost) in go, ts, py, AND rs — spec L791 expects `{a:2, c:1}`. The
+recorded ts/rs ✅ were misclassifications: rs cited `lightbend_test06`, whose
+later object overrides every key the substitution contributes (the fixture
+cannot discriminate); ts cited a stale test line. Root cause was shared: a
+substitution whose target lies *inside* the field being defined (`foo` is a
+prefix of `foo.a`) was not detected as a self-reference (ts's `isOwner`
+required `rfp.length >= segments.length`, excluding the prefix direction), so
+it resolved against the final tree ("above") instead of the stack "below".
+The fix folds prefix self-refs at prior-save time (standalone occurrences
+form a merge layer keeping the below layer's other keys) and resolves
+standing ones via the saved prior + remainder navigation, with the
+allow_prefix narrowing protecting S13a.14 object-interior sibling references.
+
+Rate change: ts 89.5 → **90.0%** spec-total / 99.5 → **100.0%** in-scope
+(189); rs 92.4 → **92.9%** / 99.5 → **100.0%** (195); go 90.0 → **90.5%** /
+99.5 → **100.0%** (190); py ❌1 → 0 (✅108, spec-total 55.2%, in-scope
+59.8%). ts.hocon's retracted 2026-08-17 "in-scope 100.0%" claim is restored —
+and ts/rs/go now all stand at in-scope 100.0% with 🤷 0.
 
 ### 2026-08-18 — go S1.1 + S8.2 fixed; S13a.12 reclassified as a four-impl gap
 
@@ -83,11 +121,9 @@ value-changing direction, shipped per the S19.8 minor precedent.
 
 Rate change: go 89.0% → **90.0%** spec-total / 98.4% → **99.5%** in-scope.
 
-**S13a.12 is NOT cleared** — probing the published v1.12.0 releases showed the
-recorded "go-only" classification was wrong: all four implementations produce
-`{a:2}` for the spec L791 example (see the amended row in
-[Top spec violations](#top-spec-violations-verified) for the full probe matrix
-and root cause). The ts/rs ✅ came from a non-discriminating fixture
+**S13a.12 is NOT cleared** (at the time of this entry — fixed later the same
+day, see the lockstep-fix entry above, which also preserves the full probe
+matrix and root cause). The ts/rs ✅ came from a non-discriminating fixture
 (`lightbend_test06` masks the difference) and a stale test pointer. Until the
 four-impl fix lands, ts.hocon's 2026-08-17 "in-scope 100.0%" claim below is
 retracted; the go row above already counts S13a.12 as its one remaining ❌.
