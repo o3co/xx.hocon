@@ -1,0 +1,7 @@
+{
+  "mixed": [1, "two", true, null, 4.5],
+  "nested": [[1, 2], [3]],
+  "objects": [{"a": 1}, {"b": "x y"}],
+  "empty": [],
+  "empty_in_array": [[], {}]
+}

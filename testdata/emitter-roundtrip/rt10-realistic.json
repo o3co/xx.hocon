@@ -1,0 +1,11 @@
+{
+  "service": {
+    "name": "api-gateway",
+    "listen": "0.0.0.0:8080",
+    "timeouts": {"read": "5s", "write": "10s"},
+    "features": ["auth", "rate-limit"],
+    "replicas": 3,
+    "debug": false,
+    "fallback": null
+  }
+}

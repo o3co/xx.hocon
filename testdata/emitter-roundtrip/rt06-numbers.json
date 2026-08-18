@@ -1,0 +1,9 @@
+{
+  "zero": 0,
+  "negative": -42,
+  "big_safe": 9007199254740991,
+  "neg_big_safe": -9007199254740991,
+  "small_float": 0.001,
+  "neg_float": -2.5,
+  "exp_float": 1e21
+}

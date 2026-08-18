@@ -1,0 +1,7 @@
+{
+  "not_a_subst": "${db.host}",
+  "optional_lookalike": "${?maybe}",
+  "concat_lookalike": "a ${x} b",
+  "plus_equals": "a += b",
+  "include_lookalike": "include \"file.conf\""
+}

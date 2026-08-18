@@ -1,0 +1,10 @@
+{
+  "dotted.key": 1,
+  "key with space": 2,
+  "": "empty key",
+  "clé": 3,
+  "hash#key": 4,
+  "slash//key": 5,
+  "dollar${key}": 6,
+  "plain-key_9": 7
+}

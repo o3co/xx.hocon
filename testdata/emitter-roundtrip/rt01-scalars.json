@@ -1,0 +1,15 @@
+{
+  "s": "hello",
+  "n": 8080,
+  "f": 1.5,
+  "b": true,
+  "z": false,
+  "nul": null,
+  "numeric_string": "8080",
+  "float_string": "1.5",
+  "true_string": "true",
+  "yes_string": "yes",
+  "on_string": "on",
+  "off_string": "off",
+  "null_string": "null"
+}
