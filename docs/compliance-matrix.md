@@ -9,19 +9,21 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 | [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **90.0%** | **100.0%** | 189 | 0 | 0 | 0 | 21 |
 | [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **92.9%** | **100.0%** | 195 | 0 | 0 | 0 | 15 |
 | [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **90.5%** | **100.0%** | 190 | 0 | 0 | 0 | 20 |
-| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **55.2%** | **59.8%** | 108 | 16 | 0 | 70 | 16 |
+| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **88.8%** | **96.6%** | 180 | 13 | 0 | 0 | 17 |
 
 **All four implementations are in-scope full green as of 2026-08-18** — the
 shared S13a.12 ❌ was fixed in lockstep (ts#188 / py#37+#38 / go#192 / rs#173;
-discriminating fixtures sr17–sr18 in xx#90). ts/rs/go show in-scope 100.0%;
-py's in-scope rate is bounded by its 70 remaining 🤷 (ported-but-unpinned
-items), not by any known violation.
+discriminating fixtures sr17–sr18 in xx#90), and later the same day py's
+verification wave (py#39) burned its 🤷 mass to **0** and surfaced two more
+shared bugs, fixed in lockstep too (S9.2 / S13.12 — ts#189 / rs#174 / py#39;
+fixtures tq01–tq03 / se01–se04 in xx#91). ts/rs/go show in-scope 100.0%;
+py's 96.6% remainder is 13 ⚠️ coverage-partial rows, no known violations.
 
 Where:
 
 - **Spec-total** = `(✅ + ⚠️·0.5) / 210`. Denominator includes ALL items, including out-of-scope. Out-of-scope items intentionally lower this number — it is the answer to "how much of HOCON.md does this implementation handle?".
-- **In-scope** = `(✅ + ⚠️·0.5) / (210 − ➖_per_impl)`. The denominator is **per-impl** because each implementation can additionally mark items ➖ for language-natural reasons that don't apply to its siblings (e.g. ts marks S1.1 ➖ because JS strings are pre-decoded Unicode at the I/O boundary, but go cannot — Go `string` permits arbitrary bytes). Globally shared ➖ count is 15; per-impl: ts=21 (+ S1.1, S13a.10, S20.1–S20.4), rs=15, go=20 (+ S13a.10, S20.1–S20.4), py=16 (+ S1.1). This is the answer to "of what the implementation chooses to support, how much is covered?".
-- `❌` and `🤷` contribute 0. `🤷` is treated as 0 because an unverified claim is, by policy, not a pass — pinning it as ✅/❌ requires a test. After Phase 5, all three impls reached `🤷 = 0`.
+- **In-scope** = `(✅ + ⚠️·0.5) / (210 − ➖_per_impl)`. The denominator is **per-impl** because each implementation can additionally mark items ➖ for language-natural reasons that don't apply to its siblings (e.g. ts marks S1.1 ➖ because JS strings are pre-decoded Unicode at the I/O boundary, but go cannot — Go `string` permits arbitrary bytes). Globally shared ➖ count is 15; per-impl: ts=21 (+ S1.1, S13a.10, S20.1–S20.4), rs=15, go=20 (+ S13a.10, S20.1–S20.4), py=17 (+ S1.1, S13a.10). This is the answer to "of what the implementation chooses to support, how much is covered?".
+- `❌` and `🤷` contribute 0. `🤷` is treated as 0 because an unverified claim is, by policy, not a pass — pinning it as ✅/❌ requires a test. After Phase 5, ts/rs/go reached `🤷 = 0`; py followed on 2026-08-18 (py#39's verification wave).
 
 Both numbers are shown side by side so neither over-claims nor under-claims. See [`spec-checklist.md`](spec-checklist.md) for the convention rationale.
 
@@ -72,6 +74,42 @@ Spec items with no test coverage in **any** of the four implementations. These a
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the four impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### 2026-08-18 — py verification wave burns 🤷 to 0; S9.2 + S13.12 fixed in lockstep
+
+py.hocon's spec-verification wave
+([py.hocon#39](https://github.com/o3co/py.hocon/pull/39)) pinned its final 70
+🤷 rows with a dedicated test battery (69 → ✅, S13a.10 → ➖ adopting the
+ts/go not-externally-observable posture) and closed three ⚠️ remainders
+(S19.4 / S21.3 / S21.4). Expected values were cross-checked against sibling
+pins and, for every ambiguous case, probed directly against the Lightbend
+oracle (typesafe-config 1.4.6). **py: spec-total 55.2 → 88.8%, in-scope
+59.8 → 96.6% (✅180 · ⚠️13 · ❌0 · 🤷0 · ➖17)** — the remaining ⚠️ are
+coverage-partial rows with named remainders, not violations.
+
+The wave surfaced two more shared port bugs, verified against Lightbend and
+fixed in lockstep the same day ([ts.hocon#189](https://github.com/o3co/ts.hocon/pull/189)
+/ [rs.hocon#174](https://github.com/o3co/rs.hocon/pull/174) / py#39;
+go conformed all along):
+
+- **S9.2** — the ts/py/rs lexers stripped a LEADING newline from
+  triple-quoted strings (`"""<LF>hello"""` must be `"\nhello"`).
+  equiv05 contains no leading-newline case, which is how the strip survived
+  the corpus.
+- **S13.12** — the ts/py/rs resolvers null-filled an undefined optional
+  substitution in array element position (`[1, ${?missing}, 3]` yielded
+  `[1, null, 3]`; the spec and Lightbend drop the element → `[1, 3]`). The
+  ts/rs ✅ rows cited equiv04, which contains no array-element case — the
+  same stale-citation pattern S13a.12 had.
+
+Discriminating fixtures landed in
+[xx.hocon#91](https://github.com/o3co/xx.hocon/pull/91)
+(`triple-quoted/tq01–tq03`, `subst-optional-element/se01–se04`), with
+expected sidecars generated by the Lightbend oracle locally (not
+hand-written). Wave findings still queued: the ts S21.2 byte table stops at
+TB despite its ✅, sibling duration/byte alias tables need the same audit py
+got, and the byte-unit case-sensitivity divergence (Lightbend strict `kB`
+vs py/ts case-insensitive) needs a cross-impl triage.
 
 ### 2026-08-18 — S13a.12 fixed in lockstep; all four impls reach in-scope full green
 
