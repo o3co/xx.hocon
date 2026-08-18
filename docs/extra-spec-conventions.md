@@ -738,10 +738,10 @@ Decisions (all four implementations MUST agree):
 
 | Impl | Status | Notes |
 | --- | --- | --- |
-| go.hocon | ✅ | `Config.RenderHOCON()` since v1.11.0; corpus runner added with this convention. |
-| ts.hocon | 🤷 | port pending (this window). |
-| py.hocon | 🤷 | port pending (this window). |
-| rs.hocon | 🤷 | port pending (this window). |
+| go.hocon | ✅ | `Config.RenderHOCON()` since v1.11.0; corpus runner in go#195; include-key quoting + the S9.2 CRLF lexer fix in go#196. |
+| ts.hocon | ✅ | `Config.renderHocon()` (ts#192), corpus rt01–rt10 green. |
+| py.hocon | ✅ | `Config.render_hocon()` (py#42), corpus green. |
+| rs.hocon | ✅ | `Config::render_hocon()` (rs#177), corpus green; unresolved errors keep the `is_not_resolved()` prefix convention. |
 
 **Fixtures**: none. Pinning this needs an env-injection mechanism the fixture corpus does not have — the generator and the conformance runners resolve against the ambient process environment, and a fixture that depends on dotted env names being set would not reproduce. If the differential harness gains per-case env injection, `ev`-style cases for both bases become possible; until then the matrix above is the record.
 

@@ -75,6 +75,54 @@ The next phase of compliance work shifts from "verify what we don't know" to "fi
 
 For behaviors that fall **outside** HOCON.md but should converge across the four impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
 
+### 2026-08-19 — units audit, JSON5 + emitter parity, and two more S9.2-family fixes
+
+The pre-1.13 batch (user-directed: "2, 3 and 4 before the cut") closed in
+three lockstep waves:
+
+**Units audit (S19/S21)** — [ts#190](https://github.com/o3co/ts.hocon/pull/190)
+/ [py#40](https://github.com/o3co/py.hocon/pull/40) /
+[go#194](https://github.com/o3co/go.hocon/pull/194) /
+[rs#175](https://github.com/o3co/rs.hocon/pull/175). Lightbend probes fixed
+the reference set: the kilo-decimal spelling is `kB` — **go and rs had the
+case inverted** (accepting `KB`, rejecting the one spelling Lightbend
+accepts), ts/py were case-insensitive; all four now match the case-sensitive
+table exactly, extended through `YB`/`YiB` and single-letter `Z`/`Y`. ts also
+gained the bare `nano`/`micro`/`milli` duration aliases (the gap py's wave
+found, horizontal), and rs dropped its extra-spec `w`/`week`/`weeks` duration
+unit (Lightbend rejects `1w`; weeks remain Period-only). All BREAKING changes
+queue for v1.13.0.
+
+**JSON5 parity (F3.3 → ✅)** — go#193's hand-rolled adapter ported to
+[ts#191](https://github.com/o3co/ts.hocon/pull/191) /
+[py#41](https://github.com/o3co/py.hocon/pull/41) /
+[rs#176](https://github.com/o3co/rs.hocon/pull/176) (+
+[rs#178](https://github.com/o3co/rs.hocon/pull/178) fixing a feature-gate
+miss), and the fi60–fi67 differential fixtures landed in
+[xx#94](https://github.com/o3co/xx.hocon/pull/94) — fi61 pins the
+LS-terminates-comment mirror image of jsonc's fi25 (same character, opposite
+answers, each per its dialect owner).
+
+**Emitter parity (E18 all-green)** — the round-trip convention and corpus
+([xx#93](https://github.com/o3co/xx.hocon/pull/93)) plus ports
+[ts#192](https://github.com/o3co/ts.hocon/pull/192) /
+[py#42](https://github.com/o3co/py.hocon/pull/42) /
+[rs#177](https://github.com/o3co/rs.hocon/pull/177) and go's corpus runner
+([go#195](https://github.com/o3co/go.hocon/pull/195)). Reviewing the ports
+surfaced two more real bugs, fixed in
+[go#196](https://github.com/o3co/go.hocon/pull/196) +
+[xx#95](https://github.com/o3co/xx.hocon/pull/95): a bare `include` key broke
+the round trip in every emitter (Lightbend rejects `include = 1`; all four
+now quote it, pinned by rt04), and **go alone normalized CR/CRLF inside
+triple-quoted strings** — the mirror image of the ts/py/rs leading-newline
+strip, S9.2 family, pinned by tq04 with a Lightbend-generated sidecar. The
+fix also exposed that GitHub's Windows runners had been CRLF-mutating checked
+-out fixtures (masked by the old normalization); go's fixture trees are now
+`.gitattributes -text`.
+
+No rate changes — every touched row was already ✅ and stays ✅; the audit
+corrected over-claims and tables, not statuses.
+
 ### 2026-08-18 — py verification wave burns 🤷 to 0; S9.2 + S13.12 fixed in lockstep
 
 py.hocon's spec-verification wave
