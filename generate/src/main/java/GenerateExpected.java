@@ -224,6 +224,26 @@ public class GenerateExpected {
         // Lightbend oracle (typesafe-config 1.4.6) regeneration on 2026-08-18.
         "self-ref-lookback/sr17-path-prefix-sandwich.conf",
         "self-ref-lookback/sr18-path-prefix-two-layer.conf",
+        // S9.2–S9.4 (HOCON.md L291–L304) — triple-quoted string content is
+        // preserved verbatim. tq01 discriminates the ts/py/rs port bug found
+        // 2026-08-18 by the py.hocon verification wave: their lexers stripped
+        // a LEADING newline ("""<LF>hello""" must be "\nhello"); equiv05 has
+        // no leading-newline case, which is how the strip survived. tq02/tq03
+        // give the escape-literal and trailing-extra-quote rules consumed
+        // sidecars (previously equiv-only).
+        "triple-quoted/tq01-leading-newline.conf",
+        "triple-quoted/tq02-escapes-literal.conf",
+        "triple-quoted/tq03-trailing-extra-quotes.conf",
+        // S13.12 (HOCON.md L635) — an undefined optional substitution in
+        // array ELEMENT position is not added. Discriminates the ts/py/rs
+        // null-fill bug found 2026-08-18 (they yielded [1, null, 3]); the
+        // impls' prior ✅ cited equiv04, which contains no array-element case.
+        // se02 pins that literal null elements ARE kept; se03 nested arrays;
+        // se04 the S13.13 concat-remainder interaction inside an element.
+        "subst-optional-element/se01-element-missing.conf",
+        "subst-optional-element/se02-literal-null-kept.conf",
+        "subst-optional-element/se03-nested-arrays.conf",
+        "subst-optional-element/se04-concat-element-remainder.conf",
         // S3.1 empty-file fixtures (cluster 3h). An empty document is valid HOCON
         // parsing to `{}` (L134 brace-omission relaxation; L130-132 is the JSON
         // baseline). The `{}` sidecars emitted here are normative — per-impl
