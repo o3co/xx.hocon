@@ -234,6 +234,11 @@ public class GenerateExpected {
         "triple-quoted/tq01-leading-newline.conf",
         "triple-quoted/tq02-escapes-literal.conf",
         "triple-quoted/tq03-trailing-extra-quotes.conf",
+        // tq04: CR and CRLF inside triple quotes are content, verbatim —
+        // go.hocon normalized them to LF until 2026-08-19 (the same S9.2
+        // family as the ts/py/rs leading-newline strip, discovered on the
+        // opposite side of the fence by the E18 emitter review).
+        "triple-quoted/tq04-crlf-preserved.conf",
         // S13.12 (HOCON.md L635) — an undefined optional substitution in
         // array ELEMENT position is not added. Discriminates the ts/py/rs
         // null-fill bug found 2026-08-18 (they yielded [1, null, 3]); the
