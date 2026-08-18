@@ -6,5 +6,6 @@
   "hash#key": 4,
   "slash//key": 5,
   "dollar${key}": 6,
-  "plain-key_9": 7
+  "plain-key_9": 7,
+  "include": "reserved word must be quoted to round-trip"
 }
