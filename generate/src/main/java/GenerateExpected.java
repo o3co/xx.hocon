@@ -214,6 +214,16 @@ public class GenerateExpected {
         "self-ref-lookback/sr14-cache-prior-external.conf",
         "self-ref-lookback/sr15-double-self-ref.conf",
         "self-ref-lookback/sr16-external-before-self-ref.conf",
+        // S13a.12 (HOCON.md L791) — a substitution whose target lies INSIDE the field
+        // being defined (`foo : ${foo.a}`) resolves against the field's "below" value,
+        // never the final tree. All four impls shared the gap (fixed 2026-08-18 in
+        // ts#188 / py#37 / go#192 / rs#173); the sandwich form (sr17) discriminates:
+        // below-resolution yields {a:2, c:1}, final-tree resolution yields just {a:2}.
+        // Expected sidecars are hand-written from the normative spec example (L791)
+        // and cross-checked against all four impls; the Lightbend oracle run is
+        // still pending (no local JVM) — regenerate on a JVM host to confirm.
+        "self-ref-lookback/sr17-path-prefix-sandwich.conf",
+        "self-ref-lookback/sr18-path-prefix-two-layer.conf",
         // S3.1 empty-file fixtures (cluster 3h). An empty document is valid HOCON
         // parsing to `{}` (L134 brace-omission relaxation; L130-132 is the JSON
         // baseline). The `{}` sidecars emitted here are normative — per-impl
