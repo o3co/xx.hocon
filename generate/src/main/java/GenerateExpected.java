@@ -219,9 +219,9 @@ public class GenerateExpected {
         // never the final tree. All four impls shared the gap (fixed 2026-08-18 in
         // ts#188 / py#37 / go#192 / rs#173); the sandwich form (sr17) discriminates:
         // below-resolution yields {a:2, c:1}, final-tree resolution yields just {a:2}.
-        // Expected sidecars are hand-written from the normative spec example (L791)
-        // and cross-checked against all four impls; the Lightbend oracle run is
-        // still pending (no local JVM) — regenerate on a JVM host to confirm.
+        // Expected sidecars were hand-written from the normative spec example (L791),
+        // cross-checked against all four impls, then confirmed byte-identical by the
+        // Lightbend oracle (typesafe-config 1.4.6) regeneration on 2026-08-18.
         "self-ref-lookback/sr17-path-prefix-sandwich.conf",
         "self-ref-lookback/sr18-path-prefix-two-layer.conf",
         // S3.1 empty-file fixtures (cluster 3h). An empty document is valid HOCON

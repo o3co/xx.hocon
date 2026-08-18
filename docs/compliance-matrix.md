@@ -84,9 +84,10 @@ narrowing follow-up), [go.hocon#192](https://github.com/o3co/go.hocon/pull/192),
 [rs.hocon#173](https://github.com/o3co/rs.hocon/pull/173). Discriminating
 fixtures sr17 (sandwich) / sr18 (two-layer) landed in
 [xx.hocon#90](https://github.com/o3co/xx.hocon/pull/90); their expected
-sidecars are hand-written from the normative spec L791 example and
-cross-checked against all four impls (Lightbend oracle regeneration pending a
-JVM host).
+sidecars were hand-written from the normative spec L791 example,
+cross-checked against all four impls, and confirmed byte-identical by the
+Lightbend oracle (typesafe-config 1.4.6) regeneration later the same day —
+the full `make generate` corpus run reproduced every sidecar with zero diff.
 
 Original probe matrix and root cause (recorded here from the retired
 [Top spec violations](#top-spec-violations-verified) row): probing the
