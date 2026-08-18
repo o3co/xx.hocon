@@ -1,0 +1,8 @@
+{
+  "multiline": "line one\nline two\n  indented",
+  "leading_newline": "\nstarts with newline",
+  "trailing_quote": "ends with quote\"",
+  "embedded_triple": "has \"\"\" inside\nplus newline",
+  "carriage": "cr\rhere\nand lf",
+  "tabs_and_backslash": "tab\there \\ backslash \"quoted\""
+}
