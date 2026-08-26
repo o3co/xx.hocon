@@ -719,6 +719,12 @@ Two axes, decided differently:
 | py.hocon | ✅ | Symmetric with ts/rs. Not covered by #55's original table, which predates py.hocon. |
 | go.hocon | ✅ | List form was already full-first. Scalar form moved from bare-first to full-first in [go.hocon#188](https://github.com/o3co/go.hocon/pull/188); the bare-base env lookup now sits after the full-base one instead of inside the S14c.2 original-path block. |
 
+**Fixtures**: none. Pinning this needs an env-injection mechanism the fixture corpus does not have — the generator and the conformance runners resolve against the ambient process environment, and a fixture that depends on dotted env names being set would not reproduce. If the differential harness gains per-case env injection, `ev`-style cases for both bases become possible; until then the matrix above is the record.
+
+**Out of scope**: precedence of config-defined values over env vars (that is E6 / #22, closed) and S13c.5 (a list-suffix substitution must not fall back to the bare *scalar* env var), both unchanged.
+
+**Tracking issue**: [#55](https://github.com/o3co/xx.hocon/issues/55).
+
 ### E18 — HOCON emitter (`RenderHOCON` / equivalent): round-trip contract and quoting rules
 
 **Source**: [#74](https://github.com/o3co/xx.hocon/issues/74) (HOCON emitter + reverse conversion). The Lightbend spec defines no emitter, so the whole surface is an o3co convention — first implemented in go.hocon (`Config.RenderHOCON()`, v1.11.0, consumed by hocon2 v0.7.0's `*2hocon` CLIs), then ported to ts/py/rs for parity.
@@ -743,11 +749,32 @@ Decisions (all four implementations MUST agree):
 | py.hocon | ✅ | `Config.render_hocon()` (py#42), corpus green. |
 | rs.hocon | ✅ | `Config::render_hocon()` (rs#177), corpus green; unresolved errors keep the `is_not_resolved()` prefix convention. |
 
-**Fixtures**: none. Pinning this needs an env-injection mechanism the fixture corpus does not have — the generator and the conformance runners resolve against the ambient process environment, and a fixture that depends on dotted env names being set would not reproduce. If the differential harness gains per-case env injection, `ev`-style cases for both bases become possible; until then the matrix above is the record.
+### E19 — Overflowing float literals are a parse error (deliberate divergence from Lightbend)
 
-**Out of scope**: precedence of config-defined values over env vars (that is E6 / #22, closed) and S13c.5 (a list-suffix substitution must not fall back to the bare *scalar* env var), both unchanged.
+**Source**: [#97](https://github.com/o3co/xx.hocon/issues/97) (posture decision B), measured 2026-08-20 on the v1.13.0 releases + Lightbend 1.4.6.
 
-**Tracking issue**: [#55](https://github.com/o3co/xx.hocon/issues/55).
+**Rule**: a numeric literal whose magnitude overflows the double range (`1e999`, `-1e999`, `2.5e999`) is a **parse error** in all four implementations, reported at the literal's position with the go-shaped message `invalid float "<lexeme>"`. Underflow (`1e-400`) reads as `0` — that half matches Lightbend and is not a divergence. A quoted `"1e999"` stays a string, and `Infinity` / `NaN` remain ordinary unquoted strings (HOCON has no such literals).
+
+**Why we diverge**: Lightbend admits the literal as a NUMBER holding `Infinity`, but the value cannot survive any exit from the model:
+
+- Lightbend's own `render()` emits `"Infinity"`, which re-parses as a **STRING** — the authority silently changes the value's type on its own round trip (measured on 1.4.6).
+- The E18 emitter contract (`parse(render(tree))` ≡ `tree`) is unsatisfiable for it, for every implementation.
+- Canonical JSON cannot carry it: rs's serde path silently degraded it to `null` (the renderer gap that surfaced this issue); GSON refuses to serialize a non-finite double outright.
+
+Erroring at the parse is the honest answer (the same principle as F0.6 on the adapter side), and go has always done so via `strconv.ParseFloat`'s range error with no measured fallout.
+
+**Measured before the fix** (core, `a = 1e999`): Lightbend `Infinity` (NUMBER) / go parse error / ts `Infinity` / py `inf` / rs `inf`, degrading to `null` in canonical JSON.
+
+| Impl | Status | Notes |
+| --- | --- | --- |
+| go.hocon | ✅ | Always errored (`internal/parser/parser.go` TokenFloat validation); pinned by `internal/parser/error_paths_test.go` `TestParseSingleValue_InvalidFloat`. |
+| ts.hocon | ✅ | ts#194 — `scalarValueType` finiteness check; `tests/e19-float-overflow.test.ts`. |
+| py.hocon | ✅ | py#45 — `_scalar_value_type` finiteness check; `tests/test_e19_float_overflow.py`. |
+| rs.hocon | ✅ | rs#182 — `parse_scalar_value` finiteness check; `tests/e19_float_overflow_test.rs`. Both serde deserializers additionally refuse a non-finite `f64` loudly (defense in depth for programmatically constructed scalars, which the parser cannot reach). |
+
+**Fixtures**: none in the shared corpus — structurally impossible, not an omission. The generator derives sidecars from Lightbend: an `ERROR_CONFS` entry would trip the UNEXPECTED-SUCCESS safety net (Lightbend parses the literal), and a success sidecar cannot be written either (GSON refuses non-finite doubles). The per-impl tests above are the pins. The JSON5 **adapter** edges are separately pinnable — all four adapters agree (`1e-400` → `0`, `1e999` → error per F0.6, aligned since rs.hocon#180) — and get `fi` fixtures once the differential harness pins the rs 1.13.1 adapter-parity release.
+
+**Out of scope**: integer-form literals beyond int64 (`9223372036854775808`) — go alone rejects them (`invalid int`, from its TokenInt/int64 validation) while Lightbend and ts/py/rs fall back to a double. A distinct divergence with its own trade-offs (silent precision loss vs. rejecting Lightbend-valid input), tracked separately at [#99](https://github.com/o3co/xx.hocon/issues/99).
 
 ## How this file is maintained
 
@@ -788,3 +815,5 @@ Decisions (all four implementations MUST agree):
 2026-08-18 — E18 (HOCON emitter round-trip contract) added as the spec half of [#74](https://github.com/o3co/xx.hocon/issues/74). The go implementation (v1.11.0 `RenderHOCON`) is promoted from de-facto to convention: round-trip-not-bytes as the invariant, the quoting/triple-quoting decision tables, and the resolved-data-only input domain. Round-trip corpus `testdata/emitter-roundtrip/` (rt01–rt10) added; ts/py/rs ports land in the same window. The leading-newline triple-quote case is only correct because S9.2 landed first — ordering that mattered.
 
 2026-08-17 — E17 (env-var fallback base path) added as the resolution of [#55](https://github.com/o3co/xx.hocon/issues/55), which the #22 cluster had deferred. The two axes are decided differently: consulting the prefixed base at all is **accepted** (not shell-reachable — POSIX env names cannot contain a dot), while go.hocon's scalar bare-first order is **fixed** to match its own list form and the three siblings. The four impl columns are measured at v1.12.0 via the differential adapters; py.hocon is measured for the first time here (#55's table predates it) and is symmetric with ts/rs. No fixtures — pinning this needs per-case env injection the corpus does not have.
+
+2026-08-26 — E19 (overflowing float literals are a parse error) added as the posture-B resolution of [#97](https://github.com/o3co/xx.hocon/issues/97). go's long-standing behaviour is promoted to the convention; ts#194 / py#45 / rs#182 align the siblings in one window (rs also hardens its serde path against programmatically constructed non-finite scalars). No shared-corpus fixture is possible — Lightbend parses the literal (UNEXPECTED-SUCCESS trip) and GSON cannot serialize the resulting Infinity — so the per-impl tests are the pins. The stranded E17 tail paragraphs (Fixtures / Out of scope / Tracking issue), which had been sitting after E18's table since E18 was inserted, were moved back into the E17 section. The int64-overflow integer-literal divergence found while scoping E19 (go alone rejects `9223372036854775808`) is split out to [#99](https://github.com/o3co/xx.hocon/issues/99).
