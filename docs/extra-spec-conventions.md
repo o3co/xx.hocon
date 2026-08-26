@@ -755,6 +755,8 @@ Decisions (all four implementations MUST agree):
 
 **Rule**: a numeric literal whose magnitude overflows the double range (`1e999`, `-1e999`, `2.5e999`) is a **parse error** in all four implementations, reported at the literal's position with the go-shaped message `invalid float "<lexeme>"`. Underflow (`1e-400`) reads as `0` — that half matches Lightbend and is not a divergence. A quoted `"1e999"` stays a string, and `Infinity` / `NaN` remain ordinary unquoted strings (HOCON has no such literals).
 
+The rule is keyed on the lexeme's **value**, not its spelling: an integer-form literal beyond the double range (409 digits) errors identically. This is deliberate even for py, whose unbounded `int` could represent such a lexeme exactly (Copilot review on py#45 surfaced the trade-off) — ts and rs cannot hold the value, go rejects it far earlier (int64), and Lightbend's `parseLong` → `parseDouble` fallback lands on the same unrepresentable Infinity, so accepting it would make py the lone engine with an answer. The band *below* the double range, where the four value models genuinely differ (go errors past int64, py keeps exact bignums, ts/rs round to doubles), is [#99](https://github.com/o3co/xx.hocon/issues/99), not E19.
+
 **Why we diverge**: Lightbend admits the literal as a NUMBER holding `Infinity`, but the value cannot survive any exit from the model:
 
 - Lightbend's own `render()` emits `"Infinity"`, which re-parses as a **STRING** — the authority silently changes the value's type on its own round trip (measured on 1.4.6).
