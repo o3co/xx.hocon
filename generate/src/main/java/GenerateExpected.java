@@ -185,6 +185,18 @@ public class GenerateExpected {
         // A list prior value is used on purpose: `x = 1` then `x += 2` parses but fails
         // at resolve (WrongType, int concatenated with [2]), which would not isolate `+`.
         "unquoted-starts/us58-plus-equals-list.conf",            // x = [1], x += 2 → [1,2]
+        // S8.4 number-lex edges without `+` (us60–us67): which `.`-bearing runs are
+        // numbers. The greedy `[0-9.eE+-]` run is kept as a number when Java parses it
+        // (`Double.parseDouble` accepts `1.`, `1.e5`, `-.5`), else it falls back to
+        // unquoted text. A leading `.` is not number-lex eligible at all (us65).
+        "unquoted-starts/us60-trailing-dot.conf",                // 1.    → 1
+        "unquoted-starts/us61-trailing-dot-exp.conf",            // 1.e5  → 100000
+        "unquoted-starts/us62-negative-trailing-dot.conf",       // -1.   → -1
+        "unquoted-starts/us63-negative-leading-dot.conf",        // -.5   → -0.5
+        "unquoted-starts/us64-frac-trailing-dot.conf",           // 1.5.  → "1.5."
+        "unquoted-starts/us65-leading-dot.conf",                 // .5    → ".5"
+        "unquoted-starts/us66-hyphen-dot.conf",                  // -.    → "-."
+        "unquoted-starts/us67-trailing-dot-bare-exp.conf",       // 1.e   → "1.e"
         // S8.1/S8.8 unquoted-parens — clarifying fixtures for issue #34 (@cgordon).
         // HOCON.md L274 forbidden set does NOT include `(` or `)`; parens are special
         // only inside include resource syntax (`file(...)`, `required(...)`,
