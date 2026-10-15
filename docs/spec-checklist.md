@@ -1,10 +1,11 @@
 # HOCON Spec Compliance Checklist — Template
 
-Canonical item definitions for the [Lightbend HOCON specification](https://github.com/lightbend/config/blob/main/HOCON.md), shared across the three implementations:
+Canonical item definitions for the [Lightbend HOCON specification](https://github.com/lightbend/config/blob/main/HOCON.md), shared across the four implementations:
 
 - [o3co/ts.hocon](https://github.com/o3co/ts.hocon)
 - [o3co/rs.hocon](https://github.com/o3co/rs.hocon)
 - [o3co/go.hocon](https://github.com/o3co/go.hocon)
+- [o3co/py.hocon](https://github.com/o3co/py.hocon)
 
 ## Role of this file
 
@@ -16,7 +17,7 @@ The cross-implementation roll-up lives at `xx.hocon/docs/compliance-matrix.md` (
 
 ```text
 - **<ID>** <short description> — §<HOCON.md section> (L<line range>)
-  [out-of-scope: <reason>]   ← optional, included only when all 3 impls treat the item as out-of-scope
+  [out-of-scope: <reason>]   ← optional, included only when all four impls treat the item as out-of-scope
 ```
 
 Per-repo files extend each item with `tests:` and `status:` fields.
@@ -317,6 +318,7 @@ See also: [E12 § "S13a × WithFallback — Self-reference lookback across fallb
 - **S17.3** string → number (JSON rules) — §Automatic type conversions (L1238)
 - **S17.4** string → bool: `true`/`yes`/`on`/`false`/`no`/`off` — §Automatic type conversions (L1239)
 - **S17.5** `"null"` → null when null requested — §Automatic type conversions (L1244)
+  out-of-scope: none of the four implementations has a `getNull()`-equivalent typed accessor, so "null requested" has no API to express it; spec L1244 is structurally inapplicable to their API models.
 - **S17.6** null → other type: error — §Automatic type conversions (L1252)
 - **S17.7** object → other type: error — §Automatic type conversions (L1254)
 - **S17.8** array → other (except numeric-indexed): error — §Automatic type conversions (L1255)
