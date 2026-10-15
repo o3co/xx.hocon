@@ -787,9 +787,9 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 - **Duration (S19)**: the result is the exact product. `1.001s` is `1001` ms (`1001000000` ns) and `2.3h` is `8280000` ms. An implementation with an integer-nanosecond type (go `time.Duration`, rs `std::time::Duration`) truncates toward zero only at the nanosecond after the exact product. An implementation that returns a float in a requested output unit (ts, py) rounds once, at the end, to the nearest double.
 - **Byte size (S21)**: exact product, then truncate toward zero (Lightbend `BigDecimal.toBigInteger`), then convert to the requested output unit, rounding once. `1.0009kB` is `1000` bytes, not the `1001` that rounding (half-up or half-even) gives. `1.001kB` is `1001`, not the `1000` that a float-then-truncate path gives (`1.001 * 1000` is `1000.9999999999999` in binary64).
 - **Period (S20)** is integer-only and unaffected.
-- Integer-form values are unchanged: they are already exact within each implementation's range.
-- Results below one nanosecond depend on the representation: go and rs truncate at the nanosecond (`1.5ns` is 1 ns), while ts and py keep a fraction in the output unit (`1.5e-6` ms). No fixture pins this.
-- Every unit is covered, including the ones beyond 2^63 bytes (`ZB`, `YB`, `Zi`, `Yi`): they must take the exact path too, or overflow.
+- Integer-form values are already exact where the unit factor is an integer (go, rs, py). Where it is not, they take the exact path too: ts multiplies by float factors for sub-millisecond units and divides by the output unit, so `9us` reads as `0.009000000000000001` ms today.
+- Results below one nanosecond depend on the representation: go and rs truncate at the nanosecond (`1.5ns` is 1 ns), while ts and py keep a fraction in the output unit (`1.5e-6` ms). py's `timedelta` target rounds again, half-even to the microsecond. No fixture pins this.
+- Every unit is covered, including the ones beyond 2^63 bytes (`ZB`, `YB`, `Zi`, `Yi`, and the single letters `Z` / `z` / `Y` / `y`): they must take the exact path too, or overflow.
 
 **Why we diverge (duration only)**: Lightbend 1.4.6 `SimpleConfig.parseDuration` takes the non-integer path `(long)(Double.parseDouble(numberString) * units.toNanos(1))`, which gives `1000999999` ns for `1.001s`. That is the binary representation of 1.001, not the value the config author wrote. Lightbend's own `parseBytes` multiplies with `BigDecimal` for exactly this reason. E20 applies the same exactness to durations. The divergence only appears in values with a fractional part, and it is the floating-point rounding error of the product. That is about a nanosecond below 2^53 ns (about 104 days), and it grows with magnitude, to roughly a microsecond near the `long` ceiling (`99999.999999999d` is 640 ns off). No implementation may rely on a bound.
 
@@ -798,11 +798,11 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 | Impl | Duration | Bytes | Notes |
 | --- | --- | --- | --- |
 | go.hocon | ❌ | ❌ | Duration: `time.Duration(f * float64(mult))` gives 1000999999 ns. Bytes: float product, then truncate (`1.001kB` gives 1000). `bigMultipliers` (Z/Y) is float-only. |
-| ts.hocon | ❌ | ❌ | Duration: f64 product in ms (`1000.9999999999999`). Bytes: the unit path rounds with `Math.round` (`1.0009kB` gives 1001). |
-| py.hocon | ✅ | ❌ | Duration: py#46 computes the conversion in `Decimal` and rounds to `float` once (`tests/test_decode_unit_markers.py`). Bytes: `round()` (half-even) instead of truncation (`1.0009kB` gives 1001), and a non-`B` output unit converts before truncating. |
+| ts.hocon | ❌ | ❌ | Duration: f64 product in ms (`1000.9999999999999`). Bytes: the unit path rounds with `Math.round` (`1.0009kB` gives 1001), and a non-`B` output unit skips truncation. Integer sub-ms durations are inexact too (`9us`). |
+| py.hocon | ✅ | ❌ | Duration: py#46 computes the conversion in `Decimal` and rounds to `float` once (`tests/test_decode_unit_markers.py`). Bytes: `round()` (half-even) instead of truncation (`1.0009kB` gives 1001), and a non-`B` output unit skips truncation. |
 | rs.hocon | ❌ | ❌ | Duration: `(f * nanos_per_unit) as u64` gives 1000999999 ns. Bytes: float product, then `as i64` (`1.001kB` gives 1000). The Z/Y big-unit branch is float-only. |
 
-**Fixtures**: `testdata/hocon/units-default/ud09` (`1.001s`), `ud10` (`2.3h`), `ud11` (`1.001`, no unit), `ub07` (`1.0009kB`, truncation, not rounding), `ub08` (`1.001kB`, exactness before truncation). Between them, every implementation's current duration and bytes paths fail at least one. They follow the units-default convention: the expected value is stated in the file and asserted by each impl's units-default test. There is no Lightbend sidecar, because ud09 / ud10 are deliberate divergences.
+**Fixtures**: `testdata/hocon/units-default/ud09` (`1.001s`), `ud10` (`2.3h`), `ud11` (`1.001`, no unit), `ub07` (`1.0009kB`, truncation, not rounding), `ub08` (`1.001kB`, exactness before truncation). Every ❌ cell above fails at least one: go / rs duration fail ud09–ud11, ts duration fails ud09 / ud10, go / rs bytes fail ub08, ts / py bytes fail ub07. They follow the units-default convention: the expected value is stated in the file and asserted by each impl's units-default test. There is no Lightbend sidecar, because ud09 / ud10 are deliberate divergences.
 
 ## How this file is maintained
 
