@@ -170,7 +170,7 @@ The three `🤷` are due to absent test coverage, not divergent behavior — fol
 
 **Reading of L270-276 "begin"**: read as *value-position begin* (the first component of a concatenation), not as *token-begin at any lexer position*. Justifications:
 
-1. **Reference-implementation disambiguation rule**: Lightbend at value-start enters number-lex only when `-` is followed by a digit; otherwise `-` is treated as the start of an unquoted run. The quoted HOCON text names `-` as "a valid character to begin a JSON number" (consistent with RFC 8259's `number = [minus] int [frac] [exp]` production), but a bare `-` or `-foo` is not a *complete* JSON-number prefix, so Lightbend's disambiguator does not classify it as a number-lex entry point. This is the empirically-observed behavior across the probe matrix (F1/F2).
+1. **Reference-implementation disambiguation rule**: Lightbend at value-start enters number-lex for any digit **or any `-`** (its `firstNumberChars` is `0123456789-`), whatever follows the `-`. The run it consumes is then parsed as a Java number; when that fails and the run holds no reserved character, the run falls back to unquoted text and concatenates with what follows. So `-foo` and a lone `-` still come out as the strings `"-foo"` / `"-"` (the run `-` does not parse), while `-.5` is the number -0.5 and `-.5e+3` is -500 (measured on 1.4.6, 2026-10-16; this corrects the earlier reading that `-` needed a following digit).
 2. **Concatenation continuation**: when a value-token (`${...}`, `"..."`, a prior unquoted run, etc.) has already been emitted, the next unquoted run is a *continuation of the same value*, not the *begin* of a new unquoted string. L270's "begin" applies to the start of a value-position unquoted run, not to every lexer offset within a concatenation.
 3. **Reference-implementation authority**: HOCON.md and Lightbend's reference implementation are maintained by the same project. Where xx.hocon's prior strict reading and Lightbend's pragmatic reading both derive from the spec text, we adopt the reference-implementation reading.
 
@@ -179,8 +179,8 @@ The three `🤷` are due to absent test coverage, not divergent behavior — fol
 | Position | Leading character | Behavior |
 | --- | --- | --- |
 | **value-start** | digit `0-9` | greedy number-lex via Java numeric semantics: `Long.parseLong` first, `Double.parseDouble` second; fall back to unquoted text on parse failure. `01` → `1` (number, not `"01"` string). |
-| **value-start** | `-` followed by digit | greedy number-lex as above (e.g. `-1`, `-0.5`). |
-| **value-start** | `-` not followed by digit (`-foo`, lone `-`) | emit as unquoted text (no number-lex attempt, since not a valid JSON-number prefix). |
+| **value-start** | `-` (any following character) | greedy number-lex as above (e.g. `-1`, `-0.5`, `-.5`, `-.5e+3`). |
+| **value-start** | `-` whose run does not parse (`-foo`, lone `-`, `-.`) | the run falls back to unquoted text and concatenates with what follows (`"-foo"`, `"-"`, `"-."`). |
 | **value-start** | `+` | **reject** — HOCON `+=` operator reservation, distinct from number-lex. |
 | **concat-continuation** (after `${...}`, `"..."`, prior unquoted, etc.) | any unquoted-permissible character except `+` | continue the unquoted run; no number-lex attempted. `${a}-bar` → `"foo-bar"`. Characters that would terminate an unquoted token (`}`, `]`, `,`, `=`, `:`, whitespace, comment markers, etc.) still terminate it as usual. |
 | **concat-continuation** | `+` | **reject** (same operator-reservation reason as value-start). |
@@ -189,7 +189,7 @@ The three `🤷` are due to absent test coverage, not divergent behavior — fol
 
 **Value-start number-lex algorithm** (informative; matches Lightbend `Tokenizer.pullNumber`):
 
-1. **Eligibility**: attempt number-lex only if the first character is `0-9` or `-` followed by a digit. `+` is rejected up front (operator reservation).
+1. **Eligibility**: attempt number-lex if the first character is `0-9` or `-` (any following character). `+` is rejected up front (operator reservation).
 2. **Greedy consume**: consume the maximal run of characters in the class `[0-9.eE+-]` (Lightbend's `pullNumber` character set; adopted for compatibility).
 3. **Parse**: try `Long.parseLong` first, then `Double.parseDouble`, on the consumed run. On success, emit a number token.
 4. **Parse-failure handling, and the `+` rule**: `+` is a forbidden character in unquoted text ([S8.1](spec-checklist.md), HOCON.md L245), so outside quotes a `+` is accepted in exactly two places: as part of a consumed run that parses as a number in step 3 (in practice the exponent sign right after `e` / `E`, e.g. `1e+5`, `1.e+5`, `-.5e+3`), and as the `+` of the `+=` operator. **Any other `+` outside quotes is a parse error**, in value and key position alike:
