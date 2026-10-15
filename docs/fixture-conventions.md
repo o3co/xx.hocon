@@ -388,10 +388,12 @@ the registry key.
 ### Per-impl override: ipk03 (collision test)
 
 ipk03 exercises go.hocon / rs.hocon explicit-registry collision policy. ts.hocon
-has no explicit registry, so ipk03 is not applicable for ts.hocon. Per-impl
-override lists must skip ipk03 for ts.hocon:
+and py.hocon have no explicit registry (both resolve `(identifier, file)` through
+a resolver hook — Node `require.resolve` by default in ts, a filesystem-convention
+resolver in py), so ipk03 is not applicable to them. Their runners must skip it:
 
-- ts.hocon: `IMPL_OVERRIDE_ERRORS` (or equivalent skip list)
+- ts.hocon: `it.skip` in `tests/conformance/include-package.test.ts` (or an equivalent skip list)
+- py.hocon: `skip_reason` on the ipk03 case in `tests/test_include_package_fixtures.py`
 - rs.hocon: `KNOWN_LIGHTBEND_QUIRKS` — mark as go/rs only
 - go.hocon: `implErrors` — mark as go/rs only
 
