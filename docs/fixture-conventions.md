@@ -284,6 +284,15 @@ Other S8.6 coverage: us01/us04-us12/us14/us16 (Lightbend value-layer-equivalent;
 in `SUCCESS_CONFS`), us15 (`a = 1e+x`) — `+` reservation, error in both Lightbend
 and impl (`.error` sidecar in `SIDECAR_ERROR_CONFS`).
 
+**Unquoted-`+` fixtures (us31–us59)** pin the full rule of E8 step 4 (S8.1): outside
+quotes `+` is legal only inside a run that parses as a number (the exponent sign,
+`1e+5`) or as the `+=` operator. Errors (`SIDECAR_ERROR_CONFS`): us31–us34, us36–us39,
+us47–us52, and key position us56/us57. Successes (`SUCCESS_CONFS`): us35, us40–us46,
+us53, us59, key position us54/us55, and the `+=` guard us58 (`x = [1]` then
+`x += 2`; a scalar prior value is avoided because `1` concatenated with `[2]` is a
+resolve-time type error, which would not isolate `+`). Lightbend 1.4.6 output for
+every one matches the convention, so none of them is a Lightbend quirk.
+
 ### ir03 / ir04 (cluster 3e, S12.5 strict-spec divergence)
 
 Two S12.5 fixtures encode strict-HOCON-spec behaviour where Lightbend silently
@@ -615,7 +624,7 @@ directly to the step sequence.
 | `ev01`–`ev11` | `env-var-list/` | S13c env-var list expansion `${X[]}` / `${?X[]}` (cluster 3a) |
 | `ev12a`–`ev12b` | `env-var-list/` | S13c.5 — list suffix suppresses scalar env-var fallback (cluster 3g follow-up) |
 | `ev13` | `env-var-list/` | S13c — optional list expansion in isolation, not inside concat (cluster 3g follow-up) |
-| `us01`–`us16` | `unquoted-starts/` | S8.6 strict-spec unquoted-string-starts (cluster 3c) |
+| `us01`–`us59` | `unquoted-starts/` | S8.6 unquoted-string-starts (cluster 3c); `us17`–`us30` concat-continuation ([E8](extra-spec-conventions.md#e8), xx.hocon [#31](https://github.com/o3co/xx.hocon/issues/31)); `us31`–`us59` the unquoted-`+` rule (S8.1, E8 step 4) in value and key position — 16 `.error` sidecars, 13 success guards incl. the `+=` operator (`us58`) |
 | `ir01`–`ir14` | `include-reservation/` | S12.5 strict-spec `include` reservation at key-path start (cluster 3e) |
 | `sr01`–`sr11` | `self-ref-lookback/` | S13a.13 optional self-ref in value concatenation look-back (cluster 3f) |
 | `ef01`–`ef06` | `empty-file/` | S3.1 empty document parses to `{}` (cluster 3h; reject-posture revoked 2026-07-23 per [E10](extra-spec-conventions.md#e10)) — `{}` sidecars normative, no override |
