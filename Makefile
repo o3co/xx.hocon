@@ -23,10 +23,11 @@ clean:
 # Requires: JDK 21 (gradle oracle) + the toolchains for whichever adapters you
 # build (python3, node/npm, cargo, go).
 ADAPTERS        := differential/adapters
-# Sibling release the adapters are pinned to. Bump together on the next release;
-# the per-language manifests (requirements.txt / package.json / Cargo.toml) pin
-# the same version and must be kept in sync with this.
-GO_IMPL_VERSION ?= v1.13.0
+# Sibling release the go adapter is pinned to. Bump together with the
+# per-language manifests (requirements.txt / package.json / Cargo.toml) on the
+# next lockstep (minor) release; a solo patch release by go alone bumps only this.
+# See differential/adapters/README.md "Version bumps".
+GO_IMPL_VERSION ?= v1.14.0
 # The py adapter needs Python >= 3.11 (hocon-parser's requires-python). Override
 # if `python3` on your PATH is older, e.g. `make differential-adapters PYTHON=python3.11`.
 PYTHON          ?= python3
