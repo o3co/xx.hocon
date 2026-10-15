@@ -793,6 +793,8 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 
 **Why we diverge (duration only)**: Lightbend 1.4.6 `SimpleConfig.parseDuration` takes the non-integer path `(long)(Double.parseDouble(numberString) * units.toNanos(1))`, which gives `1000999999` ns for `1.001s`. That is the binary representation of 1.001, not the value the config author wrote. Lightbend's own `parseBytes` multiplies with `BigDecimal` for exactly this reason. E20 applies the same exactness to durations. The divergence only appears in values with a fractional part, and it is the floating-point rounding error of the product. That is about a nanosecond below 2^53 ns (about 104 days), and it grows with magnitude, to roughly a microsecond near the `long` ceiling (`99999.999999999d` is 640 ns off). No implementation may rely on a bound.
 
+**Number values (S18.1) are a second divergence.** Lightbend's `getDuration` on a NUMBER takes `longValue()` milliseconds, so `t = 1.001` is 1 ms there. E20 reads the literal as written, so `t = 1.001` is 1.001 ms (1001000 ns). For byte sizes, Lightbend's `longValue()` truncates toward zero, which is the same answer as E20's truncation (parity).
+
 **Lightbend values**: derived from the 1.4.6 source (the same formulas the existing ud05 / ub03 notes cite). They have not yet been probed with a JRE; add a `generate/` probe before relying on them for a sidecar.
 
 | Impl | Duration | Bytes | Notes |
