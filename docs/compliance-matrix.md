@@ -35,7 +35,7 @@ Both numbers are shown side by side so neither over-claims nor under-claims. See
 | ⚠️ | Test exists, partial pass / pinning a spec-violating behavior |
 | ❌ | Test exists and fails, OR known spec violation documented in source |
 | 🤷 | No test — implementation claim only, unverified |
-| ➖ | Out of scope (rationale required). May be **globally out of scope** (excluded by all four impls — see [Globally out-of-scope items](#globally-out-of-scope-items-17)) or **per-impl out of scope** (one impl excludes for language-natural reasons that don't apply to siblings, e.g. ts S1.1 because JS strings are pre-decoded Unicode at the I/O boundary). |
+| ➖ | Out of scope (rationale required). May be **globally out of scope** (excluded by all four impls — see [Globally out-of-scope items](#globally-out-of-scope-items-15)) or **per-impl out of scope** (one impl excludes for language-natural reasons that don't apply to siblings, e.g. ts S1.1 because JS strings are pre-decoded Unicode at the I/O boundary). |
 
 ## Globally out-of-scope items (15)
 
@@ -52,7 +52,7 @@ These 15 items are marked `➖` in **all four** implementations, by policy. Some
 | S1.2.6 | Unpaired surrogate codepoint — intentional language-natural divergence (Java accepts, Rust/Go reject) |
 | S14a.2, S14e.4, S14e.5, S14f.1, S14f.6, S14f.8 | URL include unsupported by design across all four READMEs |
 
-**Note: S20.1–S20.4 (Period Format)** moved from globally-OOS to **per-impl OOS** in Phase 6 #3d: rs.hocon implemented a `Period { years: i32, months: i32, days: i32 }` struct + `get_period` / `get_period_option` accessors via [rs.hocon#91](https://github.com/o3co/rs.hocon/pull/91), so rs is ✅ on S20.1–S20.4. ts and go still mark these ➖ per-impl (no `getPeriod` / `GetPeriod` API); py.hocon also implements Period (`get_period` / `Period`) at rs parity, so py is ✅ on S20.1–S20.4 like rs. This drops globally-OOS count from 21 to 17 and reduces rs's per-impl ➖ count from 21 to 17 (denominator 188 → 192). **S23.5–S23.6 then left globally-OOS on 2026-07-24** (see below), taking the count to 15. **ts and go left per-impl OOS on 2026-10-15** ([xx.hocon#102](https://github.com/o3co/xx.hocon/issues/102)): [ts.hocon#198](https://github.com/o3co/ts.hocon/pull/198) (`Config.getPeriod` / `Period`) and [go.hocon#199](https://github.com/o3co/go.hocon/pull/199) (`GetPeriod` / `hocon.Period`) implement Period at rs/py parity, conformance-checked against up01–up05. S20.1–S20.4 are now ✅ in all four implementations.
+**Note: S20.1–S20.4 (Period Format)** moved from globally-OOS to **per-impl OOS** in Phase 6 #3d: rs.hocon implemented a `Period { years: i32, months: i32, days: i32 }` struct + `get_period` / `get_period_option` accessors via [rs.hocon#91](https://github.com/o3co/rs.hocon/pull/91), so rs is ✅ on S20.1–S20.4. ts and go then still marked these ➖ per-impl (no `getPeriod` / `GetPeriod` API); py.hocon also implements Period (`get_period` / `Period`) at rs parity, so py is ✅ on S20.1–S20.4 like rs. This drops globally-OOS count from 21 to 17 and reduces rs's per-impl ➖ count from 21 to 17 (denominator 188 → 192). **S23.5–S23.6 then left globally-OOS on 2026-07-24** (see below), taking the count to 15. **ts and go left per-impl OOS on 2026-10-15** ([xx.hocon#102](https://github.com/o3co/xx.hocon/issues/102)): [ts.hocon#198](https://github.com/o3co/ts.hocon/pull/198) (`Config.getPeriod` / `Period`) and [go.hocon#199](https://github.com/o3co/go.hocon/pull/199) (`GetPeriod` / `hocon.Period`) implement Period at rs/py parity, conformance-checked against up01–up05. S20.1–S20.4 are now ✅ in all four implementations.
 
 See each item's `out-of-scope:` line in [`spec-checklist.md`](spec-checklist.md) for the full rationale.
 
@@ -74,6 +74,14 @@ Spec items with no test coverage in **any** of the four implementations. These a
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
 For behaviors that fall **outside** HOCON.md but should converge across the four impls (e.g. NEL handling), see [`extra-spec-conventions.md`](extra-spec-conventions.md) — separate E-prefix namespace, not counted in the matrix denominator.
+
+### 2026-10-15 — Period (S20) in ts and go
+
+From [#102](https://github.com/o3co/xx.hocon/issues/102) (typed integrations read HOCON unit values). [ts.hocon#198](https://github.com/o3co/ts.hocon/pull/198) (`Config.getPeriod` / `Period`) and [go.hocon#199](https://github.com/o3co/go.hocon/pull/199) (`GetPeriod` / `hocon.Period`) implement Period at rs/py parity, checked against up01–up05. S20.1–S20.4 are now ✅ in all four implementations, so the checklist's out-of-scope notes are removed.
+
+- ts: 189 → 193 ✅, ➖ 21 → 17, spec-total 90.0% → 91.9%.
+- go: 190 → 194 ✅, ➖ 20 → 16, spec-total 90.5% → 92.4%.
+- In-scope stays 100.0% for both.
 
 ### 2026-08-19 — units audit, JSON5 + emitter parity, and two more S9.2-family fixes
 
@@ -1045,4 +1053,3 @@ A second, quieter find: three of the four had a unit test asserting that a value
 2026-05-13 (Phase 4) — re-rolled-up after Phase 4 type-conversion / values test-debt PRs landed in all three impls ([ts.hocon#90](https://github.com/o3co/ts.hocon/pull/90), [rs.hocon#81](https://github.com/o3co/rs.hocon/pull/81), [go.hocon#75](https://github.com/o3co/go.hocon/pull/75)). 12–13 items × 3 impls promoted from 🤷 to verified ✅ / ⚠️ / ❌ / ➖. S17.5 reclassified globally OOS (denominator: 21 OOS, in-scope N = 188). New cross-impl violation rows: S15.1–S15.3/S15.5–S15.7 (3-way ❌), S17.6 (ts ⚠️), S17.7/S17.8 (go ⚠️), S21.4 (ts+go ❌), S21.5 (go ❌). Multi-reviewer convergence on S15.3 across ts/rs/go: initial tests didn't exercise concatenation context; uniform rewrite to `[a] ${obj}` adopted.
 
 2026-05-12 — re-rolled-up after Phase 3 substitution/include test-debt PRs landed in all three impls ([ts.hocon#85](https://github.com/o3co/ts.hocon/pull/85), [rs.hocon#77](https://github.com/o3co/rs.hocon/pull/77), [go.hocon#69](https://github.com/o3co/go.hocon/pull/69)). 11 items × 3 impls promoted from 🤷 to verified ✅ / ⚠️ / ❌; S13a.10 explicitly deferred as not externally observable. 3 new cross-impl violation rows added to Top spec violations (S13.9, S13.14, S13a.13); S13a.13 is convergent ❌ across all three impls; S13.14 has go as the lone compliant impl.
-2026-10-15 — S20.1–S20.4 (Period Format) flipped ➖ → ✅ for ts ([ts.hocon#198](https://github.com/o3co/ts.hocon/pull/198)) and go ([go.hocon#199](https://github.com/o3co/go.hocon/pull/199)), from [#102](https://github.com/o3co/xx.hocon/issues/102). All four implementations now implement Period. ts: 189 → 193 ✅, ➖ 21 → 17, spec-total 90.0% → 91.9%. go: 190 → 194 ✅, ➖ 20 → 16, spec-total 90.5% → 92.4%. In-scope stays 100.0% for both.
