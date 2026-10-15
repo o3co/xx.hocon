@@ -15,17 +15,17 @@ driver.py            shared runner + scoring (repo-relative; XX_ROOT overrides)
 go-adapters/         o3co/go.hocon, gurkankaymak/hocon, go-akka/configuration
 ts-adapters/         @o3co/ts.hocon, hocon-parser, @pushcorn/hocon-parser
 rust-adapters/       hocon-parser (o3co), hocon (mockersf), hocon-rs (mikai233)
-py-adapters/         pyhocon, hocon
+py-adapters/         pyhocon, hocon, hocon-parser (o3co; separate venv — same import name `hocon`)
 ruby-adapters/       hocon (puppetlabs)
 ```
 
-Build artifacts (`bin/`, `target/`, `node_modules/`, `venv/`, `.gems/`) are
+Build artifacts (`bin/`, `target/`, `node_modules/`, `venv/`, `venv-o3co/`, `.gems/`) are
 git-ignored and produced by `make build`.
 
 ## Run
 
 ```bash
-make build   # build/install all adapters (needs go, cargo, node, python3, ruby)
+make build   # build/install all adapters (needs go, cargo, node, python3 >= 3.11, ruby)
 make run     # run the driver, print per-library results, write results.json
 ```
 
@@ -47,5 +47,5 @@ An adapter is any executable that:
 
 Adding a library is one new adapter plus one row in the `LIBS` registry in
 `driver.py`. See `docs/ecosystem-conformance.md` for the scoring method
-(normalization rules, the two reported corpora, and the fixture groups held
-separate).
+(normalization rules, the two reported corpora, and which fixtures are in
+scope).

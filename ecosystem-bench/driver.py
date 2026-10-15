@@ -19,8 +19,10 @@ def ts_ad(name):
     return lambda p: (["node", os.path.join(HB, "ts-adapters", "adapters", name + ".mjs"), p], os.path.join(HB, "ts-adapters"), None)
 def rust_bin(name):
     return lambda p: ([os.path.join(HB, "rust-adapters", "target", "release", name), p], HB, None)
-def py_ad(name):
-    venv = os.path.join(HB, "py-adapters", "venv", "bin", "python3")
+def py_ad(name, venv_dir="venv"):
+    # o3co/py.hocon imports as `hocon`, colliding with the third-party `hocon`
+    # dist, so it gets its own venv (venv-o3co).
+    venv = os.path.join(HB, "py-adapters", venv_dir, "bin", "python3")
     return lambda p: ([venv, os.path.join(HB, "py-adapters", "adapters", name + "_adapter.py"), p], HB, None)
 def ruby_ad():
     gh = os.path.join(HB, "ruby-adapters", ".gems")
@@ -28,17 +30,18 @@ def ruby_ad():
     return lambda p: (["ruby", os.path.join(HB, "ruby-adapters", "adapter.rb"), p], HB, env)
 
 LIBS = [
-    ("go",     "o3co/go.hocon",            "1.8.0",   go_bin("o3co")),
-    ("go",     "gurkankaymak/hocon",       "1.2.23",  go_bin("gurkan")),
+    ("go",     "o3co/go.hocon",            "1.14.0",  go_bin("o3co")),
+    ("go",     "gurkankaymak/hocon",       "1.4.0",   go_bin("gurkan")),
     ("go",     "go-akka/configuration",    "20200606","goakka" ) ,
-    ("ts",     "@o3co/ts.hocon",           "1.8.0",   ts_ad("o3co")),
+    ("ts",     "@o3co/ts.hocon",           "1.14.0",  ts_ad("o3co")),
     ("ts",     "hocon-parser",             "1.0.1",   ts_ad("hocon-parser")),
     ("ts",     "@pushcorn/hocon-parser",   "1.3.1",   ts_ad("pushcorn")),
-    ("rust",   "hocon-parser (o3co)",      "1.8.0",   rust_bin("o3co")),
+    ("rust",   "hocon-parser (o3co/rs.hocon)", "1.14.0",  rust_bin("o3co")),
     ("rust",   "hocon (mockersf)",         "0.9.0",   rust_bin("mockersf")),
-    ("rust",   "hocon-rs (mikai233)",      "0.1.3",   rust_bin("mikai")),
+    ("rust",   "hocon-rs (mikai233)",      "0.2.0",   rust_bin("mikai")),
     ("python", "pyhocon",                  "0.3.63",  py_ad("pyhocon")),
     ("python", "hocon",                    "0.3.0",   py_ad("hocon")),
+    ("python", "hocon-parser (o3co/py.hocon)", "1.14.0",  py_ad("o3co", "venv-o3co")),
     ("ruby",   "hocon (puppetlabs)",       "1.4.0",   ruby_ad()),
 ]
 # fix goakka tuple (needs builder)
@@ -89,16 +92,10 @@ def run():
 
     results = {}  # libname -> Counter per layer
     for lang, name, ver, builder in LIBS:
-        cnt = {"up": collections.Counter(), "o3co": collections.Counter(), "diverge": collections.Counter()}
+        cnt = {"up": collections.Counter(), "o3co": collections.Counter()}
         detail = []
         for base, conf, exp in fixtures:
-            if base.startswith("empty-file/"):
-                # Known open S3.1 violation in released o3co libs (reject where
-                # Lightbend returns {}); report separately until fixed releases
-                # ship, then fold into the corpora. See E10 (revoked 2026-07-23).
-                layer = "diverge"
-            else:
-                layer = "up" if is_upstream(base) else "o3co"
+            layer = "up" if is_upstream(base) else "o3co"
             argv, cwd, env = builder(conf)
             # load per-fixture .env sidecar (env-var-list group) into subprocess env
             envfile = conf[:-5] + ".env"
@@ -112,29 +109,30 @@ def run():
             try:
                 r = subprocess.run(argv, cwd=cwd, env=env, capture_output=True, timeout=30, text=True)
             except subprocess.TimeoutExpired:
-                cnt[layer]["TIMEOUT"] += 1; continue
+                cnt[layer]["TIMEOUT"] += 1; detail.append((base, "TIMEOUT")); continue
             crash = (r.returncode < 0) or ("panic:" in r.stderr.lower()) \
                     or ("SIGSEGV" in r.stderr) or ("CRASH:" in r.stderr) \
                     or ("signal:" in r.stderr.lower())
             if crash:
                 cnt[layer]["CRASH"] += 1; detail.append((base, "CRASH")); continue
             if r.returncode != 0:
-                cnt[layer]["ERROR"] += 1; continue
+                cnt[layer]["ERROR"] += 1; detail.append((base, "ERROR")); continue
             try:
                 got = json.loads(r.stdout)
             except Exception:
-                cnt[layer]["BADJSON"] += 1; continue
+                cnt[layer]["BADJSON"] += 1; detail.append((base, "BADJSON")); continue
             if equal(got, exp):
                 cnt[layer]["PASS"] += 1
             else:
-                cnt[layer]["MISMATCH"] += 1
-        results[name] = (lang, ver, cnt)
+                cnt[layer]["MISMATCH"] += 1; detail.append((base, "MISMATCH"))
+        results[name] = (lang, ver, cnt, detail)
         up, o3 = cnt["up"], cnt["o3co"]
         upt = sum(up.values()); o3t = sum(o3.values())
-        print(f"{name:26s} {ver:9s} up:{up['PASS']}/{upt} o3co:{o3['PASS']}/{o3t} "
+        print(f"{name:30s} {ver:9s} up:{up['PASS']}/{upt} o3co:{o3['PASS']}/{o3t} "
               f"[E:{up['ERROR']+o3['ERROR']} X:{up['CRASH']+o3['CRASH']} M:{up['MISMATCH']+o3['MISMATCH']}]")
     # write raw
-    json.dump({n:(l,v,{k:dict(c) for k,c in cc.items()}) for n,(l,v,cc) in results.items()},
+    # per library: [lang, version, {layer: {outcome: count}}, [[fixture, outcome], ...non-PASS]]
+    json.dump({n:(l,v,{k:dict(c) for k,c in cc.items()},d) for n,(l,v,cc,d) in results.items()},
               open(os.path.join(HB,"results.json"),"w"), indent=2)
     return results
 
