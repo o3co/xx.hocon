@@ -778,6 +778,32 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 
 **Out of scope**: integer-form literals beyond int64 (`9223372036854775808`) — go alone rejects them (`invalid int`, from its TokenInt/int64 validation) while Lightbend and ts/py/rs fall back to a double. A distinct divergence with its own trade-offs (silent precision loss vs. rejecting Lightbend-valid input), tracked separately at [#99](https://github.com/o3co/xx.hocon/issues/99).
 
+### E20 — Unit arithmetic is exact decimal (duration: deliberate divergence from Lightbend; bytes: Lightbend parity)
+
+**Source**: [#102](https://github.com/o3co/xx.hocon/issues/102) (typed integrations read unit values). py.hocon#46's Copilot review found that `1.001s` read as `1000.9999999999999` ms, so an int-typed field refused it. A cross-impl check showed that all four engines, and Lightbend itself, compute fractional durations in binary floating point. The user decided on 2026-10-15 to compute them exactly.
+
+**Rule**: the numeric part of a unit value is read from its source text as an **exact decimal**, and the multiplication by the unit is exact. This covers a string with a unit (S18.2), a string with no unit (S18.4), and a number value (S18.1); for a number value, the "source text" is the literal as written, as Lightbend reads it.
+
+- **Duration (S19)**: the result is the exact product. `1.001s` is `1001` ms (`1001000000` ns) and `2.3h` is `8280000` ms. An implementation with an integer-nanosecond type (go `time.Duration`, rs `std::time::Duration`) truncates toward zero only at the nanosecond after the exact product. An implementation that returns a float in a requested output unit (ts, py) rounds once, at the end, to the nearest double.
+- **Byte size (S21)**: exact product, then truncate toward zero (Lightbend `BigDecimal.toBigInteger`), then convert to the requested output unit, rounding once. `1.0009kB` is `1000` bytes, not the `1001` that rounding (half-up or half-even) gives. `1.001kB` is `1001`, not the `1000` that a float-then-truncate path gives (`1.001 * 1000` is `1000.9999999999999` in binary64).
+- **Period (S20)** is integer-only and unaffected.
+- Integer-form values are already exact where the unit factor is an integer (go, rs, py). Where it is not, they take the exact path too: ts multiplies by float factors for sub-millisecond units and divides by the output unit, so `9us` reads as `0.009000000000000001` ms today.
+- Results below one nanosecond depend on the representation: go and rs truncate at the nanosecond (`1.5ns` is 1 ns), while ts and py keep a fraction in the output unit (`1.5e-6` ms). py's `timedelta` target rounds again, half-even to the microsecond. No fixture pins this.
+- Every unit is covered, including the ones beyond 2^63 bytes (`ZB`, `YB`, `Zi`, `Yi`, and the single letters `Z` / `z` / `Y` / `y`): they must take the exact path too, or overflow.
+
+**Why we diverge (duration only)**: Lightbend 1.4.6 `SimpleConfig.parseDuration` takes the non-integer path `(long)(Double.parseDouble(numberString) * units.toNanos(1))`, which gives `1000999999` ns for `1.001s`. That is the binary representation of 1.001, not the value the config author wrote. Lightbend's own `parseBytes` multiplies with `BigDecimal` for exactly this reason. E20 applies the same exactness to durations. The divergence only appears in values with a fractional part, and it is the floating-point rounding error of the product. That is about a nanosecond below 2^53 ns (about 104 days), and it grows with magnitude, to roughly a microsecond near the `long` ceiling (`99999.999999999d` is 640 ns off). No implementation may rely on a bound.
+
+**Lightbend values**: derived from the 1.4.6 source (the same formulas the existing ud05 / ub03 notes cite). They have not yet been probed with a JRE; add a `generate/` probe before relying on them for a sidecar.
+
+| Impl | Duration | Bytes | Notes |
+| --- | --- | --- | --- |
+| go.hocon | ❌ | ❌ | Duration: `time.Duration(f * float64(mult))` gives 1000999999 ns. Bytes: float product, then truncate (`1.001kB` gives 1000). `bigMultipliers` (Z/Y) is float-only. |
+| ts.hocon | ❌ | ❌ | Duration: f64 product in ms (`1000.9999999999999`). Bytes: the unit path rounds with `Math.round` (`1.0009kB` gives 1001), and a non-`B` output unit skips truncation. Integer sub-ms durations are inexact too (`9us`). |
+| py.hocon | ✅ | ❌ | Duration: py#46 computes the conversion in `Decimal` and rounds to `float` once (`tests/test_decode_unit_markers.py`). Bytes: `round()` (half-even) instead of truncation (`1.0009kB` gives 1001), and a non-`B` output unit skips truncation. |
+| rs.hocon | ❌ | ❌ | Duration: `(f * nanos_per_unit) as u64` gives 1000999999 ns. Bytes: float product, then `as i64` (`1.001kB` gives 1000). The Z/Y big-unit branch is float-only. |
+
+**Fixtures**: `testdata/hocon/units-default/ud09` (`1.001s`), `ud10` (`2.3h`), `ud11` (`1.001`, no unit), `ub07` (`1.0009kB`, truncation, not rounding), `ub08` (`1.001kB`, exactness before truncation). Every ❌ cell above fails at least one: go / rs duration fail ud09–ud11, ts duration fails ud09 / ud10, go / rs bytes fail ub08, ts / py bytes fail ub07. They follow the units-default convention: the expected value is stated in the file and asserted by each impl's units-default test. There is no Lightbend sidecar, because ud09 / ud10 are deliberate divergences.
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -819,3 +845,5 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 2026-08-17 — E17 (env-var fallback base path) added as the resolution of [#55](https://github.com/o3co/xx.hocon/issues/55), which the #22 cluster had deferred. The two axes are decided differently: consulting the prefixed base at all is **accepted** (not shell-reachable — POSIX env names cannot contain a dot), while go.hocon's scalar bare-first order is **fixed** to match its own list form and the three siblings. The four impl columns are measured at v1.12.0 via the differential adapters; py.hocon is measured for the first time here (#55's table predates it) and is symmetric with ts/rs. No fixtures — pinning this needs per-case env injection the corpus does not have.
 
 2026-08-26 — E19 (overflowing float literals are a parse error) added as the posture-B resolution of [#97](https://github.com/o3co/xx.hocon/issues/97). go's long-standing behaviour is promoted to the convention; ts#194 / py#45 / rs#182 align the siblings in one window (rs also hardens its serde path against programmatically constructed non-finite scalars). No shared-corpus fixture is possible — Lightbend parses the literal (UNEXPECTED-SUCCESS trip) and GSON cannot serialize the resulting Infinity — so the per-impl tests are the pins. The stranded E17 tail paragraphs (Fixtures / Out of scope / Tracking issue), which had been sitting after E18's table since E18 was inserted, were moved back into the E17 section. The int64-overflow integer-literal divergence found while scoping E19 (go alone rejects `9223372036854775808`) is split out to [#99](https://github.com/o3co/xx.hocon/issues/99).
+
+2026-10-15 — E20 (unit arithmetic is exact decimal) added from [#102](https://github.com/o3co/xx.hocon/issues/102). Fixtures ud09 / ud10 / ud11 / ub07 / ub08 land with it. Status: py duration ✅ (py#46); every other cell ❌; per-impl PRs follow.
