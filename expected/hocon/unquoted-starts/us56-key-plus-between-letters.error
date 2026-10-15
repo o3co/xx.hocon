@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/hocon/unquoted-starts/us56-key-plus-between-letters.conf: 1: Key 'a' may not be followed by token: 'b' ('+' not followed by =, 'b' not allowed after '+') (if you intended 'b' ('+' not followed by =, 'b' not allowed after '+') to be part of a key or string value, try enclosing the key or value in double quotes)

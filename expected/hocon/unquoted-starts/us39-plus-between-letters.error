@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/hocon/unquoted-starts/us39-plus-between-letters.conf: 1: Expecting end of input or a comma, got 'b' ('+' not followed by =, 'b' not allowed after '+') (if you intended 'b' ('+' not followed by =, 'b' not allowed after '+') to be part of a key or string value, try enclosing the key or value in double quotes, or you may be able to rename the file .properties rather than .conf)
