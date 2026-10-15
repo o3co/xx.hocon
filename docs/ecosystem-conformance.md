@@ -2,7 +2,7 @@
 
 Conformance results for JVM-free HOCON parsers across five languages, measured
 against the shared fixtures in this repository. Where
-[`compliance-matrix.md`](compliance-matrix.md) tracks the three o3co
+[`compliance-matrix.md`](compliance-matrix.md) tracks the four o3co
 implementations at spec-item granularity, this file records the raw
 fixture-pass results for the reachable third-party libraries under the same
 method.
@@ -15,10 +15,15 @@ reference implementation). Two corpora are reported:
 - **Lightbend suite (16)** — the upstream Lightbend fixtures that carry a `-expected.json`.
 
 Measured **2026-07-15**. Versions are pinned per row; re-run when a listed
-library releases a new version. Libraries are listed alphabetically within each
+library releases a new version. **The tables below are that run's snapshot and
+have not been re-measured since**: the o3co rows are v1.8.0, while the current
+releases are v1.13.x (rs v1.13.1). For the o3co libraries' current state, see
+[`compliance-matrix.md`](compliance-matrix.md). Libraries are listed alphabetically within each
 language.
 
 ## Go
+
+Snapshot of 2026-07-15 (o3co rows at v1.8.0).
 
 | Library | Version | Spec corpus (134) | Lightbend suite (16) |
 |---|---|---:|---:|
@@ -28,6 +33,8 @@ language.
 
 ## TypeScript
 
+Snapshot of 2026-07-15 (o3co rows at v1.8.0).
+
 | Library | Version | Spec corpus (134) | Lightbend suite (16) |
 |---|---|---:|---:|
 | [@o3co/ts.hocon](https://github.com/o3co/ts.hocon) | 1.8.0 | 129 (96.3%) | 12/16 |
@@ -35,6 +42,8 @@ language.
 | [hocon-parser](https://www.npmjs.com/package/hocon-parser) | 1.0.1 | 59 (44.0%) | 6/16 |
 
 ## Rust
+
+Snapshot of 2026-07-15 (o3co rows at v1.8.0).
 
 | Library | Version | Spec corpus (134) | Lightbend suite (16) |
 |---|---|---:|---:|
@@ -44,6 +53,8 @@ language.
 
 ## Python
 
+Snapshot of 2026-07-15 (o3co rows at v1.8.0).
+
 | Library | Version | Spec corpus (134) | Lightbend suite (16) |
 |---|---|---:|---:|
 | [hocon](https://pypi.org/project/hocon/) | 0.3.0 | 106 (79.1%) | 8/16 |
@@ -51,6 +62,8 @@ language.
 | [pyhocon](https://github.com/chimpler/pyhocon) | 0.3.63 | 106 (79.1%) | 8/16 |
 
 ## Ruby
+
+Snapshot of 2026-07-15 (o3co rows at v1.8.0).
 
 | Library | Version | Spec corpus (134) | Lightbend suite (16) |
 |---|---|---:|---:|
@@ -76,12 +89,14 @@ normalization is applied to every library:
 
 Two fixture categories are held outside the reported corpora:
 
-- **Empty-file group (6 fixtures)** — a known open S3.1 violation in the o3co
-  libraries: Lightbend accepts an empty or comment-only file as `{}`, which is
-  the correct spec reading (the former "strict-spec divergence" posture was
-  revoked 2026-07-23 — see [E10](extra-spec-conventions.md#e10)); the released
-  o3co libraries still reject it. The group stays out of the score until the
-  fixed releases ship, at which point it folds into the corpora.
+- **Empty-file group (6 fixtures)** — held out of the 2026-07-15 run because
+  the o3co releases measured (v1.8.0) rejected an empty or comment-only file,
+  an S3.1 violation. Lightbend's `{}` is the correct spec reading (the former
+  "strict-spec divergence" posture was revoked 2026-07-23 — see
+  [E10](extra-spec-conventions.md#e10)), and all four o3co libraries were fixed
+  the same day (ts.hocon#153 / rs.hocon#146 / go.hocon#155 / py.hocon#11). The
+  harness (`ecosystem-bench/driver.py`) still holds the group out; drop that
+  holdout and fold the group into the corpora at the next re-run.
 - **JVM system-property fixtures** — `test01` and `test03` in the Lightbend
   suite reference `${?java.version}` / `${?user.home}`, which resolve only
   inside a JVM. This is why the Lightbend-suite column tops out at 14/16 for a
