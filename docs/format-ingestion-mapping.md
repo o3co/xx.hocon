@@ -41,9 +41,9 @@ The `✅` set is derived from the `note` fields of [`testdata/format-ingestion/m
 | F0.2 | ✅ | `${...}` occurring in foreign string values stays **literal**. No substitution parsing of foreign data (foreign files are owned by other programs). |
 | F0.3 | ✅ | The document root must map to an **object**. Non-object roots (scalar or array) are errors. (Matches Lightbend: `parseString("[1]")` rejects non-object root.) |
 | F0.4 | 🤷 | Origin is file-level (`FromMap` originDescription granularity). Per-node line origins are deferred until core exposes a richer construction API. |
-| F0.5 | 🤷 | Numbers preserve the source's integer/float distinction: integers → int64 (overflow = error), floats → float64. No silent precision loss via float-only decoding (JSON family must decode via `json.Number` or equivalent; in JS, `Number`-only decoding is exactly the forbidden case — integer literals must reach the value model via source text / BigInt so anything above 2^53 stays lossless or errors at the int64 bound).<br><br>**This governs ingestion only, and deliberately differs from HOCON's own number lexing.** A foreign format declares its integer type, so a value that will not survive as an int64 is a defect in the mapping and an error is the honest answer. HOCON source text has no such declaration: per the S-items it follows Lightbend, trying `Long` and then falling back to `Double`, so `a = 9223372036854775808` in a `.conf` file is a double, not an error. An implementation is therefore expected to bound the adapter paths while leaving the core parser alone; the two answers are not an inconsistency to fix. |
+| F0.5 | 🤷 | Numbers preserve the source's integer/float distinction: integers → int64 (overflow = error), floats → float64. No silent precision loss via float-only decoding (JSON family must decode via `json.Number` or equivalent; in JS, `Number`-only decoding is exactly the forbidden case — integer literals must reach the value model via source text / BigInt so anything above 2^53 stays lossless or errors at the int64 bound).<br><br>**This governs ingestion only, and deliberately differs from HOCON's own number lexing.** A foreign format declares its integer type, so a value that will not survive as an int64 is a defect in the mapping and an error is the honest answer. HOCON source text has no such declaration: per the S-items it follows Lightbend, trying `Long` and then falling back to `Double`, so `a = 9223372036854775808` in a `.conf` file is a double, not an error. An implementation is therefore expected to bound the adapter paths while leaving the core parser alone; the two answers are not an inconsistency to fix.<br><br>Fixture coverage: JSON5 path only (`fi64-int64-overflow`). |
 | F0.6 | ✅ | Values unrepresentable in the HOCON/JSON number model (`NaN`, `±Infinity` where a source allows them) are **errors** by default. No silent stringification. |
-| F0.7 | 🤷 | Duplicate keys within one foreign document follow HOCON duplicate-key semantics: objects merge, otherwise last-wins. |
+| F0.7 | 🤷 | Duplicate keys within one foreign document follow HOCON duplicate-key semantics: objects merge, otherwise last-wins. Fixture coverage: JSON5 path only (`fi66-duplicate-keys`). |
 | F0.8 | 🤷 | The host HOCON document must be parsed with **resolution deferred**, then merged, then resolved. Eager-resolving parse entry points fail on `${...}` pointing into the foreign layer before the fallback is attached. Every implementation therefore needs a deferred-resolution parse option for adapters to be usable (Go: `ParseFileWithOptions(..., DefaultParseOptions().WithResolveSubstitutions(false))`). |
 | F0.9 | ✅ | A leading **UTF-8 BOM** (U+FEFF) is stripped before parsing, in every format and at every file-reading entry point. Windows editors emit one, and a BOM left in place becomes part of the first key — `a: 1` yields the key `"﻿a"`, so a lookup of `a` misses and the value is silently unreachable. That is plausible-but-wrong output, the failure mode this spec most wants to avoid. Erroring instead is acceptable but weaker; what is not acceptable is admitting the BOM into a key. (The core HOCON parser already ignores U+FEFF; adapters must match.) |
 | F0.10 | 🤷 | **A path rendered in an error message is a HOCON path expression**: segments joined with `.`, each written bare only if it matches `[A-Za-z0-9_-]+`, otherwise as a **JSON string literal**. JSON syntax because it *is* HOCON's quoted-string syntax, and because the implementations that render paths must produce the same text for the cross-language fixtures to compare it. Two departures from a language's own quoting, both deliberate: **NUL is `\u0000`**, never Go's `\x00` or Rust's `\u{0}`; and **U+2028 / U+2029 are escaped** although JSON permits them raw, because they are line separators to enough log viewers that a key could otherwise break the message reporting it. Hex escapes are **lowercase**. Printable non-ASCII stays itself (`é`, `İ`) rather than being escaped — F1.3 leaves such segments unfolded, so they occur in normal use. A byte that is not valid UTF-8 renders as `\xNN` — the rendering's **one departure from JSON**, because JSON cannot express such a byte at all. It must not render as `\ufffd`, which is what decoding it yields and which a key really holding U+FFFD would also produce; U+FFFD itself is ordinary printable non-ASCII and prints as itself. The case is **Go-only**: a Python `str` and a Rust `&str` cannot hold such a byte, so no sibling has it to diverge on. **The rendered path is not guaranteed to paste into a getter** — measured: no implementation's path parser decodes escapes inside a quoted segment, so `"a\nb"` does not address the key `a<LF>b`. The property this item does guarantee, and the one an error message needs, is that two different paths never render alike. |
@@ -86,7 +86,7 @@ Per-key access (`${?VAR}`) is an existing spec feature and is **out of scope** h
 | F3.2 | ✅ | JSONC = JSON + `//` + `/* */` comments + trailing commas. Implementation: string-aware comment/trailing-comma strip → stdlib JSON decode. Zero dependencies. (Note: HOCON already accepts `//` and trailing commas; `/* */` is the part HOCON lacks.) Comment stripping must be **token-separating**: a comment is replaced by whitespace (at least one space; newlines inside it are preserved for line origins), never the empty string — `1/*x*/2` must remain two tokens and fail the JSON decode. Trailing content after the top-level value is an error via a strict EOF check; a one-token peek (`Decoder.More()`-style) wrongly accepts stray closers. Reject it **without materializing** the trailing content — decoding it into a discarded value amplifies untrusted input roughly tenfold (a 90 MB tail measured at ~600 MB of live heap), and a single token peek gives an identical verdict.<br><br>A `//` comment ends at **LF or CR**, not LF alone. Scanning only for `\n` makes a CR-terminated comment swallow the following line, and because the trailing-comma pass then tidies up the dangling comma the document still parses — silently losing a key rather than erroring. U+2028/U+2029 deliberately do **not** terminate a comment: `node-jsonc-parser`, which defines the dialect this item tracks, treats only LF and CR as line breaks, and ending a comment early here would make a document mean one thing in the editor that owns the format and another in these libraries. |
 | F3.3 | ✅ | JSON5 feature mapping, **decided 2026-08-18, fixture-pinned 2026-08-19** (all four implementations ship `json5` adapters — go.hocon#193 and the ts/py/rs lockstep ports — and the fi60–fi67 fixtures below hold them to the same answers). The accepted grammar is **JSON5 1.0.0 as defined by the reference implementation** (the json5 npm package) — the same dialect-owner rule F3.2 applies to JSONC. Cross-checked against the reference: line continuations (LF / CRLF / LS, contributing nothing), `\0` is NUL with octal escapes and `\1`–`\9` rejected, `\xHH` escapes, any other non-digit character escapes to itself, LS/PS legal **unescaped inside strings** and **terminating `//` comments** (deliberately different from F3.2's JSONC, whose owner ends comments at LF/CR only), and `\uXXXX` escapes inside identifier keys (the escaped codepoint must be a legal ES5 identifier character for its position). Where this spec is stricter than JSON5, the spec wins: unquoted identifier keys ok (ES5 IdentifierName); single-quoted strings ok; **hex and decimal integers → int64, overflow = error** (F0.5 — the reference implementation silently loses precision to a JS float here); leading/trailing-dot and exponent forms → float64; explicit `+` ok; `Infinity`/`NaN` in every spelling → error (F0.6); unpaired `\uXXXX` surrogates → error, valid pairs combine (F3.5); duplicate keys follow HOCON semantics — objects merge, otherwise last-wins (F0.7); exactly one top-level value with a strict EOF check (the F3.2 strictness rule). |
 | F3.4 | 🤷 | Duplicate keys: F0.7 applies. |
-| F3.5 | 🤷 | **An unpaired `\uXXXX` surrogate in a JSON/JSONC document is an error**, mirroring F2.8 for `.properties` — the reasoning transfers verbatim, and the stdlib decoders do not do this for us. Measured before pinning: go.hocon **silently substituted U+FFFD**, which is the plausible-but-wrong output this spec ranks as the worst failure mode; py.hocon kept the lone surrogate, deferring the failure to encode time, far from the parse that admitted it; rs.hocon already refused (serde_json does). Valid surrogate **pairs** combine into the astral codepoint, unchanged. Applies to keys as well as values. **ts.hocon accepts a lone surrogate**, the same S1.2.6-class divergence F2.8 already records: JavaScript strings are UTF-16 like Java's and can hold one, so refusing would be this spec overriding the host language rather than protecting the user. Whether the **core parser** follows is deliberately out of scope here — that is HOCON source text, so an S-item, and the four currently disagree there too. |
+| F3.5 | 🤷 | **An unpaired `\uXXXX` surrogate in a JSON/JSONC document is an error**, mirroring F2.8 for `.properties` — the reasoning transfers verbatim, and the stdlib decoders do not do this for us. Measured before pinning: go.hocon **silently substituted U+FFFD**, which is the plausible-but-wrong output this spec ranks as the worst failure mode; py.hocon kept the lone surrogate, deferring the failure to encode time, far from the parse that admitted it; rs.hocon already refused (serde_json does). Valid surrogate **pairs** combine into the astral codepoint, unchanged. Applies to keys as well as values. **ts.hocon accepts a lone surrogate**, the same S1.2.6-class divergence F2.8 already records: JavaScript strings are UTF-16 like Java's and can hold one, so refusing would be this spec overriding the host language rather than protecting the user. Whether the **core parser** follows is deliberately out of scope here — that is HOCON source text, so an S-item, and the four currently disagree there too.<br><br>Fixture coverage: JSON5 path only (`fi65-lone-surrogate`); the JSON/JSONC case is unpinned. |
 
 ## F4 — TOML
 
@@ -185,13 +185,23 @@ Across the libraries actually shipped:
 | --- | --- | --- | --- | --- | --- | --- |
 | goccy/go-yaml 1.19.2 (Go) | `8` | `1000` | string | string | error | **silently first** |
 | yaml 2.9.0 @ 1.2 (TS) | `10` | `"1_000"` | string | string | error | throws |
+| yaml-rust2 0.11.0 (Rust) | `10` | `"1_000"` | string | string | error | returns every document |
+| ruamel.yaml 0.19.1 @ 1.2, `typ="safe"` (Python) | `10` | `1000` | string | `date` | error | throws |
 | go.yaml.in/yaml v3.0.4 | `8` | `1000` | string | `time.Time` | error | silently first |
 | sigs.k8s.io/yaml 1.6.0 | `8` | `1000` | **`false`** | string | **silently last-wins** | silently first |
 
-Go and TS therefore disagree on `010`. Under the contract above that is not a defect to fix — it
-is the libraries' answer, and a config that depends on it was never portable. What the adapters
-*do* guarantee is identical treatment of everything in "What we define": both refuse a
-multi-document stream, both refuse NaN, both keep `${...}` literal.
+The Rust and Python rows were measured on 2026-10-16 with the version rs.hocon's `Cargo.lock`
+pins (0.11.0, for `yaml-rust2 = "0.11"`) and the one py.hocon's development environment installs
+(0.19.1, for `ruamel.yaml>=0.18`),
+the Python one with the adapter's own settings (`typ="safe"`, `pure=True`, YAML 1.2). "Returns
+every document" means the library has no single-document call; the adapter counts the documents
+and refuses more than one.
+
+Go therefore disagrees with the other three on `010`, and Python with TS and Rust on `1_000`.
+Under the contract above that is not a defect to fix — it is the libraries' answer, and a config
+that depends on it was never portable. What the adapters *do* guarantee is identical treatment of
+everything in "What we define": all four refuse a multi-document stream, refuse NaN, and keep
+`${...}` literal.
 
 Library selection notes, on measured evidence rather than popularity:
 
@@ -204,14 +214,20 @@ Library selection notes, on measured evidence rather than popularity:
 ## Fixture coverage
 
 Which items are held by the differential harness, from the `note` fields of
-[`testdata/format-ingestion/manifest.json`](../testdata/format-ingestion/manifest.json). All 28
+[`testdata/format-ingestion/manifest.json`](../testdata/format-ingestion/manifest.json). All 36
 cases are listed, so an item's absence here is a real gap rather than an unlabelled fixture.
+F3.3 lists the whole JSON5 group, since every one of its cases runs through the JSON5 adapter;
+fi62–fi66 also appear under the common item their note cites. Three of those items (F0.5,
+F0.7, F3.5) are pinned on the JSON5 path only and stay `🤷` in the tables above, marked
+*json5 path only* here.
 
 | Item | Fixtures |
 | --- | --- |
 | F0.2 | `fi12-dotenv`, `fi21-markers-in-strings`, `fi31-tables`, `fi52-dotted-keys` |
-| F0.3 | `fi22-array-root` |
-| F0.6 | `fi32-infinity`, `fi45-nan` |
+| F0.3 | `fi22-array-root`, `fi62-array-root` |
+| F0.5 | `fi64-int64-overflow` — *json5 path only* |
+| F0.6 | `fi32-infinity`, `fi45-nan`, `fi63-infinity` |
+| F0.7 | `fi66-duplicate-keys` — *json5 path only* |
 | F0.9 | `fi17-bom`, `fi51-bom` |
 | F1.1 | `fi10-bulk` |
 | F1.2 | `fi10-bulk`, `fi14-dot-in-name` |
@@ -223,6 +239,7 @@ cases are listed, so an item's absence here is a real gap rather than an unlabel
 | F2.4 | `fi52-dotted-keys` |
 | F2.9 | `fi16-proto-keys`, `fi50-proto-keys` |
 | F3.2 | `fi20-comments`, `fi23-comment-splices-tokens`, `fi24-cr-terminated-comment`, `fi25-line-separator-in-comment` |
+| F3.5 | `fi65-lone-surrogate` — *json5 path only*; the JSON/JSONC case the item is written for is unpinned |
 | F4.2 | `fi30-datetimes` |
 | F4.4 | `fi31-tables` |
 | F5.2 | `fi40-merge-and-alias` |
@@ -232,7 +249,8 @@ cases are listed, so an item's absence here is a real gap rather than an unlabel
 | F5.9 | `fi43-empty` |
 | F3.3 | `fi60-full-grammar`, `fi61-ls-terminates-comment`, `fi62-array-root`, `fi63-infinity`, `fi64-int64-overflow`, `fi65-lone-surrogate`, `fi66-duplicate-keys`, `fi67-strict-eof` |
 
-22 of the 44 live items are covered (F5.4 is withdrawn; F2.7 is open by design; F3.3 joined the covered set on 2026-08-19 once all four implementations shipped json5 adapters). The
+22 of the 44 live items are covered (F5.4 is withdrawn; F2.7 is open by design; F3.3 joined the covered set on 2026-08-19 once all four implementations shipped json5 adapters), and three more (F0.5, F0.7, F3.5) are covered on the JSON5 path only. The
 uncovered ones are not equally exposed: F0.1 and F0.4 describe a construction path that has no
-alternative implementation to diverge into, while F0.5, F0.7, F0.10, F1.9, F2.8, F3.5 and F5.6
-each pin an answer the four could plausibly disagree on and are worth fixtures.
+alternative implementation to diverge into, while F0.10, F1.9, F2.8 and F5.6 — and F0.5, F0.7
+and F3.5 outside JSON5 — each pin an answer the four could plausibly disagree on and are worth
+fixtures.
