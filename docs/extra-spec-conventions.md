@@ -178,7 +178,7 @@ The three `🤷` are due to absent test coverage, not divergent behavior — fol
 
 | Position | Leading character | Behavior |
 | --- | --- | --- |
-| **value-start** | digit `0-9` | greedy number-lex via Java numeric semantics: `Long.parseLong` first, `Double.parseDouble` second; fall back to unquoted text on parse failure. `01` → `1` (number, not `"01"` string). |
+| **value-start** | digit `0-9` | greedy number-lex via Java numeric semantics: an integer-form run (no `.` / `e` / `E`) goes through `Long.parseLong` only, any other run through `Double.parseDouble`; fall back to unquoted text on parse failure (so an integer beyond `long` is a string in Lightbend). `01` → `1` (number, not `"01"` string). |
 | **value-start** | `-` (any following character) | greedy number-lex as above (e.g. `-1`, `-0.5`, `-.5`, `-.5e+3`). |
 | **value-start** | `-` whose run does not parse (`-foo`, lone `-`, `-.`) | the run falls back to unquoted text and concatenates with what follows (`"-foo"`, `"-"`, `"-."`). |
 | **value-start** | `+` | **reject** — HOCON `+=` operator reservation, distinct from number-lex. |
@@ -191,7 +191,7 @@ The three `🤷` are due to absent test coverage, not divergent behavior — fol
 
 1. **Eligibility**: attempt number-lex if the first character is `0-9` or `-` (any following character). `+` is rejected up front (operator reservation).
 2. **Greedy consume**: consume the maximal run of characters in the class `[0-9.eE+-]` (Lightbend's `pullNumber` character set; adopted for compatibility).
-3. **Parse**: try `Long.parseLong` first, then `Double.parseDouble`, on the consumed run. On success, emit a number token.
+3. **Parse**: an integer-form run (no `.` / `e` / `E`) is parsed with `Long.parseLong` only; any other run with `Double.parseDouble`. On success, emit a number token. (Measured on 1.4.6: `9223372036854775808` and a 409-digit integer come back as **strings**, because `parseLong` fails and there is no double fallback for an integer-form run; `9223372036854775808.0` is a NUMBER clamped to `Long.MAX_VALUE`.)
 4. **Parse-failure handling, and the `+` rule**: `+` is a forbidden character in unquoted text ([S8.1](spec-checklist.md), HOCON.md L245), so outside quotes a `+` is accepted in exactly two places: as part of a consumed run that parses as a number in step 3 (in practice the exponent sign right after `e` / `E`, e.g. `1e+5`, `1.e+5`, `-.5e+3`), and as the `+` of the `+=` operator. **Any other `+` outside quotes is a parse error**, in value and key position alike:
     - If the consumed run contains `+` and step 3 fails, emit a reserved-character error — do *not* fall back to unquoted text. `us15` `a = 1e+x` (consumes `1e+x`), `a = 1+2`, `a = 1.2.3+build`, `a = 1e+5.5`, `a = 1e+5e5`, `a = 1e+5-` all error.
     - A `+` outside any number run is a reserved-character error: a leading `+` (`a = +1`, rejected by step 1), and a `+` after an unquoted run (`a = abc+1`, `a = 1x+2`, `a = x1e+5`, `a = .5e+3` — `.` is not number-lex eligible), and in a key (`a+b = 1`, `a.1e+5 = 1`).
@@ -777,7 +777,7 @@ Decisions (all four implementations MUST agree):
 
 **Rule**: a numeric literal whose magnitude overflows the double range (`1e999`, `-1e999`, `2.5e999`) is a **parse error** in all four implementations, reported at the literal's position with the go-shaped message `invalid float "<lexeme>"`. Underflow (`1e-400`) reads as `0` — that half matches Lightbend and is not a divergence. A quoted `"1e999"` stays a string, and `Infinity` / `NaN` remain ordinary unquoted strings (HOCON has no such literals).
 
-The rule is keyed on the lexeme's **value**, not its spelling: an integer-form literal beyond the double range (409 digits) errors identically. This is deliberate even for py, whose unbounded `int` could represent such a lexeme exactly (Copilot review on py#45 surfaced the trade-off) — ts and rs cannot hold the value, go rejects it far earlier (int64), and Lightbend's `parseLong` → `parseDouble` fallback lands on the same unrepresentable Infinity, so accepting it would make py the lone engine with an answer. The band *below* the double range, where the four value models genuinely differ (go errors past int64, py keeps exact bignums, ts/rs round to doubles), is [#99](https://github.com/o3co/xx.hocon/issues/99), not E19.
+The rule is keyed on the lexeme's **value**, not its spelling: an integer-form literal beyond the double range (409 digits) errors identically. This is deliberate even for py, whose unbounded `int` could represent such a lexeme exactly (Copilot review on py#45 surfaced the trade-off) — ts and rs cannot hold the value, go rejects it far earlier (int64), and accepting it would make py the lone engine with a numeric answer. Lightbend does not reach Infinity here: an integer-form run that overflows `long` falls back to unquoted text, so the 409-digit literal is a **string** in Lightbend (measured on 1.4.6, 2026-10-16; an earlier version of this note said Lightbend fell back to `parseDouble`, which is wrong). For integer-form literals E19 is therefore a divergence from Lightbend's string answer as well as from Infinity. The band *below* the double range, where the four value models genuinely differ (go errors past int64, py keeps exact bignums, ts/rs round to doubles), is [#99](https://github.com/o3co/xx.hocon/issues/99), not E19.
 
 **Why we diverge**: Lightbend admits the literal as a NUMBER holding `Infinity`, but the value cannot survive any exit from the model:
 
@@ -798,7 +798,7 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 
 **Fixtures**: none in the shared corpus — structurally impossible, not an omission. The generator derives sidecars from Lightbend: an `ERROR_CONFS` entry would trip the UNEXPECTED-SUCCESS safety net (Lightbend parses the literal), and a success sidecar cannot be written either (GSON refuses non-finite doubles). The per-impl tests above are the pins. The JSON5 **adapter** edges are separately pinnable — all four adapters agree (`1e-400` → `0`, `1e999` → error per F0.6, aligned since rs.hocon#180) — and get `fi` fixtures once the differential harness pins the rs 1.13.1 adapter-parity release.
 
-**Out of scope**: integer-form literals beyond int64 (`9223372036854775808`) — go alone rejects them (`invalid int`, from its TokenInt/int64 validation) while Lightbend and ts/py/rs fall back to a double. A distinct divergence with its own trade-offs (silent precision loss vs. rejecting Lightbend-valid input), tracked separately at [#99](https://github.com/o3co/xx.hocon/issues/99).
+**Out of scope**: integer-form literals beyond int64 (`9223372036854775808`) — go rejects them (`invalid int`, from its TokenInt/int64 validation), rs reads a double, and ts / py keep the integer; Lightbend reads them as a **string** (its integer-form run goes through `Long.parseLong` only, measured on 1.4.6 — this corrects an earlier "falls back to a double"). A distinct divergence with its own trade-offs (silent precision loss vs. rejecting Lightbend-valid input), tracked separately at [#99](https://github.com/o3co/xx.hocon/issues/99).
 
 ### E20 — Unit arithmetic is exact decimal (duration: deliberate divergence from Lightbend; bytes: Lightbend parity)
 
@@ -917,3 +917,5 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 2026-10-16 — E12 decision 12 gains the presence-check clause: `has(path)` returns `true` for a present path whose value is unresolved and never raises `NotResolved` (diverges from Lightbend's `hasPath`, which raises). Per-impl alignment lands in the v1.14.0 window (ts `false` → `true`; py's draft raise removed; go already `true`; rs to confirm).
 
 2026-10-16 — v1.14.0 roll-up. E8 → ✅ in all four (go.hocon#208, ts.hocon#213, py.hocon#51, rs.hocon#189; fixtures us01–us67). E20's exponent-form extension → ✅ in all four (go#209, ts#215, py#53, rs#190). E12's presence-check clause holds in all four (ts#217, py#52; go / rs unchanged).
+
+2026-10-16 — Lightbend's handling of integers beyond `long` corrected in E8 (step 3 and the behaviour table) and E19: an integer-form run is parsed with `Long.parseLong` only and falls back to a **string** (`9223372036854775808`, a 409-digit integer), not to `parseDouble` / Infinity. Measured on 1.4.6 during the v1.14.0 adapter bump; see [#99](https://github.com/o3co/xx.hocon/issues/99).
