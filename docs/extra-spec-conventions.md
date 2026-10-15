@@ -793,9 +793,9 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 
 **Why we diverge (duration only)**: Lightbend 1.4.6 `SimpleConfig.parseDuration` takes the non-integer path `(long)(Double.parseDouble(numberString) * units.toNanos(1))`, which gives `1000999999` ns for `1.001s`. That is the binary representation of 1.001, not the value the config author wrote. Lightbend's own `parseBytes` multiplies with `BigDecimal` for exactly this reason. E20 applies the same exactness to durations. The divergence only appears in values with a fractional part, and it is the floating-point rounding error of the product. That is about a nanosecond below 2^53 ns (about 104 days), and it grows with magnitude, to roughly a microsecond near the `long` ceiling (`99999.999999999d` is 640 ns off). No implementation may rely on a bound.
 
-**Number values (S18.1) are a second divergence.** Lightbend's `getDuration` on a NUMBER takes `longValue()` milliseconds, so `t = 1.001` is 1 ms there. E20 reads the literal as written, so `t = 1.001` is 1.001 ms (1001000 ns). For byte sizes, Lightbend's `longValue()` truncates toward zero, which is the same answer as E20's truncation (parity).
+**Number values (S18.1)**: Lightbend's single-value `getDuration` turns a NUMBER back into its text and parses it like a string, so `t = 1.001` takes the same float path as ud11 (1000999 ns; E20: 1001000 ns). Only the list getter `getDurationList` takes `longValue()` milliseconds (`[1.001]` is `[1000000]` ns). For byte sizes, `getBytes` on a NUMBER takes `longValue()`, which truncates toward zero, the same answer as E20 (parity). Measured on 1.4.6 with OpenJDK 21 on 2026-10-15.
 
-**Lightbend values**: derived from the 1.4.6 source (the same formulas the existing ud05 / ub03 notes cite). They have not yet been probed with a JRE; add a `generate/` probe before relying on them for a sidecar.
+**Lightbend values**: derived from the 1.4.6 source (the same formulas the existing ud05 / ub03 notes cite). The number-value path above and E21's overflow cases were measured on 1.4.6 (2026-10-15); a `generate/` probe should pin them before any sidecar relies on them.
 
 | Impl | Duration | Bytes | Notes |
 | --- | --- | --- | --- |
@@ -812,24 +812,25 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 
 **Rule**: when a duration's value (computed per E20) does not fit the implementation's duration representation, the read is an **error**. It is never wrapped, saturated, or returned as a non-finite number.
 
-- An integer-nanosecond representation (go `time.Duration` int64, rs `std::time::Duration` u64) errors past its range. The boundary itself is accepted: `"9223372036854775807ns"` fits int64.
+- go (`time.Duration`, int64 ns, about ±292 years) errors past ±2^63 ns. The boundary itself is accepted: `"9223372036854775807ns"` fits.
+- rs (`std::time::Duration`, u64 seconds plus nanos) errors past what it accepts. Today its string path stops at u64 ns (`checked_mul`, [0, 2^64) ns) while its NUMBER fallback goes through `Duration::from_millis`, so quoted and unquoted forms of one value get different ranges. E21 requires one range per implementation, whichever form the value takes.
 - A float representation (ts, py float output) errors when the result is not finite.
 - A target type with its own range (py `timedelta`) errors past that range.
-- Integer and fractional forms behave alike: `"106752d"` and `"106752.0d"` give the same answer.
+- Integer and fractional forms, quoted and unquoted forms, behave alike: `"106752d"` and `"106752.0d"` give the same answer.
 - Byte sizes already error on overflow in all four (S21.4 guard). E21 brings durations into line.
 
-**Why we diverge**: Lightbend saturates. `TimeUnit.toNanos` clamps at `Long.MAX_VALUE`, and so does the `(long)` cast of the double product. A saturated or wrapped duration is a value the author did not write, which is the failure E19 refuses for literals. Erroring is the honest answer and matches byte sizes.
+**Why we diverge**: Lightbend saturates when the number fits in a `long` but the product does not (`"200000d"` and `"9223372036854775807"` ms both give `Long.MAX_VALUE` ns, because `TimeUnit.toNanos` clamps), and on the fractional path (the `(long)` cast of the double product clamps: `"1<400 zeros>.5d"` gives `Long.MAX_VALUE` ns). An integer lexeme that does not fit in a `long` already errors in Lightbend (`parseLong`), so that case is parity. All measured on 1.4.6. A saturated or wrapped duration is a value the author did not write, which is the failure E19 refuses for literals. Erroring is the honest answer and matches byte sizes.
 
-**Ranges differ by representation**, so `"200000d"` (about 547 years) is an error in go and rs and a value in ts and py. That is intended: each implementation refuses only what it cannot represent. Only ud12 is shared.
+**Ranges differ by representation**, so `"200000d"` (about 547 years, 1.728e19 ns) is an error in go and a value in rs (it fits u64 ns), ts and py. That is intended: each implementation refuses only what it cannot represent.
 
 | Impl | Status | Notes |
 | --- | --- | --- |
-| go.hocon | ❌ | The integer path `time.Duration(n) * mult` wraps (`"200000d"` is negative). |
-| ts.hocon | ❌ | f64 ms: a 400-digit value reads as `Infinity`. |
-| py.hocon | 🤷 | Float output: unverified whether a non-finite result is refused. The `timedelta` target errors past its range (py#46). |
-| rs.hocon | 🤷 | `checked_mul` on u64 ns errors past the range. Not yet pinned against ud12. |
+| go.hocon | ❌ | The integer path `time.Duration(n) * mult` wraps (`"200000d"` is negative, `"9223372036854775807"` ms is `-1ms`). The fractional path already errors via `truncProduct` (E20). |
+| ts.hocon | ❌ | f64 ms: `10^400` days and `"1<400 zeros>.5d"` read as `Infinity`. |
+| py.hocon | ❌ | Float output: `get_duration` returns `inf` (`float(Decimal)` with no finiteness check). The `timedelta` target already errors past its range (py#46). |
+| rs.hocon | ❌ | The string path errors past u64 ns, but the NUMBER fallback (`Duration::from_millis`) accepts a larger range, so one value gets two answers depending on quoting. The 2^64-second `from_secs_f64` panic is fixed by rs.hocon#183. |
 
-**Fixtures**: `testdata/hocon/units-default/ud12` (`10^400` days, error in every implementation). The per-representation boundaries (go / rs `±2^63` ns, `"200000d"`) are pinned by each implementation's own tests.
+**Fixtures**: `testdata/hocon/units-default/ud12` (`10^400` days, integer form; error in every implementation and in Lightbend) and `ud13` (`"1<400 zeros>.5d"`, fractional form; error in every implementation, `Long.MAX_VALUE` ns in Lightbend). Today ts and py fail both. go passes both, and rs passes both, so their ❌ cells are pinned only by their own tests: go ±2^63 ns and `"200000d"`; rs one range for quoted and unquoted forms.
 
 ## How this file is maintained
 
@@ -875,4 +876,4 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 
 2026-10-15 — E20 (unit arithmetic is exact decimal) added from [#102](https://github.com/o3co/xx.hocon/issues/102). Fixtures ud09 / ud10 / ud11 / ub07 / ub08 land with it. Status: py duration ✅ (py#46); every other cell ❌; per-impl PRs follow.
 
-2026-10-15 — E21 (a duration the implementation cannot represent is an error) added from [#102](https://github.com/o3co/xx.hocon/issues/102). Fixture ud12. E20 gains the number-value note (Lightbend `longValue()` ms).
+2026-10-15 — E21 (a duration the implementation cannot represent is an error) added from [#102](https://github.com/o3co/xx.hocon/issues/102). Fixtures ud12 / ud13. E20 gains the number-value note (single-value `getDuration` parses a NUMBER's text; only `getDurationList` takes `longValue()` ms). Lightbend values measured on 1.4.6.
