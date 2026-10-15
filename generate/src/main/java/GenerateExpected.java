@@ -163,6 +163,40 @@ public class GenerateExpected {
         "unquoted-starts/us28-concat-subst-dash-subst-other.conf",
         "unquoted-starts/us29-concat-unquoted-dash-subst.conf",
         "unquoted-starts/us30-concat-quoted-dash-subst.conf",
+        // E8 step 4 / S8.1 — unquoted `+` (us31–us59). Outside quotes `+` is legal only
+        // inside a valid number run (pullNumber's greedy `[0-9.eE+-]` run, i.e. as the
+        // exponent sign after `e`/`E`) or as the `+=` operator. A valid number run
+        // followed by other characters concatenates into a string. Success guards here;
+        // the error cases are in SIDECAR_ERROR_CONFS next to us15.
+        "unquoted-starts/us35-exp-plus.conf",                    // 1e+5     → 100000
+        "unquoted-starts/us40-exp-plus-unit.conf",               // 1e+5ms   → "1e+5ms"
+        "unquoted-starts/us41-exp-plus-space-unit.conf",         // 1e+5 ms  → "1e+5 ms"
+        "unquoted-starts/us42-frac-exp-plus-unit.conf",          // 1.5e+3s  → "1.5e+3s"
+        "unquoted-starts/us43-exp-plus-letter-tail.conf",        // 1e+5x    → "1e+5x"
+        "unquoted-starts/us44-exp-minus-letter.conf",            // 1e-x     → "1e-x" (no `+`)
+        "unquoted-starts/us45-exp-minus-double-exp.conf",        // 1e-5e5   → "1e-5e5" (no `+`)
+        "unquoted-starts/us46-negative-frac-exp-plus.conf",      // -1.5e+3  → -1500
+        "unquoted-starts/us53-dot-no-frac-exp-plus.conf",        // 1.e+5    → 100000
+        "unquoted-starts/us59-negative-leading-dot-exp-plus.conf", // -.5e+3 → -500 (cf. us48 `.5e+3`: error)
+        // Key position (whole documents; us08/us09 precedent for keys in this group).
+        "unquoted-starts/us54-key-exp-plus.conf",                // 1e+5 = 1   → {"1e+5":1}
+        "unquoted-starts/us55-key-exp-plus-letter-tail.conf",    // 1e+5x = 1  → {"1e+5x":1}
+        // `+=` operator guard — the `+` of the operator is not a reserved-char error.
+        // A list prior value is used on purpose: `x = 1` then `x += 2` parses but fails
+        // at resolve (WrongType, int concatenated with [2]), which would not isolate `+`.
+        "unquoted-starts/us58-plus-equals-list.conf",            // x = [1], x += 2 → [1,2]
+        // S8.4 number-lex edges without `+` (us60–us67): which `.`-bearing runs are
+        // numbers. The greedy `[0-9.eE+-]` run is kept as a number when Java parses it
+        // (`Double.parseDouble` accepts `1.`, `1.e5`, `-.5`), else it falls back to
+        // unquoted text. A leading `.` is not number-lex eligible at all (us65).
+        "unquoted-starts/us60-trailing-dot.conf",                // 1.    → 1
+        "unquoted-starts/us61-trailing-dot-exp.conf",            // 1.e5  → 100000
+        "unquoted-starts/us62-negative-trailing-dot.conf",       // -1.   → -1
+        "unquoted-starts/us63-negative-leading-dot.conf",        // -.5   → -0.5
+        "unquoted-starts/us64-frac-trailing-dot.conf",           // 1.5.  → "1.5."
+        "unquoted-starts/us65-leading-dot.conf",                 // .5    → ".5"
+        "unquoted-starts/us66-hyphen-dot.conf",                  // -.    → "-."
+        "unquoted-starts/us67-trailing-dot-bare-exp.conf",       // 1.e   → "1.e"
         // S8.1/S8.8 unquoted-parens — clarifying fixtures for issue #34 (@cgordon).
         // HOCON.md L274 forbidden set does NOT include `(` or `)`; parens are special
         // only inside include resource syntax (`file(...)`, `required(...)`,
@@ -423,6 +457,26 @@ public class GenerateExpected {
         // Strict-spec impl would also lex-error (number(1) backtrack from `e+`, then `+` as
         // reserved char). Both produce "some error" — conformance test asserts error raised.
         "unquoted-starts/us15-incomplete-exp.conf",
+        // E8 step 4 / S8.1 — every other unquoted `+` is an error: a number run that
+        // contains `+` but is not a valid number (us31–us33, us49–us52), a leading `+`
+        // (us34), and a `+` that is not part of a number run at all (us36–us39, us47,
+        // us48, and key position us56/us57). Success guards are in SUCCESS_CONFS.
+        "unquoted-starts/us31-plus-between-digits.conf",         // 1+2
+        "unquoted-starts/us32-plus-after-version.conf",          // 1.2.3+build
+        "unquoted-starts/us33-plus-semver-build.conf",           // 1.0.0+abc
+        "unquoted-starts/us34-leading-plus.conf",                // +1
+        "unquoted-starts/us36-plus-after-digit-letter.conf",     // 1x+2
+        "unquoted-starts/us37-plus-after-letters.conf",          // abc+1
+        "unquoted-starts/us38-plus-trailing.conf",               // abc+
+        "unquoted-starts/us39-plus-between-letters.conf",        // a+b
+        "unquoted-starts/us47-letter-then-exp-plus.conf",        // x1e+5
+        "unquoted-starts/us48-leading-dot-exp-plus.conf",        // .5e+3
+        "unquoted-starts/us49-exp-plus-trailing-frac.conf",      // 1e+5.5
+        "unquoted-starts/us50-exp-plus-trailing-frac-alt.conf",  // 1e+5.2
+        "unquoted-starts/us51-exp-plus-double-exp.conf",         // 1e+5e5
+        "unquoted-starts/us52-exp-plus-trailing-minus.conf",     // 1e+5-
+        "unquoted-starts/us56-key-plus-between-letters.conf",    // a+b = 1
+        "unquoted-starts/us57-key-dotted-exp-plus.conf",         // a.1e+5 = 1
         // S12.5 include-reservation negative fixtures (cluster 3e). Lightbend throws on
         // ir01/ir02/ir10/ir12/ir13 via the include-statement parser (text after `include`
         // is not a valid include argument). Lightbend EXCLUDES (quirks):

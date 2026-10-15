@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/hocon/unquoted-starts/us47-letter-then-exp-plus.conf: 1: Expecting end of input or a comma, got '5' ('+' not followed by =, '5' not allowed after '+') (if you intended '5' ('+' not followed by =, '5' not allowed after '+') to be part of a key or string value, try enclosing the key or value in double quotes, or you may be able to rename the file .properties rather than .conf)

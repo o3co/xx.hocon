@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/hocon/unquoted-starts/us36-plus-after-digit-letter.conf: 1: Expecting end of input or a comma, got '2' ('+' not followed by =, '2' not allowed after '+') (if you intended '2' ('+' not followed by =, '2' not allowed after '+') to be part of a key or string value, try enclosing the key or value in double quotes, or you may be able to rename the file .properties rather than .conf)

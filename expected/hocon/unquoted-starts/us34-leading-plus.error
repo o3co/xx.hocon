@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/hocon/unquoted-starts/us34-leading-plus.conf: 1: Expecting a value but got wrong token: '1' ('+' not followed by =, '1' not allowed after '+') (if you intended '1' ('+' not followed by =, '1' not allowed after '+') to be part of a key or string value, try enclosing the key or value in double quotes, or you may be able to rename the file .properties rather than .conf)
