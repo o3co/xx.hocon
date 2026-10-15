@@ -40,8 +40,9 @@ Same glyphs as `spec-checklist.md`:
 | ts.hocon | 🤷 | (followup — to be added) | Hardcoded ASCII whitespace set; JS regex `\s` is not used. NEL has always been an ordinary char. |
 | rs.hocon | 🤷 | (followup — to be added) | Hardcoded match arm; Rust `char::is_whitespace()` is not used. NEL has always been an ordinary char. |
 | go.hocon | ✅ | `internal/lexer/lexer_test.go` (`TestSpecS8_8_NELAllowedInUnquoted`) | Reached convergence on 2026-05-15 via [#78](https://github.com/o3co/go.hocon/pull/78); `isUnquotedForbidden` was previously routed through `unicode.IsSpace()` and silently treated NEL as whitespace. The S6 work replaced that with the spec-faithful `isHoconWhitespace()` predicate. |
+| py.hocon | 🤷 | (followup — to be added) | Hardcoded set in `_is_hocon_whitespace` (`src/hocon/_internal/lexer/lexer.py`); Python `str.isspace()`, which includes NEL, is not used. |
 
-The two `🤷` are due to absent test coverage, not divergent behavior — followup PRs will add explicit NEL regression tests in ts.hocon and rs.hocon to flip those to ✅.
+The three `🤷` are due to absent test coverage, not divergent behavior — followup PRs will add explicit NEL regression tests in ts.hocon, rs.hocon and py.hocon to flip those to ✅.
 
 ### E2 — Numeric-key array conversion: leading-zero key forms rejected (`"00"` ≠ `"0"`)
 
@@ -53,9 +54,10 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 
 | Impl | Status | Test | Notes |
 | --- | --- | --- | --- |
-| ts.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Pre-filter regex applied in `numericObjectToArray` helper before `parseInt`. |
-| rs.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Pre-filter applied in `numeric_object_to_array` helper before `from_str`. |
-| go.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Pre-filter applied in `numericObjectToArray` helper before `strconv.ParseInt`. |
+| ts.hocon | ✅ | `tests/s15-numeric-obj-array.test.ts` (na08: `getList` → `["b"]`) | Pre-filter regex applied in `numericObjectToArray` helper before `parseInt`. |
+| rs.hocon | ✅ | `tests/s15_fixtures.rs` (`na08_leading_zero_rejected_only_canonical_zero_eligible`) | Pre-filter applied in `numeric_object_to_array` helper before `from_str`. |
+| go.hocon | ✅ | `numeric_array_test.go` (`TestS15_Fixture_na08_LeadingZeroRejected`) | Pre-filter applied in `numericObjectToArray` helper before `strconv.ParseInt`. |
+| py.hocon | 🤷 | (no accessor-level test — na08 is loaded only as a parse-tree conformance fixture) | Pre-filter regex `_CANONICAL_INT` applied in `numeric_object_to_array` (`src/hocon/numeric_array.py`) before `int()`. |
 
 **Fixture**: `testdata/hocon/numeric-obj-array/na08-leading-zero.conf` + sibling `expected/.../na08-leading-zero.divergence.md` (records Lightbend's non-deterministic `["a"]`-or-`["b"]` behaviour).
 
@@ -69,9 +71,10 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 
 | Impl | Status | Test | Notes |
 | --- | --- | --- | --- |
-| ts.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Same pre-filter as E2. |
-| rs.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Same pre-filter as E2. |
-| go.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Same pre-filter as E2. |
+| ts.hocon | ✅ | `tests/s15-numeric-obj-array.test.ts` (na10a: `getList` → `["b"]`) | Same pre-filter as E2. |
+| rs.hocon | ✅ | `tests/s15_fixtures.rs` (`na10a_plus_sign_rejected`) | Same pre-filter as E2. |
+| go.hocon | ✅ | `numeric_array_test.go` (`TestS15_Fixture_na10a_PlusSignRejected`) | Same pre-filter as E2. |
+| py.hocon | 🤷 | (no accessor-level test — na10a is loaded only as a parse-tree conformance fixture) | Same pre-filter as E2. |
 
 **Fixture**: `testdata/hocon/numeric-obj-array/na10a-plus-sign.conf` + sibling `expected/.../na10a-plus-sign.divergence.md`.
 
@@ -85,9 +88,10 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 
 | Impl | Status | Test | Notes |
 | --- | --- | --- | --- |
-| ts.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Same pre-filter as E2/E3. |
-| rs.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Same pre-filter as E2/E3. |
-| go.hocon | 🤷 | (test coverage to be added in fix/s15-numeric-obj-array PR) | Same pre-filter as E2/E3. |
+| ts.hocon | ✅ | `tests/s15-numeric-obj-array.test.ts` (na10b: `getList` → `["b"]`) | Same pre-filter as E2/E3. |
+| rs.hocon | ✅ | `tests/s15_fixtures.rs` (`na10b_minus_zero_rejected`) | Same pre-filter as E2/E3. |
+| go.hocon | ✅ | `numeric_array_test.go` (`TestS15_Fixture_na10b_MinusZeroRejected`) | Same pre-filter as E2/E3. |
+| py.hocon | 🤷 | (no accessor-level test — na10b is loaded only as a parse-tree conformance fixture) | Same pre-filter as E2/E3. |
 
 **Fixture**: `testdata/hocon/numeric-obj-array/na10b-minus-zero.conf` + sibling `expected/.../na10b-minus-zero.divergence.md` (records Lightbend's non-deterministic `["a"]`-or-`["b"]` behaviour, identical mechanism to E2's na08).
 
@@ -106,6 +110,7 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 | ts.hocon | ✅ | `concat-errors/ce05-object-plus-scalar.conf` loaded by `tests/concat-errors.test.ts` with ce05 in the per-impl override list (no xx.hocon `.error` sidecar; Lightbend doesn't throw) | Flipped ✅ via [ts.hocon#101](https://github.com/o3co/ts.hocon/pull/101) (Phase 6 #3b); impl rejects via `joinPair` type-mismatch branch |
 | rs.hocon | ✅ | `concat-errors/ce05-object-plus-scalar.conf` loaded by `tests/concat_errors_test.rs` with ce05 in the per-impl override list | Flipped ✅ via [rs.hocon#89](https://github.com/o3co/rs.hocon/pull/89) (Phase 6 #3b); `join_pair` discriminator on the catch-all arm returns `Err(ResolveError::concat_type_mismatch(...))` when either side is `HoconValue::Object(_)` before string-concat |
 | go.hocon | ✅ | `concat-errors/ce05-object-plus-scalar.conf` loaded by `internal/resolver/concat_errors_test.go` with ce05 in the per-impl override list | Flipped ✅ via [go.hocon#87](https://github.com/o3co/go.hocon/pull/87) (Phase 6 #3b, BREAKING); `joinPair` `default:` case rewritten to discriminate object operands before falling through to `concatStrings` |
+| py.hocon | ✅ | `concat-errors/ce05-object-plus-scalar.conf` loaded by `tests/conformance/test_error_fixtures.py` with ce05 in `_IMPL_OVERRIDE_ERRORS` | Rejected as a concat type mismatch in the resolver, as in the siblings. |
 
 **Fixture**: `testdata/hocon/concat-errors/ce05-object-plus-scalar.conf`. No `expected/.../ce05-object-plus-scalar.error` sidecar (Lightbend silent-accept; see `fixture-conventions.md` "Lightbend quirks").
 
@@ -126,9 +131,10 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 
 | Impl | Status | Test | Notes |
 | --- | --- | --- | --- |
-| ts.hocon | ✅ same-source / ⏳ cross-source (pending — tracked in [xx.hocon#22](https://github.com/o3co/xx.hocon/issues/22) C4) | `tests/env-var-list.test.ts` (ev05) loaded in [ts.hocon#100](https://github.com/o3co/ts.hocon/pull/100) | Resolver checks config presence before delegating to `resolveEnvList`; matches `${X}` same-source precedence. Cross-source (`${X[]}` in included file with X at root) requires the new S14c.2 original-path config fallback shipping in C4. |
+| ts.hocon | ✅ same-source + cross-source | `tests/env-var-list.test.ts` (ev05, loaded in [ts.hocon#100](https://github.com/o3co/ts.hocon/pull/100); ev12c) | Resolver checks config presence before delegating to `resolveEnvList`; matches `${X}` same-source precedence. Cross-source (`${X[]}` in included file with X at root) uses the S14c.2 original-path config fallback, shipped in v1.5.3 for [xx.hocon#22](https://github.com/o3co/xx.hocon/issues/22) C4 (closed 2026-05-25). |
 | rs.hocon | ✅ same-source + cross-source | `tests/env_var_list_test.rs` (ev05) loaded in [rs.hocon#88](https://github.com/o3co/rs.hocon/pull/88); cross-source pinned by `lightbend_test03_includes_with_substitution_fallback` + ev12c sync | Config lookup wins; `resolve_env_list` consulted only when path is not config-defined in either prefixed or original-path scope. S14c.2 original-path fallback shipped in [rs.hocon#44](https://github.com/o3co/rs.hocon/pull/44). |
-| go.hocon | ✅ same-source / ⏳ cross-source (pending — tracked in [xx.hocon#22](https://github.com/o3co/xx.hocon/issues/22) C2) | `s13c_env_var_list_test.go` (ev05) loaded in [go.hocon#86](https://github.com/o3co/go.hocon/pull/86) | Resolver has original-path config fallback for `${X}` non-list (S14c.2 ✅) but `${X[]}` branch currently runs BEFORE that fallback. C2 reorders the branches so list expansion only fires after both prefixed and original-path config lookups miss. |
+| go.hocon | ✅ same-source + cross-source | `s13c_env_var_list_test.go` (ev05, loaded in [go.hocon#86](https://github.com/o3co/go.hocon/pull/86); ev12c) + `internal/resolver/resolver_test.go` (`TestResolver_IncludeRelativizeListSuffixFallbackToParent`) | The `${X[]}` branch runs only after both the prefixed and the original-path (S14c.2) config lookups miss — the branch reorder shipped in v1.5.3 for [xx.hocon#22](https://github.com/o3co/xx.hocon/issues/22) C2 (closed 2026-05-25). |
+| py.hocon | ✅ same-source + cross-source | `tests/conformance/test_conformance.py` (ev05, ev12c) | The S14c.2 original-path config fallback runs before `_resolve_env_list` (`src/hocon/_internal/resolver/substitution_resolver.py`). |
 
 **Fixtures**:
 
@@ -150,6 +156,7 @@ The two `🤷` are due to absent test coverage, not divergent behavior — follo
 | ts.hocon | ✅ | `tests/env-var-list.test.ts` (ev09) + `tests/lexer.test.ts` (NBSP/CR rejection regressions) — [ts.hocon#100](https://github.com/o3co/ts.hocon/pull/100) | Tokenizer accumulates pending whitespace; at `[` arm validates ASCII space/tab only (I2 multi-agent-review fix). Other Unicode whitespace (NBSP, CR, Zs) errors with `HOCON extra-spec E7`. |
 | rs.hocon | ✅ | `tests/env_var_list_test.rs` (ev09) + `tests/lexer_test.rs` (NBSP/CR rejection regressions) — [rs.hocon#88](https://github.com/o3co/rs.hocon/pull/88) | Same: `pending_ws` allow-list restricted to `0x20`/`0x09` (I2 fix). |
 | go.hocon | ✅ | `s13c_env_var_list_test.go` (ev09) + `internal/lexer/lexer_test.go` sub-tests — [go.hocon#86](https://github.com/o3co/go.hocon/pull/86) | Same: ASCII strict check on `pendingWs` at `[` arm (I2 fix). |
+| py.hocon | ✅ | `tests/conformance/test_conformance.py` (ev09) | Same ASCII-only check at the `[` arm (`src/hocon/_internal/lexer/lexer.py`, error text `HOCON extra-spec E7`). Unlike ts/rs, the NBSP/CR rejection has no dedicated regression test. |
 
 **Fixture**: `testdata/hocon/env-var-list/ev09-whitespace-before-suffix.conf` + `expected/hocon/env-var-list/ev09-whitespace-before-suffix-expected.json`. Generator regex permits `[ \t]*` (ASCII space or tab) between path expression and `[]`.
 
@@ -197,9 +204,10 @@ The side effect: `+` in number-lex position is always an error (either rejected 
 
 | Impl | Status | Test | Notes |
 | --- | --- | --- | --- |
-| ts.hocon | ❌ → ✅ | `unquoted-starts/us02`, `us03`, `us13` move to `SUCCESS_CONFS` with `-expected.json`; new concat-continuation fixtures `us17`–`us30` (covering probe matrix groups A/B/D/E) | Lexer removes strict-no-fallback for leading `-`, switches leading-zero handling to Java numeric semantics, retains `+` rejection. Allows concat-continuation runs after value-tokens. |
-| rs.hocon | ❌ → ✅ | same fixtures | Same lexer changes. |
-| go.hocon | ❌ → ✅ | same fixtures | Same lexer changes. |
+| ts.hocon | ⚠️ | `tests/s8-unquoted-starts.test.ts`: `unquoted-starts/us02`, `us03`, `us13` and the concat-continuation fixtures `us17`–`us30` (probe matrix groups A/B/D/E) in `SUCCESS_FIXTURES`; `us15` in `KNOWN_GAP_FIXTURES` | Lexer removed strict-no-fallback for leading `-`, switched leading-zero handling to Java numeric semantics, retains `+` rejection; concat-continuation runs after value-tokens are allowed. **Gap**: `us15` (`a = 1e+x`) is accepted as the string `"1e+x"` instead of raising the reserved-character error that step 4 above requires; pinned as a known gap. |
+| rs.hocon | ⚠️ | `tests/s8_unquoted_starts.rs`: same fixtures in `SUCCESS_FIXTURES`; `us15` pinned by the `s8_6_us15_known_gap_tripwire` `#[should_panic]` test | Same lexer changes, and the same `us15` gap. |
+| go.hocon | ✅ | `s8_unquoted_starts_test.go`: same fixtures in the success list; `us15` in the error-fixture list (`TestS8_6_ErrorFixtures`) | Same lexer changes; `us15` is rejected. |
+| py.hocon | ⚠️ | `tests/conformance/test_conformance.py` (every `unquoted-starts` `-expected.json`); `us15` is a strict xfail in `tests/conformance/test_error_fixtures.py` (`_KNOWN_GAPS`) | Same reading as rs; the same `us15` gap. |
 
 **Fixtures**:
 
@@ -230,6 +238,7 @@ Lightbend 1.4.3 enforces this rule only for the bare form (`include = 1`, `inclu
 | ts.hocon | ✅ | `include-reservation/ir03-include-dot-foo-equals.conf` + `ir04-include-nested-object.conf` loaded by `tests/include-reservation.test.ts` with both in the per-impl `IMPL_OVERRIDE_ERRORS` list (no xx.hocon `.error` sidecar; Lightbend doesn't throw) | Flipped ✅ via [ts.hocon#102](https://github.com/o3co/ts.hocon/pull/102) (Phase 6 #3e); `parseObject()` checks first parsed path element post-PathParser with `firstWasQuoted` provenance from `parseKey()` private return-type refactor |
 | rs.hocon | ✅ | `include-reservation/ir03-include-dot-foo-equals.conf` + `ir04-include-nested-object.conf` loaded by `tests/include_reservation_test.rs` with both in `KNOWN_LIGHTBEND_QUIRKS` + dedicated `_per_impl` override tests | Flipped ✅ via [rs.hocon#90](https://github.com/o3co/rs.hocon/pull/90) (Phase 6 #3e); `parse_object()` snaps `first_key_is_quoted` before `parse_key()` advances, then checks `!first_key_is_quoted && key[0] == "include"` post-return |
 | go.hocon | ✅ | `include-reservation/ir03-include-dot-foo-equals.conf` + `ir04-include-nested-object.conf` loaded by `internal/parser/include_reservation_test.go` with `implErrors` per-impl override map | Flipped ✅ via [go.hocon#88](https://github.com/o3co/go.hocon/pull/88) (Phase 6 #3e); `parseField` captures `firstTokenIsQuoted` + `firstTokenType` before `parseKey`, checks `key[0] == "include" && !firstTokenIsQuoted && firstTokenType == lexer.TokenString` post-return |
+| py.hocon | ✅ | `include-reservation/ir03-include-dot-foo-equals.conf` + `ir04-include-nested-object.conf` loaded by `tests/conformance/test_error_fixtures.py` with both in `_IMPL_OVERRIDE_ERRORS` | The parser rejects an unquoted `include` as the first element of a key path (`src/hocon/_internal/parser/parser.py`). |
 
 **Fixtures**: `testdata/hocon/include-reservation/ir03-include-dot-foo-equals.conf`, `ir04-include-nested-object.conf`. No `.error` sidecars (Lightbend silent-accept; see `fixture-conventions.md` "Lightbend quirks"). The remaining S12.5 negative fixtures (ir01, ir02, ir10, ir12, ir13) live in `SIDECAR_ERROR_CONFS` with generator-produced `.error` sidecars (Lightbend's include-statement parser rejects each).
 
@@ -323,15 +332,16 @@ The following are out of scope for E11 and are NOT to be inferred from the quali
 
 | Impl | Status | Lookup mechanism | Registration / population | Notes |
 | --- | --- | --- | --- | --- |
-| ts.hocon | 🤷 | Host module resolution via Node `require.resolve(identifier + "/" + file, { paths: [path.dirname(includingConfFile)] })` by default | Implicit: any package whose tree contains the file at the resolved path is reachable. No explicit HOCON-level registration. App may override starting `paths` via parser option. | Collision semantics deferred to Node's module resolution (decision 3). Bundler/edge runtimes where `require.resolve` does not work raise a clear runtime error. |
-| rs.hocon | 🤷 | Explicit per-parser registry (`HashMap<(Identifier, File), String>`) populated by builder methods | `Parser::register_package(identifier, file, content)` called explicitly with `include_str!`-loaded content. Cascade convention for transitive deps: `pkg_a::register(p)` internally calls `pkg_b::register(p)`. | Registry lifetime = parser instance. Multiple parsers do not share registry. Test isolation trivial. |
-| go.hocon | 🤷 | Global registry (process-wide), parallel to `database/sql.Register` | `hocon.RegisterPackage(identifier, file, content)` called from the providing package's `init()` after `//go:embed`. App side: `_ "<module-path>"` import triggers `init()`. Test helper `hocon.ResetPackageRegistry()` provided for test isolation. | Registry lifetime = process. App authors must include `_ "..."` imports for each config-providing dep. Idempotent re-registration of byte-equal content allowed (decision 3). |
+| ts.hocon | ⚠️ | Host module resolution via Node `require.resolve(identifier + "/" + file, { paths: [path.dirname(includingConfFile)] })` by default | Implicit: any package whose tree contains the file at the resolved path is reachable. No explicit HOCON-level registration. App may override starting `paths` via parser option. | Collision semantics deferred to Node's module resolution (decision 3). Bundler/edge runtimes where `require.resolve` does not work raise a clear runtime error. **Coverage gap**: the fixture loop `tests/conformance/include-package.test.ts` (ipk01–ipk14 through an injected in-memory `packageResolver`, ipk03 n/a) passes when pointed at this repo's fixtures (checked 2026-10-16), but it reads them from a sibling `../incl-pkg-xx` checkout that no clone has, and ts.hocon's `make testdata` does not sync `include-package/`, so it skips in CI. What does run: `tests/e11-parser-package.test.ts` (two-arg / `required(...)` parse, one-arg rejection), `tests/e11-must-fixes-regression.test.ts` (comma, empty content, resolver propagation through nested includes) and `tests/include-package-default-resolver.test.ts` (resolve + miss through a real `node_modules`). File-argument validation, case sensitivity and cycles (ipk05–ipk07, ipk09–ipk14) have no running test. |
+| rs.hocon | ✅ | Explicit per-parser registry (`HashMap<(Identifier, File), String>`) populated by builder methods | `Parser::register_package(identifier, file, content)` called explicitly with `include_str!`-loaded content. Cascade convention for transitive deps: `pkg_a::register(p)` internally calls `pkg_b::register(p)`. | Registry lifetime = parser instance. Multiple parsers do not share registry. Test isolation trivial. Conformance: `tests/include_package_test.rs` (ipk01–ipk14, fixture bodies inlined; built with `--features include-package`, which CI enables via `--all-features`). |
+| go.hocon | ✅ | Global registry (process-wide), parallel to `database/sql.Register` | `hocon.RegisterPackage(identifier, file, content)` called from the providing package's `init()` after `//go:embed`. App side: `_ "<module-path>"` import triggers `init()`. Test helper `hocon.ResetPackageRegistry()` provided for test isolation. | Registry lifetime = process. App authors must include `_ "..."` imports for each config-providing dep. Idempotent re-registration of byte-equal content allowed (decision 3). Conformance: `e11_include_package_test.go` (`TestE11IncludePackageConformance`, ipk01–ipk14 read from `testdata/hocon/include-package/`). |
+| py.hocon | ✅ | No registry. The default resolver looks for `<base>/<identifier>/<file>`, with base = the `resolve_from` option, else the parse `base_dir`, else the CWD | Implicit, as in ts.hocon: callers needing package-manager semantics pass a `package_resolver(identifier, file, including_file, base_dir) -> path` callable to `parse` / `parse_file`. | No registration API, so ipk03 (collision) is n/a, as for ts.hocon. Conformance: `tests/test_include_package_fixtures.py` (ipk01–ipk14 through an in-memory resolver; ipk03 skipped). |
 
-**Fixtures** (planned, to be added under `testdata/hocon/include-package/`):
+**Fixtures** (under `testdata/hocon/include-package/`; its `README.md` has the per-fixture outcome table and the `_packages/` content layout):
 
 - `ipk01-basic.conf` — happy-path: `include package("github.com/example/lib", "reference.conf")` with registry populated.
 - `ipk02-one-arg-rejected.conf` — `include package("github.com/example/lib/reference.conf")` (one-arg) → parse error (decision 2).
-- `ipk03-collision.conf` — sibling test setup registers same `(id, file)` key twice with different content → registration-time error (decision 3; go.hocon + rs.hocon only — n/a for ts.hocon per per-impl override).
+- `ipk03-collision.conf` — sibling test setup registers same `(id, file)` key twice with different content → registration-time error (decision 3; go.hocon + rs.hocon only — n/a for ts.hocon and py.hocon, which have no registration API).
 - `ipk04-lookup-miss.conf` — `include package("github.com/example/missing", "x.conf")` with empty registry → parse error (decision 4).
 - `ipk05-required-miss.conf` — `include required(package("github.com/example/missing", "x.conf"))` → parse error (decision 7).
 - `ipk06-byte-exact-id-case.conf` — register `Foo/Bar` then `include package("foo/bar", "x.conf")` → lookup miss (decision 5: case-sensitive identifier).
@@ -344,7 +354,7 @@ The following are out of scope for E11 and are NOT to be inferred from the quali
 - `ipk13-cycle-self.conf` — register `("foo", "x.conf")` whose content body is `include package("foo", "x.conf")` → include-cycle error (decision 8).
 - `ipk14-cycle-mutual.conf` — register `("foo", "a.conf")` including `("foo", "b.conf")` and vice versa → include-cycle error (decision 8).
 
-No Lightbend `.error` sidecars (Lightbend has no concept of `package(...)`) — per-impl conformance tests use per-impl override lists, following the `IMPL_OVERRIDE_ERRORS` / `KNOWN_LIGHTBEND_QUIRKS` / `implErrors` pattern established by E5 / E9 / E10. ts.hocon overrides exempt `ipk03` (collision not detected — see decision 3).
+No Lightbend `.error` sidecars (Lightbend has no concept of `package(...)`) — per-impl conformance tests use per-impl override lists, following the `IMPL_OVERRIDE_ERRORS` / `KNOWN_LIGHTBEND_QUIRKS` / `implErrors` pattern established by E5 / E9 / E10. ts.hocon and py.hocon exempt `ipk03` (no registry, so no collision to detect — see decision 3).
 
 **Prior art** (non-JVM HOCON parsers, surveyed 2026-05-20):
 
@@ -457,9 +467,10 @@ The following are out of scope for E12 v1 and are NOT to be inferred from the co
 
 | Impl | Status | Encoding | API surface | Notes |
 | --- | --- | --- | --- | --- |
-| ts.hocon | 🤷 | `Partial<ParseOptions>` / `Partial<ResolveOptions>` interfaces | `parseString(s, opts?)`, `Config.withFallback(c)`, `Config.resolve(opts?)`, `Config.resolveWith(s, opts?)`, `Config.isResolved()`, `fromMap(m, origin?)`, `empty(origin?)` | `resolveWith` MAY be follow-on per decision 9. |
-| rs.hocon | 🤷 | `ParseOptions::default()` + builder methods; `ResolveOptions::default()` + builders | `hocon::parse_with_options(s, opts)`, `Config::with_fallback(&self, c)`, `Config::resolve(&self, opts)`, `Config::resolve_with(&self, s, opts)`, `Config::is_resolved(&self)`, `hocon::from_map(m, origin)`, `hocon::empty(origin)` | `resolve_with` MAY be follow-on per decision 9. `StructureBuilder` / `SubstitutionResolver` remain `pub(crate)`. |
-| go.hocon | 🤷 | Builder pattern: `DefaultParseOptions()` + `WithX()` chainable setters | `hocon.ParseStringWithOptions(s, opts)`, `(*Config).WithFallback(c)`, `(*Config).Resolve(opts)`, `(*Config).ResolveWith(s, opts)`, `(*Config).IsResolved()`, `hocon.FromMap(m, origin)`, `hocon.Empty(origin)` | `ResolveWith` MUST in v1 (issue origin per decision 9). v1.4.0 release closes go.hocon#99. |
+| ts.hocon | ✅ | `Partial<ParseOptions>` / `Partial<ResolveOptions>` interfaces | `parseString(s, opts?)`, `Config.withFallback(c)`, `Config.resolve(opts?)`, `Config.resolveWith(s, opts?)`, `Config.isResolved()`, `fromMap(m, origin?)`, `empty(origin?)` | `resolveWith` MAY be follow-on per decision 9; it shipped. Fixtures: `tests/deferred-resolution-fixtures.test.ts` (dr17 skipped in the YAML runner — E11 package include). |
+| rs.hocon | ✅ | `ParseOptions::default()` + builder methods; `ResolveOptions::default()` + builders | `hocon::parse_with_options(s, opts)`, `Config::with_fallback(&self, c)`, `Config::resolve(&self, opts)`, `Config::resolve_with(&self, s, opts)`, `Config::is_resolved(&self)`, `hocon::from_map(m, origin)`, `hocon::empty(origin)` | `resolve_with` MAY be follow-on per decision 9. `StructureBuilder` / `SubstitutionResolver` remain `pub(crate)`. Fixtures: `tests/deferred_resolution_fixtures.rs` (dr12 and dr17 skipped — origin-string format, E11 package include). |
+| go.hocon | ✅ | Builder pattern: `DefaultParseOptions()` + `WithX()` chainable setters | `hocon.ParseStringWithOptions(s, opts)`, `(*Config).WithFallback(c)`, `(*Config).Resolve(opts)`, `(*Config).ResolveWith(s, opts)`, `(*Config).IsResolved()`, `hocon.FromMap(m, origin)`, `hocon.Empty(origin)` | `ResolveWith` MUST in v1 (issue origin per decision 9). v1.4.0 release closes go.hocon#99. Fixtures: `deferred_resolution_fixture_test.go` (`TestDeferredResolutionFixtures`; dr12 and dr17 skipped — origin-string format, and dr17 is covered by `TestDr17_E11PackageIncludeDeferred`). |
+| py.hocon | ✅ | Keyword arguments with Lightbend defaults | `hocon.parse(s, *, resolve_substitutions=True, origin_description=None, …)` / `parse_file(…)`, `Config.with_fallback(c)`, `Config.resolve(*, allow_unresolved=False, use_system_environment=True)`, `Config.resolve_with(source, …)`, `Config.is_resolved()`, `hocon.from_map(m, origin_description=None)`, `hocon.empty(origin_description=None)` | Fixtures: `tests/test_deferred_resolution_fixtures.py` — all 31 scenarios run, dr12 and dr17 included. |
 
 **Fixtures**: 31 scenario YAML files (30 scenario IDs, with dr11 split into dr11a/dr11b) under `testdata/hocon/deferred-resolution/` (`dr01.yaml` – `dr30.yaml`) covering: basic fallback (dr01), FromMap-only (dr02), multi-layer (dr03), self-reference × fallback (dr04–dr06), AllowUnresolved partial (dr07), hermetic resolve (dr08), getter-on-unresolved (dr09), composition barrier (dr10), ResolveWith semantics (dr11a/dr11b), origin preservation (dr12), type-check under AllowUnresolved (dr13/dr14), include + deferred (dr15), FromMap nested coercion (dr16), E11 package include + deferred (dr17, Lightbend-skip), cross-layer cycle (dr18), Resolve idempotency (dr19), transitive substitution (dr20/dr21), hidden substitution (dr22/dr23), optional substitution materialisation (dr24–dr28), empty config edges (dr29), object-merge barrier (dr30).
 
@@ -508,9 +519,10 @@ The following are out of scope for E12 v1 and are NOT to be inferred from the co
 
 | Impl | Status | Test | Notes |
 | --- | --- | --- | --- |
-| ts.hocon | ❌ → ✅ | `key-hyphen-position/kh01–kh07.conf` + `path-expr-whitespace/pw01–pw06.conf` via conformance test | Path-parser loosening: remove S8.6-style validation on key path segments; preserve verbatim whitespace in path expressions. |
-| rs.hocon | ❌ → ✅ | same fixtures | Same path-parser changes. |
-| go.hocon | ❌ → ✅ | same fixtures | Same path-parser changes. |
+| ts.hocon | ✅ | `key-hyphen-position/kh01–kh08.conf` + `path-expr-whitespace/pw01–pw07.conf` via `tests/key-hyphen-position.test.ts` + `tests/path-expr-whitespace.test.ts` | Path-parser loosening: S8.6-style validation removed from key path segments; whitespace in path expressions preserved verbatim. |
+| rs.hocon | ✅ | same fixtures via `tests/conformance_key_hyphen_position.rs` + `tests/conformance_path_expr_whitespace.rs` | Same path-parser changes. |
+| go.hocon | ✅ | same fixtures via `e13_key_hyphen_position_test.go` + `e13_path_expr_whitespace_test.go` | Same path-parser changes. |
+| py.hocon | ✅ | same fixtures via `tests/conformance/test_conformance.py` (kh01–kh08, pw01–pw05, pw07) + `tests/conformance/test_error_fixtures.py` (pw06) | Same path-parser behaviour. |
 
 **Fixtures**:
 
@@ -588,6 +600,7 @@ Each impl's mechanism is **strictly narrower** than path-equality — it correct
 | ts.hocon | ✅ | sr12 ✅ / sr13 ✅ / sr14 ✅ / sr15 ✅ / sr16 ✅ ([ts.hocon#136](https://github.com/o3co/ts.hocon/pull/136)) | Fixed: `shouldFoldNested` gate removed, `resolveResObj` cache invalidation + escaped key (`stringSegmentsToKey`), `SubstPlaceholder.knownAbsent` sentinel + `foldOrSkipPrior` fold-to-sentinel. 20 unit tests added for `foldOptionalSelfRefAbsent` branches. |
 | rs.hocon | ✅ | sr12 ✅ / sr13 ✅ / sr14 ✅ / sr15 ✅ / sr16 ✅ ([rs.hocon#124](https://github.com/o3co/rs.hocon/pull/124)) | Fixed: cycle handler + is_self_ref branch self-ref-loop guard (sr12); `resolve_res_obj` cache lifecycle + escaped key (sr14/16); `SubstPlaceholder.known_absent` sentinel + `#[non_exhaustive]` (sr15); `should_fold_nested` combined gate (Obj-Obj-subset OR Obj-non-Obj); resolver leaf-prior preferred over outer-nav for multi-segment self-refs (Round-3 regression fix). 10 unit tests for `fold_optional_self_ref_absent` branches. |
 | go.hocon | ✅ | sr12 ✅ / sr13 ✅ / sr14 ✅ / sr15 ✅ / sr16 ✅ ([go.hocon#126](https://github.com/o3co/go.hocon/pull/126)) | Fixed: `knownAbsent` sentinel in `foldselfref.go` (sr15) + `findPrior(...)` consolidation for nested re-entrant path (sr13 regression from sr15); `containsKnownAbsentSentinel` / `rehydrateSentinel` extended to ArrayVal/ObjectVal containers with single-element rehydration (NOT splice-flatten — matches Lightbend immediate-resolve behavior). 45 unit tests for sentinel helpers + branch coverage. |
+| py.hocon | ✅ | sr12 ✅ / sr13 ✅ / sr14 ✅ / sr15 ✅ / sr16 ✅ (`tests/conformance/test_conformance.py`) | The resolver is a port of ts.hocon's (`src/hocon/_internal/resolver/substitution_resolver.py`, `fold_self_ref.py` with the `known_absent` sentinel), so it carries the post-fix mechanism. |
 
 **Fixtures**:
 
@@ -637,6 +650,7 @@ The three dimensions are: (a) **integer-collapse** of integral doubles (`1.0` �
 | ts.hocon | ✅ | `renderHoconAsJSON` (`src/config.ts`): leading-zero canonicalized (#50); other forms emitted from lexeme via `JSON_NUMBER_RE` validity gate. |
 | rs.hocon | ✅ | `examples/hocon-json.rs`: `serde_json` (`ryu`) shortest round-trip; preserves int/float distinction (`1.0` → `1.0`). |
 | go.hocon | ✅ | `writeValJSON` (`config.go`): leading-zero canonicalized (#50); other forms emitted from lexeme; `ParseFloat`-validity gate. |
+| py.hocon | ✅ | `_render_hocon_as_json` (`src/hocon/config.py`): leading-zero canonicalized (#50) by `_normalize_leading_zero_number`; other forms emitted from lexeme via a `_JSON_NUMBER_RE` validity gate (the ts.hocon scheme). |
 
 **Fixtures**: `leading-zero-value/lzv01-int-float-negative.conf` (the #50 fixture) pins the **validity-required** subset of numeric rendering (leading-zero canonicalization, agreed byte-for-byte across all four engines). No additional fixtures are added for the cosmetic divergences above — by construction the four engines disagree on byte-form here, so a byte-pinned expected JSON would arbitrarily privilege one engine. The differential harness's semantic-equivalence normalizer is the assertion mechanism for the cosmetic subset.
 
@@ -879,3 +893,5 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 2026-10-15 — E21 (a duration the implementation cannot represent is an error) added from [#102](https://github.com/o3co/xx.hocon/issues/102). Fixtures ud12 / ud13. E20 gains the number-value note (single-value `getDuration` parses a NUMBER's text; only `getDurationList` takes `longValue()` ms). Lightbend values measured on 1.4.6.
 
 2026-10-16 — E11 decision 1 loosened to match the implementations: the identifier MUST be non-empty, and Go-module-path form `<host>/<org>/<name>` is a SHOULD for cross-impl portability. The 2026-05-21 entry above records the original wording as a MUST on the form; no implementation ever enforced that — ts / py / rs / go each reject only an empty identifier — and a MUST would have ruled out npm-style names such as `@acme/auth`, which ts.hocon resolves through `require.resolve`. No status cell changes.
+
+2026-10-16 — status tables re-checked against the implementations' default branches (ts/go/rs `develop`, py `main`), with the cited tests run locally. E2–E4: ts/rs/go 🤷 → ✅ (the na08 / na10a / na10b accessor tests had existed since the S15 PRs). E6: ts/go ⏳ cross-source → ✅ (xx.hocon#22 C4 / C2 shipped in v1.5.3; ev12c is in both runners). E8: the plan-time `❌ → ✅` cells are replaced by measured ones — go ✅; ts and rs ⚠️, because both still accept `us15` (`a = 1e+x`), which step 4 of the number-lex algorithm requires to error, and pin it as a known gap. E11: rs/go 🤷 → ✅ (ipk01–ipk14 runners); ts 🤷 → ⚠️ — its ipk fixture loop passes when pointed at the fixtures but skips in CI, since it reads a sibling checkout that does not exist and `include-package/` is not synced; the fixture list loses its "planned" label. E12: ts/rs/go 🤷 → ✅ (scenario-YAML runners). E13: the `❌ → ✅` cells become ✅, citing kh01–kh08 and pw01–pw07 (the old cell said kh01–kh07 / pw01–pw06). py.hocon rows added to E1–E9 and E11–E15: ✅ wherever a py test exercises the convention (the conformance runner discovers every `-expected.json`, plus the E5/E9 override list and the E11/E12 fixture runners); 🤷 for E1 (no NEL test) and E2–E4 (the na fixtures are compared only as parse trees, never through `get_list`); ⚠️ for E8 (same `us15` gap as ts/rs, a strict xfail).
