@@ -17,7 +17,7 @@ Per-impl conformance tests do the following instead:
 3. **Assert the expected outcome** (success with specific merged output, or a
    specific error category — see table below).
 
-Per-impl override lists (`IMPL_OVERRIDE_ERRORS` in ts.hocon, `KNOWN_LIGHTBEND_QUIRKS`
+Per-impl mechanisms (an `it.skip` in ts.hocon's `tests/conformance/include-package.test.ts`, `KNOWN_LIGHTBEND_QUIRKS`
 in rs.hocon, `implErrors` in go.hocon, a per-case `skip_reason` in py.hocon) cover
 ipk03, which is n/a for ts.hocon and py.hocon.
 
