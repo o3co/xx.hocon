@@ -785,11 +785,11 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 **Rule**: the numeric part of a unit value (S18.2) is read from its source text as an **exact decimal**, and the multiplication by the unit is exact.
 
 - **Duration (S19)**: the result is the exact product. `1.001s` is `1001` ms (`1001000000` ns) and `2.3h` is `8280000` ms. An implementation with an integer-nanosecond type (go `time.Duration`, rs `std::time::Duration`) truncates toward zero only at the nanosecond after the exact product. An implementation that returns a float in a requested output unit (ts, py) rounds once, at the end, to the nearest double.
-- **Byte size (S21)**: exact product, then truncate toward zero (Lightbend `BigDecimal.toBigInteger`), then convert to the requested output unit, rounding once. `1.0005kB` is `1000` bytes, not `1001`. `4.35kB` is `4350`, not the `4349` that a float-then-truncate path gives.
+- **Byte size (S21)**: exact product, then truncate toward zero (Lightbend `BigDecimal.toBigInteger`), then convert to the requested output unit, rounding once. `1.0005kB` is `1000` bytes, not `1001`. `1.001kB` is `1001`, not the `1000` that a float-then-truncate path gives (`1.001 * 1000` is `1000.9999999999999` in binary64).
 - **Period (S20)** is integer-only and unaffected.
 - Integer-form numbers (`[+-]?[0-9]+`) keep the existing exact fast path. Nothing changes for them.
 
-**Why we diverge (duration only)**: Lightbend 1.4.6 `SimpleConfig.parseDuration` takes the non-integer path `(long)(Double.parseDouble(numberString) * units.toNanos(1))`, which gives `1000999999` ns for `1.001s`. That is the binary representation of 1.001, not the value the config author wrote. Lightbend's own `parseBytes` multiplies with `BigDecimal` for exactly this reason. E20 applies the same exactness to durations. The divergence is at most one nanosecond for every input Lightbend can represent, and it only appears in values with a fractional part.
+**Why we diverge (duration only)**: Lightbend 1.4.6 `SimpleConfig.parseDuration` takes the non-integer path `(long)(Double.parseDouble(numberString) * units.toNanos(1))`, which gives `1000999999` ns for `1.001s`. That is the binary representation of 1.001, not the value the config author wrote. Lightbend's own `parseBytes` multiplies with `BigDecimal` for exactly this reason. E20 applies the same exactness to durations. The divergence only appears in values with a fractional part. It is small but not bounded by a fixed amount: it is about a nanosecond for everyday values (`1.001s`), and it grows with magnitude (`1000000000.001s` is 64 ns off). No implementation may rely on a bound.
 
 **Lightbend values**: derived from the 1.4.6 source (the same formulas the existing ud05 / ub03 notes cite). They have not yet been probed with a JRE; add a `generate/` probe before relying on them for a sidecar.
 
@@ -800,7 +800,7 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 | py.hocon | ✅ | to verify (ub07 / ub08) | py#46 computes the unit conversion in `Decimal` and rounds to `float` once. |
 | rs.hocon | ❌ | to verify (ub07 / ub08) | `(f * nanos_per_unit) as u64` gives 1000999999 ns. |
 
-**Fixtures**: `testdata/hocon/units-default/ud09` (`1.001s`), `ud10` (`2.3h`), `ub07` (`1.0005kB`, truncation), `ub08` (`4.35kB`, exactness before truncation). They follow the units-default convention: the expected value is stated in the file and asserted by each impl's units-default test. There is no Lightbend sidecar, because ud09 / ud10 are deliberate divergences.
+**Fixtures**: `testdata/hocon/units-default/ud09` (`1.001s`), `ud10` (`2.3h`), `ub07` (`1.0005kB`, truncation), `ub08` (`1.001kB`, exactness before truncation). They follow the units-default convention: the expected value is stated in the file and asserted by each impl's units-default test. There is no Lightbend sidecar, because ud09 / ud10 are deliberate divergences.
 
 ## How this file is maintained
 
