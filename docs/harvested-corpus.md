@@ -99,8 +99,8 @@ conformance runners — this is a corpus-side smoke run.
 
 | impl | pass | non-pass detail |
 |---|---:|---|
-| go.hocon | 45/48 | mismatch: `concat3` ([go.hocon#158](https://github.com/o3co/go.hocon/issues/158)), `object6` ([xx.hocon#67](https://github.com/o3co/xx.hocon/issues/67)); succeeds on limitation-derived `add_assign` |
-| rs.hocon | 44/48 | mismatch: `demo` ([rs.hocon#149](https://github.com/o3co/rs.hocon/issues/149)), `object6` (#67); `max_depth` timeout (>15 s); succeeds on `add_assign` |
+| go.hocon | 45/48 | mismatch: `concat3` ([go.hocon#158](https://github.com/o3co/go.hocon/issues/158) — fixed 2026-07-24, go.hocon#159), `object6` ([xx.hocon#67](https://github.com/o3co/xx.hocon/issues/67)); succeeds on limitation-derived `add_assign` |
+| rs.hocon | 44/48 | mismatch: `demo` ([rs.hocon#149](https://github.com/o3co/rs.hocon/issues/149) — fixed 2026-07-24, rs.hocon#150), `object6` (#67); `max_depth` timeout (>15 s); succeeds on `add_assign` |
 | ts.hocon | 45/48 | `max_depth` call-stack overflow; mismatch: `object6` (#67); succeeds on `add_assign` |
 | py.hocon | 45/48 | `max_depth` recursion-limit error; mismatch: `object6` (#67); succeeds on `add_assign` |
 
@@ -110,7 +110,8 @@ Findings, in triage order:
    them): go.hocon drops a field whose concat is only whitespace-separated
    undefined `${?}` substitutions (go.hocon#158); rs.hocon wipes sibling
    fields when an optional `include file()` misses inside an object literal
-   (rs.hocon#149).
+   (rs.hocon#149). **Both fixed 2026-07-24** (go.hocon#159, rs.hocon#150);
+   the v1.9.0 table above is not re-run.
 2. **`object6.conf` — four-way unanimous divergence from the reference**
    (delayed-merge cycle-breaking lookback), spec-analyzed and filed as
    xx.hocon#67 with micro-probes; verdict: sibling gap, align to Lightbend.

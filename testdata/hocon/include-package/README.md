@@ -17,8 +17,9 @@ Per-impl conformance tests do the following instead:
 3. **Assert the expected outcome** (success with specific merged output, or a
    specific error category — see table below).
 
-Per-impl override lists (`IMPL_OVERRIDE_ERRORS` in ts.hocon, `KNOWN_LIGHTBEND_QUIRKS`
-in rs.hocon, `implErrors` in go.hocon) cover ipk03, which is n/a for ts.hocon.
+Per-impl mechanisms (an `it.skip` in ts.hocon's `tests/conformance/include-package.test.ts`, `KNOWN_LIGHTBEND_QUIRKS`
+in rs.hocon, `implErrors` in go.hocon, a per-case `skip_reason` in py.hocon) cover
+ipk03, which is n/a for ts.hocon and py.hocon.
 
 ---
 
@@ -43,10 +44,11 @@ in rs.hocon, `implErrors` in go.hocon) cover ipk03, which is n/a for ts.hocon.
 
 ### Per-impl override: ipk03
 
-ipk03 exercises the explicit-registry collision policy (decision 3). ts.hocon has
-no explicit registry (it delegates to Node `require.resolve`), so ipk03 is
-**not applicable** for ts.hocon. Per-impl conformance tests for ts.hocon MUST
-skip ipk03 (or mark it as expected-n/a) via the per-impl override list.
+ipk03 exercises the explicit-registry collision policy (decision 3). ts.hocon and
+py.hocon have no explicit registry (ts delegates to Node `require.resolve`, py to a
+`package_resolver` hook), so ipk03 is **not applicable** for them. Per-impl
+conformance tests for ts.hocon and py.hocon MUST skip ipk03 (or mark it as
+expected-n/a) via the per-impl override list.
 
 ---
 

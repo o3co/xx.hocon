@@ -69,7 +69,7 @@ Items where the test or implementation behavior contradicts the spec:
 
 Spec items with no test coverage in **any** of the four implementations. These are the natural targets for future test-debt PRs:
 
-- (Empty — Phase 4 cleared the last shared `🤷` cluster around S15/S17/S21; Phase 5 cleared per-impl `🤷` in all three impls, so the `🤷` column is `0` for ts/rs/go. py.hocon carries 70 `🤷` (ported-but-not-yet-pinned items, its verification surface still expanding), but none are *shared* debt — every item is already verified by at least one sibling, so this list stays empty.)
+- (Empty — Phase 4 cleared the last shared `🤷` cluster around S15/S17/S21; Phase 5 cleared per-impl `🤷` in ts/rs/go, and py.hocon's verification wave (py#39, 2026-08-18) did the same for py, so the `🤷` column is `0` for all four.)
 
 The next phase of compliance work shifts from "verify what we don't know" to "fix what we now know is broken" — see [Top spec violations](#top-spec-violations-verified) for the candidate list.
 
@@ -992,7 +992,7 @@ Multi-reviewer convergence observed during Phase 5: Copilot review on go.hocon #
 # Some per-impl files have started listing E6/E7/etc. as `- **E<n>**` blocks
 # with their own `status:` lines; those belong in extra-spec-conventions.md
 # and must not double-count toward the S-spec rate.
-for repo in ts.hocon rs.hocon go.hocon; do
+for repo in ts.hocon rs.hocon go.hocon py.hocon; do
   for g in ✅ ⚠️ ❌ 🤷 ➖; do
     n=$(awk '/^- \*\*S/{in_s=1; next} /^- \*\*[^S]/{in_s=0} in_s && /^  status:/' \
         /path/to/$repo/docs/spec-compliance.md | grep -c "^  status: $g")
@@ -1001,10 +1001,12 @@ for repo in ts.hocon rs.hocon go.hocon; do
 done
 ```
 
-4. Rates are computed as `(✅ + ⚠️·0.5) / N` with `N = 209` (spec-total) or `N = 209 − ➖_per_impl` (in-scope). After Phase 5 the per-impl ➖ counts diverge — globally shared ➖ is 21, but ts has 23 (+ S1.1, S13a.10) and go has 22 (+ S13a.10), so denominators are: ts=186, rs=188, go=187. When recomputing, count each repo's ➖ from its own `docs/spec-compliance.md`.
-5. When the template gains or loses an item, **all three per-repo files must be synced** before this matrix is rebuilt; otherwise the totals will be inconsistent.
+4. Rates are computed as `(✅ + ⚠️·0.5) / N` with `N` = the number of S-items in [`spec-checklist.md`](spec-checklist.md) (spec-total) or `N − ➖_per_impl` (in-scope). The per-impl ➖ counts diverge — some impls add language-natural ➖ items on top of the globally shared set — so count each repo's ➖ from its own `docs/spec-compliance.md` rather than reusing a global figure. (As of 2026-10-16: `N = 210`, globally shared ➖ 15, per-impl ➖ ts 17 / rs 15 / go 16 / py 17, so the in-scope denominators are ts 193, rs 195, go 194, py 193.)
+5. When the template gains or loses an item, **all four per-repo files must be synced** before this matrix is rebuilt; otherwise the totals will be inconsistent.
 
 ## Last verified
+
+2026-10-16 (documentation-drift pass) — **no rate change.** This log had stopped at 2026-07-24, but the roll-ups after it are recorded as dated `###` sections under [Shared test debt](#shared-test-debt): 2026-07-24 (S11.7 + S8.1), 2026-08-17, three on 2026-08-18, 2026-08-19 and 2026-10-15 (Period). This pass corrected text that had fallen behind those roll-ups, without changing any status cell in this file: the shared-test-debt note (py's 🤷 is 0, not 70), the maintenance loop and step 5 (four repos, not three), and step 4's denominators (N = 210 and the current per-impl ➖ counts, in place of the Phase 5 figures). Re-running the step 3 loop against the implementations' default branches gives ts 193 ✅ / 17 ➖, rs 195 ✅ / 15 ➖, go 194 ✅ / 16 ➖ (all 0 ⚠️ / ❌ / 🤷), matching the top-line table, and py 181 ✅ / 12 ⚠️ / 17 ➖. py's split differs from the table's 180 / 13 by one row, S21.5, which py.hocon#47 (E20) moved to ✅; that flip is left to the [#102](https://github.com/o3co/xx.hocon/issues/102) roll-up.
 
 2026-07-24 (S23.5 / S23.6 brought in scope — `.properties` full syntax, landed in all four) — **spec-total: ts 88.3% → 89.3%, rs 91.9% → 92.9%, go 88.1% → 89.0%, py 53.8% → 54.8% (+1.0pp each). In-scope is unchanged for every impl (ts 99.2%, rs 100.0%, go 98.4%, py 59.3% ≈ 58.9%), because each denominator grew by 2 and each numerator grew by 2.** Globally-OOS count 17 → 15.
 

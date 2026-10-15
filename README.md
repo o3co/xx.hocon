@@ -4,21 +4,7 @@ Shared test resources for HOCON parser conformance testing across [rs.hocon](htt
 
 ## Implementation status
 
-Current cross-impl release status:
-
-| impl | release | package | spec-total | spec-applicable |
-| --- | --- | --- | --- | --- |
-| ts.hocon | [v1.8.0](https://github.com/o3co/ts.hocon/releases/tag/v1.8.0) | npm `@o3co/ts.hocon@1.8.0` | **88.0%** | **98.9%** |
-| rs.hocon | [v1.8.0](https://github.com/o3co/rs.hocon/releases/tag/v1.8.0) | crates.io `hocon-parser 1.8.0` | **91.9%** | **100.0%** |
-| go.hocon | [v1.8.0](https://github.com/o3co/go.hocon/releases/tag/v1.8.0) | GOPROXY `github.com/o3co/go.hocon@v1.8.0` | **88.0%** | **98.4%** |
-| py.hocon | [v1.8.0](https://github.com/o3co/py.hocon/releases/tag/v1.8.0) | PyPI `hocon-parser 1.8.0` | **53.1%** | **58.1%** |
-
-Recent releases:
-
-- **v1.4.1** (2026-05-22) — simultaneous cross-impl bugfix release. Two cgordon-reported Lightbend include-path divergences: empty / comment-only / whitespace-only included files now contribute `{}` instead of erroring ([go.hocon#105](https://github.com/o3co/go.hocon/issues/105) — narrow carve-out; top-level empty parse still rejected per [E10](docs/extra-spec-conventions.md#e10)), and includes appearing after a pre-existing parent key now correctly override that key (Lightbend "as if written inline" semantics), with self-referential append through include resolving against the parent's prior value ([go.hocon#106](https://github.com/o3co/go.hocon/issues/106) — go-only impl fix; ts.hocon and rs.hocon already conformed and shipped cross-impl regression tests). No public API surface additions or signature changes; safe drop-in upgrade from v1.4.0. No matrix-cell flips — neither behaviour was previously in the [violations table](docs/compliance-matrix.md#top-spec-violations-verified).
-- **v1.4.0** (2026-05-21) — simultaneous release across all 3 impls. Two additive extra-spec items: [E12](docs/extra-spec-conventions.md#e12) Lightbend-aligned `parse → withFallback → resolve()` lifecycle ([xx.hocon#37](https://github.com/o3co/xx.hocon/issues/37), external origin [go.hocon#99](https://github.com/o3co/go.hocon/issues/99) by [@cgordon](https://github.com/cgordon)) and [E11](docs/extra-spec-conventions.md#e11) `include package("<id>", "<file>")` qualifier ([xx.hocon#33](https://github.com/o3co/xx.hocon/issues/33) / [xx.hocon#36](https://github.com/o3co/xx.hocon/pull/36)) as a non-JVM service-locator analog to `classpath(...)`. Bundled fixes included alongside the additive release: go.hocon parser-acceptance broadening for comma-after-newline ([go.hocon#104](https://github.com/o3co/go.hocon/issues/104), Lightbend conformance — previously errored, now accepted) and S13.15 multi-optional-undef concat materialisation (was producing `{"a":""}` for `a = ${?x}${?y}` with both undefined; now correctly omits the field per HOCON.md L640). E11 and E12 do not contribute to the compliance denominator; the S13.15 matrix impact is recorded retroactively in the v1.5.0 baseline audit ([docs/compliance-matrix.md § v1.4.0 retroactive matrix audit](docs/compliance-matrix.md#v140-retroactive-matrix-audit--s1315-cleared-s176-rs-mis-class-corrected-2026-05-22)).
-
-Full breakdown: [docs/compliance-matrix.md](docs/compliance-matrix.md).
+Per-implementation compliance rates and per-item status live in [docs/compliance-matrix.md](docs/compliance-matrix.md). Release notes are in each implementation's `CHANGELOG.md` and GitHub releases ([ts.hocon](https://github.com/o3co/ts.hocon/releases), [go.hocon](https://github.com/o3co/go.hocon/releases), [rs.hocon](https://github.com/o3co/rs.hocon/releases), [py.hocon](https://github.com/o3co/py.hocon/releases)). This README does not copy those figures, so it cannot fall behind them.
 
 **Ecosystem conformance:** fixture-pass results for the JVM-free HOCON libraries across five languages, measured against the same Lightbend-generated fixtures — [docs/ecosystem-conformance.md](docs/ecosystem-conformance.md). The harness is in [`ecosystem-bench/`](ecosystem-bench/).
 
