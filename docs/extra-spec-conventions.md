@@ -806,6 +806,31 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 
 **Fixtures**: `testdata/hocon/units-default/ud09` (`1.001s`), `ud10` (`2.3h`), `ud11` (`1.001`, no unit), `ub07` (`1.0009kB`, truncation, not rounding), `ub08` (`1.001kB`, exactness before truncation). Every ❌ cell above fails at least one: go / rs duration fail ud09–ud11, ts duration fails ud09 / ud10, go / rs bytes fail ub08, ts / py bytes fail ub07. They follow the units-default convention: the expected value is stated in the file and asserted by each impl's units-default test. There is no Lightbend sidecar, because ud09 / ud10 are deliberate divergences.
 
+### E21 — A duration the implementation cannot represent is an error (deliberate divergence from Lightbend)
+
+**Source**: [#102](https://github.com/o3co/xx.hocon/issues/102). Found during the go E20 work ([go.hocon#200](https://github.com/o3co/go.hocon/pull/200)): go's integer path computed `time.Duration(n) * mult`, so `"200000d"` silently wrapped to a negative duration and `"9223372036854775807"` (ms) came out as `-1ms`. Meanwhile `"106752.0d"` errored after E20, so adding `.0` changed the answer. The user decided on 2026-10-15 that this is an error.
+
+**Rule**: when a duration's value (computed per E20) does not fit the implementation's duration representation, the read is an **error**. It is never wrapped, saturated, or returned as a non-finite number.
+
+- An integer-nanosecond representation (go `time.Duration` int64, rs `std::time::Duration` u64) errors past its range. The boundary itself is accepted: `"9223372036854775807ns"` fits int64.
+- A float representation (ts, py float output) errors when the result is not finite.
+- A target type with its own range (py `timedelta`) errors past that range.
+- Integer and fractional forms behave alike: `"106752d"` and `"106752.0d"` give the same answer.
+- Byte sizes already error on overflow in all four (S21.4 guard). E21 brings durations into line.
+
+**Why we diverge**: Lightbend saturates. `TimeUnit.toNanos` clamps at `Long.MAX_VALUE`, and so does the `(long)` cast of the double product. A saturated or wrapped duration is a value the author did not write, which is the failure E19 refuses for literals. Erroring is the honest answer and matches byte sizes.
+
+**Ranges differ by representation**, so `"200000d"` (about 547 years) is an error in go and rs and a value in ts and py. That is intended: each implementation refuses only what it cannot represent. Only ud12 is shared.
+
+| Impl | Status | Notes |
+| --- | --- | --- |
+| go.hocon | ❌ | The integer path `time.Duration(n) * mult` wraps (`"200000d"` is negative). |
+| ts.hocon | ❌ | f64 ms: a 400-digit value reads as `Infinity`. |
+| py.hocon | 🤷 | Float output: unverified whether a non-finite result is refused. The `timedelta` target errors past its range (py#46). |
+| rs.hocon | 🤷 | `checked_mul` on u64 ns errors past the range. Not yet pinned against ud12. |
+
+**Fixtures**: `testdata/hocon/units-default/ud12` (`10^400` days, error in every implementation). The per-representation boundaries (go / rs `±2^63` ns, `"200000d"`) are pinned by each implementation's own tests.
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -849,3 +874,5 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 2026-08-26 — E19 (overflowing float literals are a parse error) added as the posture-B resolution of [#97](https://github.com/o3co/xx.hocon/issues/97). go's long-standing behaviour is promoted to the convention; ts#194 / py#45 / rs#182 align the siblings in one window (rs also hardens its serde path against programmatically constructed non-finite scalars). No shared-corpus fixture is possible — Lightbend parses the literal (UNEXPECTED-SUCCESS trip) and GSON cannot serialize the resulting Infinity — so the per-impl tests are the pins. The stranded E17 tail paragraphs (Fixtures / Out of scope / Tracking issue), which had been sitting after E18's table since E18 was inserted, were moved back into the E17 section. The int64-overflow integer-literal divergence found while scoping E19 (go alone rejects `9223372036854775808`) is split out to [#99](https://github.com/o3co/xx.hocon/issues/99).
 
 2026-10-15 — E20 (unit arithmetic is exact decimal) added from [#102](https://github.com/o3co/xx.hocon/issues/102). Fixtures ud09 / ud10 / ud11 / ub07 / ub08 land with it. Status: py duration ✅ (py#46); every other cell ❌; per-impl PRs follow.
+
+2026-10-15 — E21 (a duration the implementation cannot represent is an error) added from [#102](https://github.com/o3co/xx.hocon/issues/102). Fixture ud12. E20 gains the number-value note (Lightbend `longValue()` ms).
