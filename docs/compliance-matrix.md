@@ -9,7 +9,7 @@ Cross-implementation roll-up of [`spec-checklist.md`](spec-checklist.md) for the
 | [ts.hocon](https://github.com/o3co/ts.hocon/blob/develop/docs/spec-compliance.md) | **91.9%** | **100.0%** | 193 | 0 | 0 | 0 | 17 |
 | [rs.hocon](https://github.com/o3co/rs.hocon/blob/develop/docs/spec-compliance.md) | **92.9%** | **100.0%** | 195 | 0 | 0 | 0 | 15 |
 | [go.hocon](https://github.com/o3co/go.hocon/blob/develop/docs/spec-compliance.md) | **92.4%** | **100.0%** | 194 | 0 | 0 | 0 | 16 |
-| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **89.0%** | **96.9%** | 181 | 12 | 0 | 0 | 17 |
+| [py.hocon](https://github.com/o3co/py.hocon/blob/main/docs/spec-compliance.md) | **89.3%** | **97.2%** | 182 | 11 | 0 | 0 | 17 |
 
 **All four implementations are in-scope full green as of 2026-08-18** — the
 shared S13a.12 ❌ was fixed in lockstep (ts#188 / py#37+#38 / go#192 / rs#173;
@@ -17,7 +17,7 @@ discriminating fixtures sr17–sr18 in xx#90), and later the same day py's
 verification wave (py#39) burned its 🤷 mass to **0** and surfaced two more
 shared bugs, fixed in lockstep too (S9.2 / S13.12 — ts#189 / rs#174 / py#39;
 fixtures tq01–tq03 / se01–se04 in xx#91). ts/rs/go show in-scope 100.0%;
-py's 96.9% remainder is 12 ⚠️ coverage-partial rows, no known violations (S21.5 moved to ✅ with E20, py#47).
+py's 97.2% remainder is 11 ⚠️ coverage-partial rows, no known violations (S21.5 moved to ✅ with E20, py#47; S18.1 with a direct getter pin, py#49).
 
 Where:
 
