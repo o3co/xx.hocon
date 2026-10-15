@@ -2,6 +2,8 @@
 
 Shared test resources for HOCON parser conformance testing across [rs.hocon](https://github.com/o3co/rs.hocon), [ts.hocon](https://github.com/o3co/ts.hocon), [go.hocon](https://github.com/o3co/go.hocon), and [py.hocon](https://github.com/o3co/py.hocon).
 
+**Docs:** [o3co.github.io/hocon](https://o3co.github.io/hocon/) — the cross-language hub for all four implementations, the hocon2 CLI and the shared conformance corpus.
+
 ## Implementation status
 
 Per-implementation compliance rates and per-item status live in [docs/compliance-matrix.md](docs/compliance-matrix.md). Release notes are in each implementation's `CHANGELOG.md` and GitHub releases ([ts.hocon](https://github.com/o3co/ts.hocon/releases), [go.hocon](https://github.com/o3co/go.hocon/releases), [rs.hocon](https://github.com/o3co/rs.hocon/releases), [py.hocon](https://github.com/o3co/py.hocon/releases)). This README does not copy those figures, so it cannot fall behind them.
