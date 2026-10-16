@@ -856,6 +856,29 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 
 **Fixtures**: `testdata/hocon/units-default/ud12` (`10^400` days, integer form; error in every implementation and in Lightbend) and `ud13` (`"1<400 zeros>.5d"`, fractional form; error in every implementation, `Long.MAX_VALUE` ns in Lightbend). Before the per-impl PRs, ts and py failed both; go and rs passed both, and their ❌ cells were pinned by their own tests (go ±2^63 ns and `"200000d"`; rs one range for quoted and unquoted forms). All four now pass both.
 
+### E22 — Typed-integration unit helpers can require the unit to be written
+
+**Source**: [ts.hocon#233](https://github.com/o3co/ts.hocon/issues/233) (from o3co/auth.provider). A bare number in a unit value reads in the default unit (S18.1 / S18.4 / S20: milliseconds, bytes, days). Suppose a key is migrated from `ttl-seconds = 30` to `ttl = 30s`, and an operator renames the key but keeps the number. `ttl = 30` then becomes 30 ms, a silent change by a factor of 1000 in a setting that may guard security (a token lifetime, a lockout wait). The getters' meaning is right for the getters. A schema that wants the unit to be part of its contract needs a way to say so.
+
+**Rule**: each implementation's typed-integration helpers for durations, byte sizes and periods (the ones aligned in [#102](https://github.com/o3co/xx.hocon/issues/102)) offer an opt-in **require-unit** option. With it set, a value that reads but names no unit is an error at the key.
+
+- **Names no unit**:
+  - a NUMBER value (`ttl = 30`);
+  - a STRING whose unit text is empty under the implementation's own unit split, the E20 one, where the unit is the text after the number: `"30"` (an environment variable gives this), `" 30 "`, `"1e3"`. For a period it is the text after the sign-and-digit run: `"14"`.
+- **Names a unit**: `30s`, `"30 s"`, `"1e3ms"`, `64KiB`, `"0.5G"`, `2w`, `"2 w"`.
+- **Order**: the value is read first. A value that does not read keeps its own error (invalid / negative / overflow), so `"30S"` is invalid, not missing-unit.
+- **Message**: the error names the problem, never the value (`duration must name its unit`), as for the other unit errors under [#119](https://github.com/o3co/xx.hocon/issues/119).
+- **Defaults**: the option is off by default. The getters and the helpers without the option are unchanged, and no config reads differently unless a schema sets the option.
+
+This is an API convention, not a reading of the spec. HOCON has no notion of a schema requiring a unit. Each implementation spells the option in its own idiom:
+
+| Impl | Option | Status | Notes |
+| --- | --- | --- | --- |
+| ts.hocon | `hocon.duration(unit, { requireUnit: true })`, `hocon.bytes(unit, { requireUnit: true })`, `hocon.period({ requireUnit: true })` | ✅ | [ts.hocon#234](https://github.com/o3co/ts.hocon/pull/234), v1.14.3. `params.problem` is `missing-unit`. `tests/zod-unit-markers.test.ts`. |
+| go.hocon | struct tag flag `hocon:"ttl,requireunit"` on a `time.Duration` / `hocon.ByteSize` / `hocon.Period` field (an error on any other field type) | ✅ | [go.hocon#213](https://github.com/o3co/go.hocon/pull/213), v1.14.2. `unmarshal_require_unit_test.go`. |
+| rs.hocon | `#[serde(with = "hocon::serde::duration::require_unit")]` (and under `bytes`, `period`, each with `::option`) | ✅ | [rs.hocon#196](https://github.com/o3co/rs.hocon/pull/196), v1.14.2. The same answer on serde's buffered paths (flatten, untagged / internally tagged enums). `tests/serde_unit_helpers_test.rs`. |
+| py.hocon | `hocon.Duration(unit, require_unit=True)`, `hocon.Bytes(unit, require_unit=True)`, and the new period marker `hocon.PeriodUnit(require_unit=True)` | ✅ | [py.hocon#59](https://github.com/o3co/py.hocon/pull/59), v1.14.2. Dataclass and Pydantic paths. `tests/test_decode_unit_markers.py`. |
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -919,3 +942,5 @@ Erroring at the parse is the honest answer (the same principle as F0.6 on the ad
 2026-10-16 — v1.14.0 roll-up. E8 → ✅ in all four (go.hocon#208, ts.hocon#213, py.hocon#51, rs.hocon#189; fixtures us01–us67). E20's exponent-form extension → ✅ in all four (go#209, ts#215, py#53, rs#190). E12's presence-check clause holds in all four (ts#217, py#52; go / rs unchanged).
 
 2026-10-16 — Lightbend's handling of integers beyond `long` corrected in E8 (step 3 and the behaviour table) and E19: an integer-form run is parsed with `Long.parseLong` only and falls back to a **string** (`9223372036854775808`, a 409-digit integer), not to `parseDouble` / Infinity. Measured on 1.4.6 during the v1.14.0 adapter bump; see [#99](https://github.com/o3co/xx.hocon/issues/99).
+
+2026-10-16 — E22 (typed-integration unit helpers can require the unit to be written) added from [ts.hocon#233](https://github.com/o3co/ts.hocon/issues/233): an opt-in option per implementation, ✅ in all four (ts v1.14.3; go, rs and py v1.14.2).
