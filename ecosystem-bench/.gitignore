@@ -4,6 +4,7 @@ rust-adapters/target/
 ts-adapters/node_modules/
 ts-adapters/package-lock.json
 py-adapters/venv/
+py-adapters/venv-o3co/
 ruby-adapters/.gems/
 ruby-adapters/Gemfile.lock
 results.json
