@@ -1,0 +1,14 @@
+{
+  "tab": "a\tb",
+  "c0_single_line": "nul\u0000 soh\u0001 bs\b ff\f us\u001f end",
+  "bare_but_control": "abc\u0001def",
+  "k\u0001ey": "key quotes only because of the control character",
+  "\u0000": "nul key",
+  "del_c1": "x\u007f\u0085\u009fy",
+  "multiline_with_controls": "line1\u0001\nline2\u0000",
+  "multiline_with_tab": "col1\tcol2\nrow2\tend",
+  "cr_only": "a\rb",
+  "nested": {
+    "arr": ["\u001f", "ok\u0007", "\u001b[0m"]
+  }
+}

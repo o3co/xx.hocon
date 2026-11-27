@@ -134,6 +134,13 @@ public class GenerateExpected {
         "path-empty-segment/pe07-quoted-empty-segment-ok.conf",
         // S8.1 guard: a backtick inside a quoted string is ordinary content.
         "unquoted-forbidden/uf04-backtick-quoted-ok.conf",
+        // S1.2.4 guards for the quoted-control group (xx.hocon#130): escaped controls,
+        // DEL / C1 (outside the C0 range JSON forbids), triple-quoted (S9.1, kept
+        // verbatim) and unquoted (S8.8) controls are all legal.
+        "quoted-control/qc09-escaped-controls-ok.conf",
+        "quoted-control/qc10-del-c1-ok.conf",
+        "quoted-control/qc11-triple-quoted-controls-ok.conf",
+        "quoted-control/qc12-unquoted-controls-ok.conf",
         "unquoted-starts/us01-digit-prefix-with-tail.conf",
         "unquoted-starts/us02-hyphen-no-digit.conf",
         "unquoted-starts/us03-hyphen-alone.conf",
@@ -435,6 +442,19 @@ public class GenerateExpected {
         "unquoted-forbidden/uf01-backtick-value.conf",
         "unquoted-forbidden/uf02-backtick-key.conf",
         "unquoted-forbidden/uf03-backtick-mid-token.conf",
+        // S1.2.4 raw C0 control (U+0000-U+001F) inside a single-quoted string
+        // (xx.hocon#130). The four impls rejected only LF (subst-tokenize/st-err07);
+        // tab, CR, U+0001, U+001F and NUL were accepted in every position. Lightbend
+        // rejects all of them in value, key, substitution-path and include position.
+        // qc09-qc12 are the SUCCESS_CONFS guards.
+        "quoted-control/qc01-tab-value.conf",
+        "quoted-control/qc02-u0001-value.conf",
+        "quoted-control/qc03-nul-value.conf",
+        "quoted-control/qc04-u001f-value.conf",
+        "quoted-control/qc05-cr-value.conf",
+        "quoted-control/qc06-tab-key.conf",
+        "quoted-control/qc07-tab-subst-path.conf",
+        "quoted-control/qc08-tab-include.conf",
         "concat-errors/ce01-array-plus-object.conf",
         "concat-errors/ce02-object-plus-array.conf",
         "concat-errors/ce03-array-plus-scalar.conf",

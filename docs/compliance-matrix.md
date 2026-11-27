@@ -60,10 +60,14 @@ See each item's `out-of-scope:` line in [`spec-checklist.md`](spec-checklist.md)
 
 Items where the test or implementation behavior contradicts the spec:
 
-- (Empty — the last entry, S13a.12, was fixed in all four implementations on
-  2026-08-18: ts#188 / py#37+#38 / go#192 / rs#173, pinned by the sr17–sr18
-  discriminating fixtures from xx#90. See the history entry below for the
-  original probe matrix and root cause.)
+| Item | Impls | Status | Detail |
+|---|---|---|---|
+| S1.2.4 | ts, rs, go, py | ❌ | A raw C0 control character other than LF (tab, CR, U+0001, U+001F, NUL) inside a **single-quoted** string is accepted, in value, key, substitution-path and `include` position; Lightbend 1.4.9 rejects every U+0000–U+001F ("JSON does not allow unescaped … in quoted strings"). Only the LF case (`subst-tokenize/st-err07`) was tested. Triple-quoted and unquoted strings keep controls verbatim, and DEL / C1 are legal in quoted strings. Found by the external zig-hocon conformance suite ([#130](https://github.com/o3co/xx.hocon/issues/130)); pinned by `quoted-control/qc01`–`qc12` |
+
+(S13a.12, the previous last entry, was fixed in all four implementations on
+2026-08-18: ts#188 / py#37+#38 / go#192 / rs#173, pinned by the sr17–sr18
+discriminating fixtures from xx#90. See the history entry below for the
+original probe matrix and root cause.)
 
 ## Shared test debt
 
