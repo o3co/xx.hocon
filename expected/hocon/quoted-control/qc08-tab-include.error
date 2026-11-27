@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/hocon/quoted-control/qc08-tab-include.conf: 1: include keyword is not followed by a quoted string, but by: 'tab' (JSON does not allow unescaped tab in quoted strings, use a backslash escape)

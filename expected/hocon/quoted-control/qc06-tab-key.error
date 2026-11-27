@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/hocon/quoted-control/qc06-tab-key.conf: 1: expecting a close parentheses ')' here, not: 'tab' (JSON does not allow unescaped tab in quoted strings, use a backslash escape)

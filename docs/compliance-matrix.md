@@ -18,6 +18,7 @@ verification wave (py#39) burned its 🤷 mass to **0** and surfaced two more
 shared bugs, fixed in lockstep too (S9.2 / S13.12 — ts#189 / rs#174 / py#39;
 fixtures tq01–tq03 / se01–se04 in xx#91). ts/rs/go show in-scope 100.0%;
 py's 97.2% remainder is 11 ⚠️ coverage-partial rows, no known violations (S21.5 moved to ✅ with E20, py#47; S18.1 with a direct getter pin, py#49).
+One verified violation is open since 2026-11-28: S1.2.4 in all four (see [Top spec violations](#top-spec-violations-verified)). The table still counts it ✅, as each impl's glyph does, and the fixes in flight keep it ✅, so no rate changes.
 
 Where:
 
@@ -60,10 +61,14 @@ See each item's `out-of-scope:` line in [`spec-checklist.md`](spec-checklist.md)
 
 Items where the test or implementation behavior contradicts the spec:
 
-- (Empty — the last entry, S13a.12, was fixed in all four implementations on
-  2026-08-18: ts#188 / py#37+#38 / go#192 / rs#173, pinned by the sr17–sr18
-  discriminating fixtures from xx#90. See the history entry below for the
-  original probe matrix and root cause.)
+| Item | Impls | Status | Detail |
+|---|---|---|---|
+| S1.2.4 | ts, rs, go, py | ❌ | A raw C0 control character other than LF (tab, CR, U+0001, U+001F, NUL) inside a **double-quoted** (non-triple) string is accepted, in value, key, substitution-path and `include` position; Lightbend 1.4.9 rejects every U+0000–U+001F ("JSON does not allow unescaped … in quoted strings"). Only the LF case (`subst-tokenize/st-err07`) was tested. Triple-quoted and unquoted strings keep controls verbatim, and DEL / C1 are legal in quoted strings. Found by the external zig-hocon conformance suite ([#130](https://github.com/o3co/xx.hocon/issues/130)); pinned by `quoted-control/qc01`–`qc12` |
+
+(S13a.12, the previous last entry, was fixed in all four implementations on
+2026-08-18: ts#188 / py#37+#38 / go#192 / rs#173, pinned by the sr17–sr18
+discriminating fixtures from xx#90. See the history entry below for the
+original probe matrix and root cause.)
 
 ## Shared test debt
 

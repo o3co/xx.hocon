@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$Parse
+Message: ../testdata/hocon/quoted-control/qc02-u0001-value.conf: 1: Expecting a value but got wrong token: 'control character 0x1' (JSON does not allow unescaped control character 0x1 in quoted strings, use a backslash escape) (if you intended 'control character 0x1' (JSON does not allow unescaped control character 0x1 in quoted strings, use a backslash escape) to be part of a key or string value, try enclosing the key or value in double quotes, or you may be able to rename the file .properties rather than .conf)
