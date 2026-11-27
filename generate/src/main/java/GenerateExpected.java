@@ -442,7 +442,7 @@ public class GenerateExpected {
         "unquoted-forbidden/uf01-backtick-value.conf",
         "unquoted-forbidden/uf02-backtick-key.conf",
         "unquoted-forbidden/uf03-backtick-mid-token.conf",
-        // S1.2.4 raw C0 control (U+0000-U+001F) inside a single-quoted string
+        // S1.2.4 raw C0 control (U+0000-U+001F) inside a double-quoted (non-triple) string
         // (xx.hocon#130). The four impls rejected only LF (subst-tokenize/st-err07);
         // tab, CR, U+0001, U+001F and NUL were accepted in every position. Lightbend
         // rejects all of them in value, key, substitution-path and include position.
