@@ -83,7 +83,7 @@ public class GenerateExpected {
         // EXCEPTION (ev12c, below): the cross-source case — ${X[]} in an included
         // file with X defined as config in the including file — cannot be modeled by
         // EnvVarListExpander's per-file isDefinedInConfig check. ev12c ships WITHOUT
-        // a .env sidecar and routes through the native Lightbend 1.4.6 path
+        // a .env sidecar and routes through the native Lightbend path
         // (the `else` branch in the SUCCESS_CONFS loop), which has full resolver
         // semantics including S14c.2 original-path fallback. See xx.hocon#22.
         "env-var-list/ev01-basic.conf",
@@ -103,7 +103,7 @@ public class GenerateExpected {
         "env-var-list/ev12b-list-suffix-suppresses-scalar-fallback-optional.conf",
         // ev12c: E6 cross-source — ${X[]} in an included file when X is
         // config-defined in the including file at root. NO .env sidecar:
-        // routes through the native Lightbend 1.4.6 path (not EnvVarListExpander)
+        // routes through the native Lightbend path (not EnvVarListExpander)
         // because cross-source config-vs-env precedence cannot be modeled by
         // EnvVarListExpander's per-file pre-expansion. Pins xx.hocon#22 spec
         // posture: config exhaust (prefixed + original-path) before env list.
