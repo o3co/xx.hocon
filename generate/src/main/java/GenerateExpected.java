@@ -290,6 +290,28 @@ public class GenerateExpected {
         "subst-optional-element/se02-literal-null-kept.conf",
         "subst-optional-element/se03-nested-arrays.conf",
         "subst-optional-element/se04-concat-element-remainder.conf",
+        // S13.10 success guards for subst-removed-target (xx.hocon#123): the
+        // error cases rq01–rq16 and rq29 are in SIDECAR_ERROR_CONFS. These pin what
+        // must NOT become an error: an optional reference to a removed field
+        // (rq17), the prior value an undefined optional leaves in place
+        // (rq18/rq19, the #115 direction), a later definition (rq20), hidden
+        // references that are never evaluated (rq21/rq22, S13a.5), an empty
+        // parent object (rq23), the include fallback finding a value (rq24),
+        // and the optional cycles and self-ref under rq09–rq11 on their own
+        // (rq25–rq28) — so a fix that turns the optional itself into an error
+        // fails here.
+        "subst-removed-target/rq17-optional-ref-ok.conf",
+        "subst-removed-target/rq18-prior-value-kept-ok.conf",
+        "subst-removed-target/rq19-prior-object-kept-ok.conf",
+        "subst-removed-target/rq20-later-value-wins-ok.conf",
+        "subst-removed-target/rq21-hidden-reference-ok.conf",
+        "subst-removed-target/rq22-hidden-nested-reference-ok.conf",
+        "subst-removed-target/rq23-empty-parent-object-ok.conf",
+        "subst-removed-target/rq24-include-original-path-ok.conf",
+        "subst-removed-target/rq25-optional-cycle-ok.conf",
+        "subst-removed-target/rq26-optional-closes-cycle-ok.conf",
+        "subst-removed-target/rq27-optional-ref-into-cycle-ok.conf",
+        "subst-removed-target/rq28-optional-self-ref-ok.conf",
         // S3.1 empty-file fixtures (cluster 3h). An empty document is valid HOCON
         // parsing to `{}` (L134 brace-omission relaxation; L130-132 is the JSON
         // baseline). The `{}` sidecars emitted here are normative — per-impl
@@ -376,7 +398,20 @@ public class GenerateExpected {
     // the optional substitution to its undefined branch.
     static final String[] HERMETIC_NO_ENV_GROUPS = {
         "include-env-fallback/",
+        "subst-removed-target/",
     };
+
+    // Resolve options for a SUCCESS_CONFS or SIDECAR_ERROR_CONFS entry: env
+    // lookup is disabled for HERMETIC_NO_ENV_GROUPS, so a host variable can
+    // neither leak into an expected JSON nor make an error fixture resolve.
+    static ConfigResolveOptions resolveOptionsFor(String confName) {
+        for (String prefix : HERMETIC_NO_ENV_GROUPS) {
+            if (confName.startsWith(prefix)) {
+                return ConfigResolveOptions.defaults().setUseSystemEnvironment(false);
+            }
+        }
+        return ConfigResolveOptions.defaults();
+    }
 
     // S23.4 properties-conflict fixtures (cluster 3h). Lightbend's direct
     // ConfigFactory.parseFile(...properties) applies the spec L1485 "object wins"
@@ -455,6 +490,41 @@ public class GenerateExpected {
         "quoted-control/qc06-tab-key.conf",
         "quoted-control/qc07-tab-subst-path.conf",
         "quoted-control/qc08-tab-include.conf",
+        // S13.10 (HOCON.md L627) — a REQUIRED substitution whose target field
+        // was removed by an undefined optional (S13.11) is unresolved, so it
+        // is an error (xx.hocon#123). All four impls dropped it silently: the
+        // referring field vanished or became {}, the array element was
+        // skipped (rq04), or the concat treated it as empty (rq05–rq07) — the
+        // S13.11–S13.14 rules, which are for ${?} only. rq11–rq13 are the
+        // zig-hocon conformance rows self-referential-examples/041 and
+        // include-substitution/010 and /015; rq14 reaches the removed field
+        // through the include fallback to the original path; rq15 (merge, not
+        // hidden) and rq16 (kept prior value is the reference) bound the
+        // S13a.5 and #115 rules. rq29 (added after the success guards were
+        // numbered) pins that a fixed-up path that is found but removed does
+        // not fall back to the original path. A required self-ref whose only
+        // prior was removed (`a = ${?U}` / `a = ${a}`) is deliberately not
+        // here: it cannot be told apart from `a = 1` / `a = ${?U}` /
+        // `a = ${a}` (Lightbend: {"a":1}) without the multi-level prior of
+        // #125. Success guards are in
+        // SUCCESS_CONFS.
+        "subst-removed-target/rq01-required-to-removed-field.conf",
+        "subst-removed-target/rq02-forward-ref.conf",
+        "subst-removed-target/rq03-both-optionals-undefined.conf",
+        "subst-removed-target/rq04-array-element.conf",
+        "subst-removed-target/rq05-string-concat.conf",
+        "subst-removed-target/rq06-object-concat.conf",
+        "subst-removed-target/rq07-array-concat.conf",
+        "subst-removed-target/rq08-nested-path.conf",
+        "subst-removed-target/rq09-optional-cycle.conf",
+        "subst-removed-target/rq10-optional-self-ref.conf",
+        "subst-removed-target/rq11-optional-closes-cycle.conf",
+        "subst-removed-target/rq12-include-fixed-up-path.conf",
+        "subst-removed-target/rq13-include-both-paths-removed.conf",
+        "subst-removed-target/rq14-include-original-path-removed.conf",
+        "subst-removed-target/rq15-merged-not-hidden.conf",
+        "subst-removed-target/rq16-kept-prior-is-required-ref.conf",
+        "subst-removed-target/rq29-include-fixed-up-removed-original-set.conf",
         "concat-errors/ce01-array-plus-object.conf",
         "concat-errors/ce02-object-plus-array.conf",
         "concat-errors/ce03-array-plus-scalar.conf",
@@ -604,14 +674,8 @@ public class GenerateExpected {
                 } else {
                     ConfigParseOptions parseOpts = ConfigParseOptions.defaults()
                         .setOriginDescription(confName);
-                    boolean hermeticNoEnv = false;
-                    for (String prefix : HERMETIC_NO_ENV_GROUPS) {
-                        if (confName.startsWith(prefix)) { hermeticNoEnv = true; break; }
-                    }
-                    ConfigResolveOptions resolveOpts = hermeticNoEnv
-                        ? ConfigResolveOptions.defaults().setUseSystemEnvironment(false)
-                        : ConfigResolveOptions.defaults();
-                    Config config = ConfigFactory.parseFile(confPath.toFile(), parseOpts).resolve(resolveOpts);
+                    Config config = ConfigFactory.parseFile(confPath.toFile(), parseOpts)
+                        .resolve(resolveOptionsFor(confName));
                     ConfigObject root = config.root();
                     // Filter out environment-dependent keys that differ per machine.
                     // test01.conf has a top-level `system { home = ${?HOME}, ... }` block.
@@ -764,7 +828,7 @@ public class GenerateExpected {
             }
             Exception caught = null;
             try {
-                ConfigFactory.parseFile(confPath.toFile()).resolve();
+                ConfigFactory.parseFile(confPath.toFile()).resolve(resolveOptionsFor(confName));
             } catch (Exception e) {
                 caught = e;
             }

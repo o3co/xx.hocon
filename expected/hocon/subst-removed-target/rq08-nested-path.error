@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/subst-removed-target/rq08-nested-path.conf: 3: Could not resolve substitution to a value: ${x.y}
