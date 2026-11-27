@@ -331,6 +331,9 @@ public class GenerateExpected {
         "subst-removed-target/rq35-hidden-required-ref-never-evaluated-window.conf",
         "subst-removed-target/rq36-optional-cycle-under-optionals-window.conf",
         "subst-removed-target/rq37-optional-self-ref-concat-through-alias-window.conf",
+        // rq39: sibling-leaf optional overrides of an object default — rs/ts/py
+        // silently drop db.host today (go right).
+        "subst-removed-target/rq39-sibling-leaf-overrides-keep-defaults-window.conf",
         // S13.11 (HOCON.md L632) through a root-level include (xx.hocon#115):
         // an undefined optional that an included file assigns to a root-level
         // key leaves the including file's prior value in place. rs/ts/py
@@ -364,6 +367,7 @@ public class GenerateExpected {
         // leaks a scoped prior into ${a} (io18). io19 is in SIDECAR_ERROR_CONFS.
         "include-optional-prior/io17-hidden-array-under-included-object.conf",
         "include-optional-prior/io18-scoped-prior-not-leaked.conf",
+        "include-optional-prior/io20-self-ref-folded-under-included-concat.conf",
         // optional-cycle-repeat/ (go.hocon#218, rs.hocon#199): a substitution
         // cycle written twice overflowed the stack in go and rs (process crash)
         // and gave a ParseError in ts/py. oc02 is in SIDECAR_ERROR_CONFS.
@@ -590,6 +594,7 @@ public class GenerateExpected {
         // rq38 (`-window`): no value may be invented for a path through a list
         // (rs/py #123 branches gave c = 1).
         "subst-removed-target/rq38-no-value-invented-through-list-window.conf",
+        "subst-removed-target/rq40-optional-closes-cycle-over-prior-object-window.conf",
         // io19: the including file's required ${gh115_missing} is live under the
         // included object (E16), so it is an error — accepted by rs/ts/py today,
         // so the #115 redesign is BREAKING for it. oc02: the required form of
