@@ -160,6 +160,8 @@ Findings, in triage order:
 | [puppetlabs/ruby-hocon](https://github.com/puppetlabs/ruby-hocon) `spec/fixtures/` | `55c38f8` | 12 | 11 | 8 | 3 | 0 | 6 exact dups + upstream expectations |
 | [josephtzeng/hocon-parser](https://github.com/josephtzeng/hocon-parser) (@pushcorn) `tests/resources/configs/` | `bff7090` | 111 | 95 | 51 | 44 | 14 | 61 of 156 cases (extension categories + syntax sweep) |
 
+(Counts as harvested. Since the 1.4.9 oracle (#121), pushcorn is 52 `-expected.json` / 43 `.error`: `delayed-merge` became a success fixture.)
+
 Highlights: ruby-hocon contributes encoding edges (UTF-16LE input, non-ASCII
 fixture filename, by-extension and upstream-modified Lightbend-suite
 variants); pushcorn contributes a large error corpus and upstream Lightbend
@@ -201,7 +203,7 @@ environment) produce **identical** results on the 106 phase-2 roots:
 96 pass / 4 error-on-success / 6 success-on-error, with byte-equivalent
 outputs across siblings on every non-pass.
 
-- The 6 success-on-error cases: `srac-1` and `delayed-merge` (expected —
+- The 6 success-on-error cases (2026-07-24; `delayed-merge` has been a success fixture since the 1.4.9 oracle, #121): `srac-1` and `delayed-merge` (expected —
   limitation/quirk-derived, see above) plus `path-keys-6/7/9.error` and
   `unquoted-1.error`, which are genuine four-sibling validation gaps
   (`a..b`, `.a`, `a...c.""` accepted despite the spec's verbatim
