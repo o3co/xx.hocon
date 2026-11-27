@@ -4,7 +4,7 @@
   "bare_but_control": "abc\u0001def",
   "k\u0001ey": "key quotes only because of the control character",
   "\u0000": "nul key",
-  "multi\nline key": "LF key, triple-quoted under the same guard as values",
+  "multi\nline key": "LF key: always the escaped form, never triple-quoted",
   "k\n\u0001": "LF plus another control: escaped form",
   "del_c1": "x\u007f\u0085\u009fy",
   "multiline_with_controls": "line1\u0001\nline2\u0000",
