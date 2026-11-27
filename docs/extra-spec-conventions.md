@@ -952,7 +952,14 @@ So renaming a key can turn a valid config into an error. The four o3co implement
 
 **Rule 1 — otherwise, break the cycle at the innermost optional substitution on it.**
 - A cycle exists when a substitution re-enters a field being resolved (in the same view), and rule 0 cannot answer it.
-- Take the substitutions on the cycle: from the one that closed it, back to the one that first left the re-entered field. The innermost **optional** one (`${?…}`) is treated as missing, exactly as if its path were undefined. Resolution continues from there.
+- List the substitutions on the cycle, in this order:
+  1. the one that closed it (the one that reached the re-entered field again);
+  2. the one it was reached from;
+  3. and so on, back to the one that first left the re-entered field.
+
+  The **first optional one in that list** (`${?…}`), the one nearest the point where the cycle closed, is treated as missing, exactly as if its path were undefined. It may be the closing substitution itself. Resolution continues from there.
+  - Example (row 023): the list is [`y`'s `${?b}` (closing), T1's `${y}`]. The first optional is `${?b}`, so `y = [1]` and `b.c = [[1], 2]`.
+  - Taking the *outermost* optional instead would give a different result on row 057, where the suite expects the closing `${?b}` to be the one dropped.
 - Self-references answered by rule 0 are never chosen, because dropping one would drop the field's history.
 - If no optional substitution is on the cycle, the config is an error ("part of a cycle").
 
