@@ -312,6 +312,33 @@ public class GenerateExpected {
         "subst-removed-target/rq26-optional-closes-cycle-ok.conf",
         "subst-removed-target/rq27-optional-ref-into-cycle-ok.conf",
         "subst-removed-target/rq28-optional-self-ref-ok.conf",
+        // S13.11 (HOCON.md L632) through a root-level include (xx.hocon#115):
+        // an undefined optional that an included file assigns to a root-level
+        // key leaves the including file's prior value in place. rs/ts/py
+        // dropped the prior value (io01–io08; io01 is differential fuzz seed
+        // 25); go matched Lightbend. io09–io15 are the shapes already right
+        // in all four impls (include under a key, nested field, optional
+        // after or inside the included file, dotted key, self-ref across the
+        // include, no include) — the bug is specific to a root-level include.
+        // io16 (added after the guards were numbered; S14b.3 L1000) is the same
+        // include-merge loss without an optional: an included `a = ${b}` must
+        // merge with a's prior object, as in one file; rs/ts/py drop the prior.
+        "include-optional-prior/io01-fuzz-seed-25.conf",
+        "include-optional-prior/io02-prior-object-and-reference.conf",
+        "include-optional-prior/io03-prior-scalar.conf",
+        "include-optional-prior/io04-prior-array.conf",
+        "include-optional-prior/io05-both-optionals-undefined.conf",
+        "include-optional-prior/io06-object-concat-keeps-prior.conf",
+        "include-optional-prior/io07-nested-include.conf",
+        "include-optional-prior/io08-optional-path-reference.conf",
+        "include-optional-prior/io09-include-under-key-ok.conf",
+        "include-optional-prior/io10-include-under-key-nested-ok.conf",
+        "include-optional-prior/io11-optional-after-included-value-ok.conf",
+        "include-optional-prior/io12-optional-inside-included-file-ok.conf",
+        "include-optional-prior/io13-dotted-key-ok.conf",
+        "include-optional-prior/io14-self-ref-across-include-ok.conf",
+        "include-optional-prior/io15-no-include-ok.conf",
+        "include-optional-prior/io16-object-subst-merges-prior.conf",
         // S3.1 empty-file fixtures (cluster 3h). An empty document is valid HOCON
         // parsing to `{}` (L134 brace-omission relaxation; L130-132 is the JSON
         // baseline). The `{}` sidecars emitted here are normative — per-impl
@@ -399,6 +426,7 @@ public class GenerateExpected {
     static final String[] HERMETIC_NO_ENV_GROUPS = {
         "include-env-fallback/",
         "subst-removed-target/",
+        "include-optional-prior/",
     };
 
     // Resolve options for a SUCCESS_CONFS or SIDECAR_ERROR_CONFS entry: env
