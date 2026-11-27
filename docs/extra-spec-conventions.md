@@ -922,16 +922,14 @@ Two implementation details cause this:
 - Lightbend resolves the fields of an object in the order of a Java `HashMap`, which depends on the key names, not on the file (`ConfigParser.java:233`, `SimpleConfigObject.java:309`).
 - When it meets a cycle, it stops at the **innermost** substitution being resolved (`ConfigReference.java:96-105`). If that one is required, the config fails, even when an optional substitution sits on the same cycle one step further out.
 
-So renaming a key can turn a valid config into an error. The four o3co implementations do not agree with each other either:
-- go and rs give `"yesyes"` on all three inputs.
-- ts and py raise an error on all three.
+So renaming a key can turn a valid config into an error. The four o3co implementations do not agree with each other either. go and rs give `"yesyes"` on the first and third inputs and an error on the second. ts and py raise an error on all three.
 
 #### Terms
 
 - **Assignment**: one `key = value` (or `key += value`, which is `key = ${?key} [value]`) in the document. A key assigned several times has several assignments, and the later ones win or merge as usual. Together they form the field's **history**.
 - **Document order**:
   - Fields are resolved in the order their keys **first appear** in the document. A key that is assigned again later keeps its first position, as in an insertion-ordered map.
-  - Fields inside an object are ordered the same way, within that object.
+  - Resolution is depth-first. An object's own fields are resolved at the object's position, in the same order within it, before the object's later siblings.
   - A file brought in by `include` takes its place at the `include`.
   - Config combined with `withFallback` puts the receiver's keys first, then the keys that only the fallback has.
 - **A field being resolved**: a field whose value the resolver has started computing and not yet finished. A substitution **re-enters** a field being resolved when it names that field or one of its ancestors. `r = ${v}` while `v.x` is being resolved re-enters it. `r = ${v.y}` while only `v.x` is being resolved does not (S13a.14).
@@ -939,10 +937,11 @@ So renaming a key can turn a valid config into an error. The four o3co implement
 #### o3co convention
 
 **Rule 0 — look back through a field's history first.**
-- While one assignment of a field is being resolved, and that assignment is a substitution or a concatenation, the field stands for its earlier assignments only. This holds for every lookup of that field: direct, or through other fields. It is the spec's look-back (L659-661, L849-853; [E16](#e16) consequence 1), and it is what Lightbend does too.
-- Example: `p = 1` / `p = ${a}x` / `a = ${p}` gives `p = "1x"` and `a = 1`. While `${a}x` is being resolved, `p` stands for `1`, so `${a}` finds `a = ${p} = 1`.
-- A field reached during such a lookup is resolved in that same view, even if it is also being resolved elsewhere.
-- If the field has no earlier assignment, it stands for nothing. A lookup that reaches it again is a cycle, handled by rule 1.
+- Take a field with several assignments, while one of them is being resolved, and that one is a substitution or a concatenation. **Every lookup made during that time** is made in a view in which the field stands for its earlier assignments only. That covers the field itself, an ancestor of it (whose value then contains the earlier assignments), and anything reached through other fields.
+- A field reached in that view is resolved afresh there, even if it is also being resolved outside the view.
+- This is the spec's look-back (L659-661, L849-853; [E16](#e16) consequence 1). Lightbend builds the same view, but differs on a field reached inside it that is already being resolved outside it (see *Why we diverge*).
+- Example: `a = ${p}` / `p = 1` / `p = ${a}x` gives `a = 1` and `p = "1x"`. Resolving `a` reaches `p`, whose last assignment `${a}x` is a concatenation. While it is resolved, `p` stands for `1`, so `${a}` resolves `a` afresh in that view: `a = ${p} = 1`, and `p = "1x"`. The outer `a` then takes that same result (rule 2).
+- If the field has no earlier assignment, it has nothing to look back at. A lookup that reaches it, or an ancestor of it, again is a cycle, handled by rule 1. It does not count as an absent field.
 
 **Rule 1 — otherwise, break the cycle at the innermost optional substitution on it.**
 - A cycle exists when a substitution re-enters a field being resolved (in the same view), and rule 0 cannot answer it.
@@ -952,17 +951,21 @@ So renaming a key can turn a valid config into an error. The four o3co implement
 
 **Rule 2 — every substitution is resolved once.**
 - Each `${…}` in the document has one result: the first one that is completed, in whichever view. Every other place that needs that substitution uses this result. A substitution dropped by rule 1 has the result "missing".
-- Work that rule 1 abandoned on the way (substitutions that were between the dropped one and the point where the cycle closed) is discarded and resolved again when it is next needed.
+- That includes a resolution of the same substitution that is still in progress further out: when it finishes, it takes the first completed result.
+- Work that rule 1 abandoned on the way is discarded and resolved again when it is next needed. That is every substitution after the dropped one, up to and including the one that closed the cycle.
 - This is the spec's "memoized by instance, not by path" (HOCON.md L883-890), extended to rule 0's views.
 
 The three rules never look at key names: the same document gives the same result whatever its fields are called.
+
+One consequence can surprise readers: an alias can end up different from its target. In row 024 below, `c = ${e}` but `c = []` while `e = [[]]`. `c` was resolved inside a view in which `e` still stood for its earlier assignment, and rule 2 keeps that result.
 
 #### Why we diverge from Lightbend
 
 The spec deliberately leaves the order in which fields are resolved undefined. Where the result depends on it, HOCON.md allows "either result or an error" (L866-881), and calls a fixed order "too constraining". Lightbend's authority, as this project reads it, covers how the spec is interpreted where the text is open. Its behaviour here differs from the convention in three ways, and none of them is an interpretation of the spec:
 - **Order.** Lightbend's order is the hash of the key names. A result that changes when a key is renamed is not a reading of anything. Copying it would mean copying Java's string hash function. Document order is what a reader of the file sees.
 - **Where a cycle is broken.** Lightbend stops at the innermost substitution even when it is required, and fails although an optional one on the same cycle could break it. The spec says the cycle must be broken "when possible" (L659-661). Rule 1 does that. Even when the keys happen to sort in file order, Lightbend errors on rows 039, 045, 046, 024 and 065, and the convention resolves them.
-- **Remembering a break.** Lightbend does not keep a dropped optional's "missing" result, so the same substitution can be resolved again with a different outcome (row 063). Rule 2 keeps it, as the spec's memoization requires.
+- **Re-entering a field from inside a look-back.** Lightbend builds rule 0's view, but its cycle markers belong to the substitution, not to the view. A field reached inside the view that is already being resolved outside it is therefore reported as a cycle. In file order this makes rows 037, 048 and 023 fail, as well as P2 and the first extra row with `b` written first. Neither of the first two has an optional substitution at all. Rule 0 resolves such a field afresh in the view instead.
+- **Remembering a break.** Lightbend does not keep a dropped optional's "missing" result, so the same substitution can be resolved again with a different outcome (row 063, renamed: Lightbend gives `c = []`, the convention no `c`). Rule 2 keeps it, as the spec's memoization requires.
 
 On every row below, the convention's result is one the suite expects or explicitly allows. That is a compatibility check, not the reason for the rules.
 
@@ -988,7 +991,9 @@ The rows are from the zig-hocon conformance suite (commit `3e4ddc6`). The o3co r
 | `self-referential-examples/065` | `e = x${?c}` / `e = ${e}y${?c}` / `c = ${e}` | `e = c = "xy"` / error | `e = "xyx"`, `c = "x"` (rules 0–2) | expect |
 | `self-referential-examples/066` | 065 with `c` first | `e = c = "xy"` / same | `e = "xyx"`, `c = "x"` | expect |
 | #67 probe P2 | `a = hello` / `a = ${b}` / `b = ${a}` / `a = {}` | `a = {}`, `b = "hello"`; with `b` first and renamed: error | `a = {}`, `b = "hello"` in either line order (rules 0, 2) | Lightbend as named |
-| — | `a = 1` / `a = ${b}` / `b = [${?a}]` | `a = b = [1]` in either line order | the same (rule 0) | — |
+| — | `a = 1` / `a = ${b}` / `b = [${?a}]` | `a = b = [1]` in either line order; with `b` first and renamed: error | `a = b = [1]` in either line order (rules 0, 2) | — |
+| — | `b.c = 1` / `b.c = ${y}` / `y = ${b}` | `b = {c: {c: 1}}`, `y = {c: 1}` | the same (rule 0 covers the ancestor `b`) | — |
+| — (HOCON.md L870-873) | `a : 1` / `b : 2` / `a : ${b}` / `b : ${a}` | `a = b = 1`, also with the first two lines swapped | `a = b = 1`; with `b : 2` written first, `a = b = 2` | the spec allows either |
 | — | `v { x = ${?r}, y = 1 }` / `r = ${v.y}` | `r = 1`, `v = {x: 1, y: 1}` | the same (no cycle) | — |
 
 #### Status
