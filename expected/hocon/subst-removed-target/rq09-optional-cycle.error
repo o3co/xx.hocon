@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/subst-removed-target/rq09-optional-cycle.conf: 4: Could not resolve substitution to a value: ${a}

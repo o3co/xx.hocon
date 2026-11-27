@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/subst-removed-target/rq40-optional-closes-cycle-over-prior-object-window.conf: 3: Could not resolve substitution to a value: ${a.n}

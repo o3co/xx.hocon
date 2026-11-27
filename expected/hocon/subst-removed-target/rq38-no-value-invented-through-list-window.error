@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/subst-removed-target/rq38-no-value-invented-through-list-window.conf: 6: Could not resolve substitution to a value: ${b.x}

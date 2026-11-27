@@ -290,6 +290,92 @@ public class GenerateExpected {
         "subst-optional-element/se02-literal-null-kept.conf",
         "subst-optional-element/se03-nested-arrays.conf",
         "subst-optional-element/se04-concat-element-remainder.conf",
+        // S13.10 success guards for subst-removed-target (xx.hocon#123): the
+        // error cases rq01–rq16 and rq29 are in SIDECAR_ERROR_CONFS. These pin what
+        // must NOT become an error: an optional reference to a removed field
+        // (rq17), the prior value an undefined optional leaves in place
+        // (rq18/rq19, the #115 direction), a later definition (rq20), hidden
+        // references that are never evaluated (rq21/rq22, S13a.5), an empty
+        // parent object (rq23), the include fallback finding a value (rq24),
+        // and the optional cycles and self-ref under rq09–rq11 on their own
+        // (rq25–rq28) — so a fix that turns the optional itself into an error
+        // fails here.
+        "subst-removed-target/rq17-optional-ref-ok.conf",
+        "subst-removed-target/rq18-prior-value-kept-ok.conf",
+        "subst-removed-target/rq19-prior-object-kept-ok.conf",
+        "subst-removed-target/rq20-later-value-wins-ok.conf",
+        "subst-removed-target/rq21-hidden-reference-ok.conf",
+        "subst-removed-target/rq22-hidden-nested-reference-ok.conf",
+        "subst-removed-target/rq23-empty-parent-object-ok.conf",
+        "subst-removed-target/rq24-include-original-path-ok.conf",
+        "subst-removed-target/rq25-optional-cycle-ok.conf",
+        "subst-removed-target/rq26-optional-closes-cycle-ok.conf",
+        "subst-removed-target/rq27-optional-ref-into-cycle-ok.conf",
+        "subst-removed-target/rq28-optional-self-ref-ok.conf",
+        // rq30–rq33: EXPECTED-LB success fixtures that fail in all four impls
+        // until #125 (single-level prior). Two undefined optionals over a
+        // value (or a self-ref chain) lose the bottom layer, so the field looks
+        // removed and the #123 rule would turn a config Lightbend loads into an
+        // error. #123 therefore ships with #125 / #67; impls mark these pending.
+        "subst-removed-target/rq30-two-overrides-then-reference-pending-125.conf",
+        "subst-removed-target/rq31-two-optionals-then-reference-pending-125.conf",
+        "subst-removed-target/rq32-forward-reference-two-optionals-pending-125.conf",
+        "subst-removed-target/rq33-self-ref-chain-then-reference-pending-125.conf",
+        // rq34–rq37 (`-window`): #123 moved into the #67 window — configs
+        // Lightbend loads that the single-slot #123 branches rejected (a hidden
+        // required ref evaluated, an optional cycle under optionals, an optional
+        // self-ref through an alias, the default-then-env-override object).
+        // Canonical today: rq34 silently loses url in rs/ts/py, rq36 crashes go
+        // (go.hocon#218 class), rq37 errors in go. rq38 is in SIDECAR_ERROR_CONFS.
+        "subst-removed-target/rq34-default-then-env-override-in-object-window.conf",
+        "subst-removed-target/rq35-hidden-required-ref-never-evaluated-window.conf",
+        "subst-removed-target/rq36-optional-cycle-under-optionals-window.conf",
+        "subst-removed-target/rq37-optional-self-ref-concat-through-alias-window.conf",
+        // rq39: sibling-leaf optional overrides of an object default — rs/ts/py
+        // silently drop db.host today (go right).
+        "subst-removed-target/rq39-sibling-leaf-overrides-keep-defaults-window.conf",
+        // S13.11 (HOCON.md L632) through a root-level include (xx.hocon#115):
+        // an undefined optional that an included file assigns to a root-level
+        // key leaves the including file's prior value in place. rs/ts/py
+        // dropped the prior value (io01–io08; io01 is differential fuzz seed
+        // 25); go matched Lightbend. io09–io15 are the shapes already right
+        // in all four impls (include under a key, nested field, optional
+        // after or inside the included file, dotted key, self-ref across the
+        // include, no include) — the bug is specific to a root-level include.
+        // io16 (added after the guards were numbered; S14b.3 L1000) is the same
+        // include-merge loss without an optional: an included `a = ${b}` must
+        // merge with a's prior object, as in one file; rs/ts/py drop the prior.
+        "include-optional-prior/io01-fuzz-seed-25.conf",
+        "include-optional-prior/io02-prior-object-and-reference.conf",
+        "include-optional-prior/io03-prior-scalar.conf",
+        "include-optional-prior/io04-prior-array.conf",
+        "include-optional-prior/io05-both-optionals-undefined.conf",
+        "include-optional-prior/io06-object-concat-keeps-prior.conf",
+        "include-optional-prior/io07-nested-include.conf",
+        "include-optional-prior/io08-optional-path-reference.conf",
+        "include-optional-prior/io09-include-under-key-ok.conf",
+        "include-optional-prior/io10-include-under-key-nested-ok.conf",
+        "include-optional-prior/io11-optional-after-included-value-ok.conf",
+        "include-optional-prior/io12-optional-inside-included-file-ok.conf",
+        "include-optional-prior/io13-dotted-key-ok.conf",
+        "include-optional-prior/io14-self-ref-across-include-ok.conf",
+        "include-optional-prior/io15-no-include-ok.conf",
+        "include-optional-prior/io16-object-subst-merges-prior.conf",
+        // io17/io18: #67-window acceptance rows found by the #115 reviews — a
+        // single-slot "keep the including value as the prior" fix evaluates a
+        // hidden array under an included object (io17, go fails today) and
+        // leaks a scoped prior into ${a} (io18). io19 is in SIDECAR_ERROR_CONFS.
+        "include-optional-prior/io17-hidden-array-under-included-object.conf",
+        "include-optional-prior/io18-scoped-prior-not-leaked.conf",
+        "include-optional-prior/io20-self-ref-folded-under-included-concat.conf",
+        // optional-cycle-repeat/ (go.hocon#218, rs.hocon#199): a substitution
+        // cycle written twice overflowed the stack in go and rs (process crash)
+        // and gave a ParseError in ts/py. oc02 is in SIDECAR_ERROR_CONFS.
+        "optional-cycle-repeat/oc01-optional-cycle-twice.conf",
+        "optional-cycle-repeat/oc03-optional-cycle-twice-in-concat.conf",
+        "optional-cycle-repeat/oc04-optional-cycle-repeated-by-include.conf",
+        "optional-cycle-repeat/oc05-optional-cycle-once-ok.conf",
+        "optional-cycle-repeat/oc06-optional-cycle-then-value-ok.conf",
         // S3.1 empty-file fixtures (cluster 3h). An empty document is valid HOCON
         // parsing to `{}` (L134 brace-omission relaxation; L130-132 is the JSON
         // baseline). The `{}` sidecars emitted here are normative — per-impl
@@ -376,7 +462,22 @@ public class GenerateExpected {
     // the optional substitution to its undefined branch.
     static final String[] HERMETIC_NO_ENV_GROUPS = {
         "include-env-fallback/",
+        "subst-removed-target/",
+        "include-optional-prior/",
+        "optional-cycle-repeat/",
     };
+
+    // Resolve options for a SUCCESS_CONFS or SIDECAR_ERROR_CONFS entry: env
+    // lookup is disabled for HERMETIC_NO_ENV_GROUPS, so a host variable can
+    // neither leak into an expected JSON nor make an error fixture resolve.
+    static ConfigResolveOptions resolveOptionsFor(String confName) {
+        for (String prefix : HERMETIC_NO_ENV_GROUPS) {
+            if (confName.startsWith(prefix)) {
+                return ConfigResolveOptions.defaults().setUseSystemEnvironment(false);
+            }
+        }
+        return ConfigResolveOptions.defaults();
+    }
 
     // S23.4 properties-conflict fixtures (cluster 3h). Lightbend's direct
     // ConfigFactory.parseFile(...properties) applies the spec L1485 "object wins"
@@ -455,6 +556,51 @@ public class GenerateExpected {
         "quoted-control/qc06-tab-key.conf",
         "quoted-control/qc07-tab-subst-path.conf",
         "quoted-control/qc08-tab-include.conf",
+        // S13.10 (HOCON.md L627) — a REQUIRED substitution whose target field
+        // was removed by an undefined optional (S13.11) is unresolved, so it
+        // is an error (xx.hocon#123). All four impls dropped it silently: the
+        // referring field vanished or became {}, the array element was
+        // skipped (rq04), or the concat treated it as empty (rq05–rq07) — the
+        // S13.11–S13.14 rules, which are for ${?} only. rq11–rq13 are the
+        // zig-hocon conformance rows self-referential-examples/041 and
+        // include-substitution/010 and /015; rq14 reaches the removed field
+        // through the include fallback to the original path; rq15 (merge, not
+        // hidden) and rq16 (kept prior value is the reference) bound the
+        // S13a.5 and #115 rules. rq29 (added after the success guards were
+        // numbered) pins that a fixed-up path that is found but removed does
+        // not fall back to the original path. A required self-ref whose only
+        // prior was removed (`a = ${?U}` / `a = ${a}`) is deliberately not
+        // here: it cannot be told apart from `a = 1` / `a = ${?U}` /
+        // `a = ${a}` (Lightbend: {"a":1}) without the multi-level prior of
+        // #125. Success guards are in
+        // SUCCESS_CONFS.
+        "subst-removed-target/rq01-required-to-removed-field.conf",
+        "subst-removed-target/rq02-forward-ref.conf",
+        "subst-removed-target/rq03-both-optionals-undefined.conf",
+        "subst-removed-target/rq04-array-element.conf",
+        "subst-removed-target/rq05-string-concat.conf",
+        "subst-removed-target/rq06-object-concat.conf",
+        "subst-removed-target/rq07-array-concat.conf",
+        "subst-removed-target/rq08-nested-path.conf",
+        "subst-removed-target/rq09-optional-cycle.conf",
+        "subst-removed-target/rq10-optional-self-ref.conf",
+        "subst-removed-target/rq11-optional-closes-cycle.conf",
+        "subst-removed-target/rq12-include-fixed-up-path.conf",
+        "subst-removed-target/rq13-include-both-paths-removed.conf",
+        "subst-removed-target/rq14-include-original-path-removed.conf",
+        "subst-removed-target/rq15-merged-not-hidden.conf",
+        "subst-removed-target/rq16-kept-prior-is-required-ref.conf",
+        "subst-removed-target/rq29-include-fixed-up-removed-original-set.conf",
+        // rq38 (`-window`): no value may be invented for a path through a list
+        // (rs/py #123 branches gave c = 1).
+        "subst-removed-target/rq38-no-value-invented-through-list-window.conf",
+        "subst-removed-target/rq40-optional-closes-cycle-over-prior-object-window.conf",
+        // io19: the including file's required ${gh115_missing} is live under the
+        // included object (E16), so it is an error — accepted by rs/ts/py today,
+        // so the #115 redesign is BREAKING for it. oc02: the required form of
+        // the cycle-written-twice crash (go.hocon#218 / rs.hocon#199).
+        "include-optional-prior/io19-live-prior-required-missing.conf",
+        "optional-cycle-repeat/oc02-required-cycle-twice.conf",
         "concat-errors/ce01-array-plus-object.conf",
         "concat-errors/ce02-object-plus-array.conf",
         "concat-errors/ce03-array-plus-scalar.conf",
@@ -604,14 +750,8 @@ public class GenerateExpected {
                 } else {
                     ConfigParseOptions parseOpts = ConfigParseOptions.defaults()
                         .setOriginDescription(confName);
-                    boolean hermeticNoEnv = false;
-                    for (String prefix : HERMETIC_NO_ENV_GROUPS) {
-                        if (confName.startsWith(prefix)) { hermeticNoEnv = true; break; }
-                    }
-                    ConfigResolveOptions resolveOpts = hermeticNoEnv
-                        ? ConfigResolveOptions.defaults().setUseSystemEnvironment(false)
-                        : ConfigResolveOptions.defaults();
-                    Config config = ConfigFactory.parseFile(confPath.toFile(), parseOpts).resolve(resolveOpts);
+                    Config config = ConfigFactory.parseFile(confPath.toFile(), parseOpts)
+                        .resolve(resolveOptionsFor(confName));
                     ConfigObject root = config.root();
                     // Filter out environment-dependent keys that differ per machine.
                     // test01.conf has a top-level `system { home = ${?HOME}, ... }` block.
@@ -764,7 +904,7 @@ public class GenerateExpected {
             }
             Exception caught = null;
             try {
-                ConfigFactory.parseFile(confPath.toFile()).resolve();
+                ConfigFactory.parseFile(confPath.toFile()).resolve(resolveOptionsFor(confName));
             } catch (Exception e) {
                 caught = e;
             }

@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/optional-cycle-repeat/oc02-required-cycle-twice.conf: 3: Could not resolve substitution to a value: ${a} was part of a cycle of substitutions involving ${b}, ${a}, ${b}, ${a}, ${b}

@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/subst-removed-target/rq16-kept-prior-is-required-ref.conf: 3: Could not resolve substitution to a value: ${a}

@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/subst-removed-target/rq14-inner.conf: 1: Could not resolve substitution to a value: ${common.x.y}

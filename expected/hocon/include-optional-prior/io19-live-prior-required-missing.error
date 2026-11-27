@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/include-optional-prior/io19-live-prior-required-missing.conf: 3: Could not resolve substitution to a value: ${gh115_missing}
