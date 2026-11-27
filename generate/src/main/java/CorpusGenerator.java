@@ -116,9 +116,9 @@ public final class CorpusGenerator {
         // resolution is decided by the winning value's type: an object winner
         // merges, so the stack below stays reachable; an array or scalar winner
         // replaces, so it does not. h1/h2 are live-stack cases where the four
-        // impls diverge from Lightbend and must be fixed; h3 is the dead-stack
-        // case where Lightbend errors on a config that has no cycle, suppressed
-        // in differential/known-divergences.json against E16.
+        // impls diverge from Lightbend and must be fixed; h3 is a dead-stack
+        // guard that all five engines agree on (the E16 dead-stack divergence was
+        // withdrawn with the Lightbend 1.4.9 oracle, #121).
         n += emit(corpusDir, "h1-live-stack-lookback-cycle-break", Map.of(
             "main.conf", "a = hello\na = ${b}\nb = ${a}\na = {}\n"));
         n += emit(corpusDir, "h2-live-stack-object-winner", Map.of(

@@ -189,6 +189,10 @@ Spec cross-check of the new classifications (details in the fixtures'
 - **`delayed-merge`** — the reference reports a substitution cycle where the
   final-value reading has none; mirror image of the object6 case, tracked
   together in [xx.hocon#67](https://github.com/o3co/xx.hocon/issues/67).
+  **Since the 1.4.9 oracle ([#121](https://github.com/o3co/xx.hocon/issues/121))**
+  the reference resolves it to `sub = [10]`, the siblings' answer. Its expected
+  output is now `test-expected.json`, and the E16 dead-stack divergence is
+  withdrawn.
 
 ### Four-implementation dry run (phase 2 fixtures) — 2026-07-24
 

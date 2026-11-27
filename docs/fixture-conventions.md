@@ -89,11 +89,11 @@ cross-directory includes are NOT pre-expanded.
 `ev11-inner.conf` is include-only: it is not in `SUCCESS_CONFS` and has no
 expected JSON of its own.
 
-#### Hybrid mode: `ev12c` routes through native Lightbend 1.4.6 (no sidecar)
+#### Hybrid mode: `ev12c` routes through native Lightbend (no sidecar)
 
 Most env-var-list fixtures use the `.env` sidecar + `EnvVarListExpander`
 pipeline above. **`ev12c-include-config-defined-wins.conf` is an exception**:
-it has NO `.env` sidecar and is processed via the native Lightbend 1.4.6 path
+it has NO `.env` sidecar and is processed via the native Lightbend path
 (the `else` branch of the SUCCESS_CONFS loop in `GenerateExpected.java`,
 equivalent to plain `ConfigFactory.parseFile(...).resolve()`).
 
@@ -106,7 +106,7 @@ the expander would not see that `S13C_EV12C_X` is defined in the *outer*
 file, so the regex would replace `${X[]}` with the
 `${NEVER_DEFINED_PLACEHOLDER}` sentinel and required-resolution would fail.
 
-The native Lightbend 1.4.6 path has full resolver semantics including
+The native Lightbend path has full resolver semantics including
 [S14c.2 original-path fallback](spec-checklist.md), which is exactly what
 the spec posture under [E6 cross-source](extra-spec-conventions.md#e6)
 relies on. See [xx.hocon#22](https://github.com/o3co/xx.hocon/issues/22).
