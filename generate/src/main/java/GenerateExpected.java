@@ -348,6 +348,20 @@ public class GenerateExpected {
         "include-optional-prior/io14-self-ref-across-include-ok.conf",
         "include-optional-prior/io15-no-include-ok.conf",
         "include-optional-prior/io16-object-subst-merges-prior.conf",
+        // io17/io18: #67-window acceptance rows found by the #115 reviews — a
+        // single-slot "keep the including value as the prior" fix evaluates a
+        // hidden array under an included object (io17, go fails today) and
+        // leaks a scoped prior into ${a} (io18). io19 is in SIDECAR_ERROR_CONFS.
+        "include-optional-prior/io17-hidden-array-under-included-object.conf",
+        "include-optional-prior/io18-scoped-prior-not-leaked.conf",
+        // optional-cycle-repeat/ (go.hocon#218, rs.hocon#199): a substitution
+        // cycle written twice overflowed the stack in go and rs (process crash)
+        // and gave a ParseError in ts/py. oc02 is in SIDECAR_ERROR_CONFS.
+        "optional-cycle-repeat/oc01-optional-cycle-twice.conf",
+        "optional-cycle-repeat/oc03-optional-cycle-twice-in-concat.conf",
+        "optional-cycle-repeat/oc04-optional-cycle-repeated-by-include.conf",
+        "optional-cycle-repeat/oc05-optional-cycle-once-ok.conf",
+        "optional-cycle-repeat/oc06-optional-cycle-then-value-ok.conf",
         // S3.1 empty-file fixtures (cluster 3h). An empty document is valid HOCON
         // parsing to `{}` (L134 brace-omission relaxation; L130-132 is the JSON
         // baseline). The `{}` sidecars emitted here are normative — per-impl
@@ -436,6 +450,7 @@ public class GenerateExpected {
         "include-env-fallback/",
         "subst-removed-target/",
         "include-optional-prior/",
+        "optional-cycle-repeat/",
     };
 
     // Resolve options for a SUCCESS_CONFS or SIDECAR_ERROR_CONFS entry: env
@@ -562,6 +577,12 @@ public class GenerateExpected {
         "subst-removed-target/rq15-merged-not-hidden.conf",
         "subst-removed-target/rq16-kept-prior-is-required-ref.conf",
         "subst-removed-target/rq29-include-fixed-up-removed-original-set.conf",
+        // io19: the including file's required ${gh115_missing} is live under the
+        // included object (E16), so it is an error — accepted by rs/ts/py today,
+        // so the #115 redesign is BREAKING for it. oc02: the required form of
+        // the cycle-written-twice crash (go.hocon#218 / rs.hocon#199).
+        "include-optional-prior/io19-live-prior-required-missing.conf",
+        "optional-cycle-repeat/oc02-required-cycle-twice.conf",
         "concat-errors/ce01-array-plus-object.conf",
         "concat-errors/ce02-object-plus-array.conf",
         "concat-errors/ce03-array-plus-scalar.conf",
