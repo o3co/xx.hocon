@@ -620,6 +620,8 @@ Each impl's mechanism is **strictly narrower** than path-equality — it correct
 
 **Tracking issue**: [#27](https://github.com/o3co/xx.hocon/issues/27). **Companion to S13a.13** (decision #1 amendment); sr01–sr11 in the same fixture directory cover the unchanged S13a.13 normative cases.
 
+See also [E23](#e23) for how a cycle is broken when look-back and an optional substitution meet in one cycle.
+
 ### E15 — Numeric VALUE JSON rendering: per-impl natural form accepted; differential harness compares semantically
 
 **Source**: [#53](https://github.com/o3co/xx.hocon/issues/53) (follow-up to [#50](https://github.com/o3co/xx.hocon/issues/50)). After #50 closed the **leading-zero** invalid-JSON divergence (the only validity bug in the class), an empirical battery across all four engines revealed that numeric-VALUE JSON rendering still diverges in three orthogonal *cosmetic* dimensions — none of which affect the semantic value (`Number(...)` is identical across all four):
@@ -891,6 +893,97 @@ This is an API convention, not a reading of the spec. HOCON has no notion of a s
 | rs.hocon | `#[serde(with = "hocon::serde::duration::require_unit")]` (and under `bytes`, `period`, each with `::option`) | ✅ | [rs.hocon#196](https://github.com/o3co/rs.hocon/pull/196), v1.14.2. The same answer on serde's buffered paths (flatten, untagged / internally tagged enums). `tests/serde_unit_helpers_test.rs`. |
 | py.hocon | `hocon.Duration(unit, require_unit=True)`, `hocon.Bytes(unit, require_unit=True)`, and the new period marker `hocon.PeriodUnit(require_unit=True)` | ✅ | [py.hocon#59](https://github.com/o3co/py.hocon/pull/59), v1.14.2. Dataclass and Pydantic paths. `tests/test_decode_unit_markers.py`. |
 
+### E23 — Cycles are resolved in document order: break at the innermost optional, and resolve each reference once (deliberate divergence from Lightbend's hash order)
+
+**Source**: the #67 / #125 resolver window (o3co/xx.hocon#67, #125, #127, #128) and the zig-hocon conformance rows filed under [#122](https://github.com/o3co/xx.hocon/issues/122). User decision 2026-11-28 (D1 = A).
+
+#### The problem, in one example
+
+Two fields refer to each other, and one link is optional:
+
+```hocon
+d = yes${?c}
+c = ${d}
+```
+
+The spec answer is clear. `${?c}` leads back to `d` through `c = ${d}`. A substitution that leads back to the field it is in cannot be resolved (HOCON.md §Self-Referential Substitutions), and an optional substitution that cannot be resolved is treated as missing (L714-716). So `${?c}` contributes nothing, `d = "yes"` and `c = "yes"`. The order in which the two fields are resolved makes no difference to that reading.
+
+Lightbend 1.4.9 gets this answer only for some key names. Measured:
+
+| input | Lightbend 1.4.9 |
+| --- | --- |
+| `d = yes${?c}` / `c = ${d}` | `{"c":"yes","d":"yes"}` |
+| `c = ${d}` / `d = yes${?c}` (same keys, other line order) | `{"c":"yes","d":"yes"}` |
+| `c = yes${?d}` / `d = ${c}` (the keys swapped) | `UnresolvedSubstitution: ${c} was part of a cycle` |
+
+The reason is an implementation detail:
+- Lightbend resolves an object's fields in the order of a Java `HashMap`, which depends on the key names (`ConfigParser.java:233`, `SimpleConfigObject.java:309`).
+- When it meets a cycle, it stops at the innermost substitution on it (`ConfigReference.java:96-105`).
+
+If that innermost substitution happens to be the required `${c}`, the whole config fails. If it happens to be the optional one, the optional is dropped and everything resolves. Renaming a key can therefore turn a valid config into an error.
+
+The four o3co implementations do not agree with each other either:
+- go and rs give `"yesyes"` on all three inputs.
+- ts and py raise an error on all three.
+
+#### o3co convention
+
+Fields are resolved in **document order**. When following substitutions leads back to a field that is still being resolved, there is a cycle, and two rules decide the outcome.
+
+1. **Break the cycle at the innermost optional substitution on it.**
+   - Look at the substitutions that were being followed when the cycle closed, from the one that closed it outwards. The first **optional** one (`${?…}`) is treated as missing at that spot, exactly as if its path were undefined. Resolution continues from there.
+   - Look-back substitutions are skipped when choosing. A look-back is a self-reference that is answered from the field's earlier value, as in `a = ${?a} x` or `+=`. It only looks *down* the field's own history, so it is not the link that closes the cycle.
+   - If there is no optional substitution on the cycle, the config is an error ("part of a cycle"), as in Lightbend.
+2. **A field reached again inside a look-back is resolved there, and every substitution is resolved once.**
+   - A look-back answers a self-reference with the field's earlier value (`p = 1` / `p = ${a}x` sees `p = 1`). If following that earlier value reaches another field, that field is resolved in the same view (where `p` is still `1`). This is not reported as a cycle just because the field is also being resolved in the main view.
+   - Each substitution in the document is resolved once. The first result that is completed, whether in the main view or inside a look-back, is its value everywhere (HOCON.md L884-888: substitutions are memoized by instance, not by path).
+
+Rules 1 and 2 never look at key names. The same document gives the same result whatever the fields are called.
+
+#### Why we diverge from Lightbend
+
+- **This is not a reading where the spec is open.** HOCON.md L866-881 leaves the order in which fields are resolved undefined, and allows "either result or an error" where the outcome depends on it.
+- **Lightbend does not make that choice; its `HashMap` does.** The authority rule (*Lightbend decides what the spec means where the spec is open*) assumes Lightbend's behaviour is a reading of the spec. Behaviour that changes when a key is renamed is not a reading of anything. Copying it would mean copying Java's string hash function.
+- **A fixed, documented order is the only portable choice.**
+  - Document order is what a reader sees.
+  - The two rules then give one answer per document.
+  - On the rows where the suite names an expected value, that answer is either that value or one the suite explicitly allows (`also_valid`).
+
+#### What it decides
+
+The rows below are from the zig-hocon conformance suite (commit `3e4ddc6`). The convention's results were traced by hand from the two rules. The implementation steps of the #67 / #125 window add them as fixtures and confirm them.
+
+| row (suite) | input | Lightbend 1.4.9 as named / with keys renamed to file order | o3co (document order) | suite |
+| --- | --- | --- | --- | --- |
+| `self-referential-examples/045` | `d = yes${?c}` / `c = ${d}` | `"yes"` both / error | `d = c = "yes"` | expect |
+| `self-referential-examples/039` | `v { x = ${?r} }` / `r = ${v}` | `{}` both / error | `v = r = {}` | expect |
+| `self-referential-examples/046` | `e += ${?c}` / `c = ${e}` | `[]` both / error | `e = c = []` | expect |
+| `plus-equals-field-separator/022` | `b.c += ${y}` / `b.c += 2` / `y = [1, ${?b}]` | `b.c = [[1], 2]` / same | `y = [1]`, `b.c = [[1], 2]` | expect |
+| `plus-equals-field-separator/023` | 022 with `y` first | as 022 / error | as 022 | expect |
+| `plus-equals-field-separator/026` / `027` | `a += ${?b}` / `b += ${?a}` (and the lines swapped) | `a = [[]]`, `b = []` in both files (the name decides, not the line) | the first field `[[]]`, the second `[]` | expect |
+| `self-referential-examples/057` | `b = [${?a}]` / `a = [${?b}]` | `a = [[]]`, `b = []` (the suite's also_valid) | `b = [[]]`, `a = []` | expect |
+| `self-referential-examples/063` | `d = [${?c}]` / `c = ${?d}` | `c = d = []` (the suite's also_valid) | `d = []`, no `c` | expect |
+| `self-referential-examples/064` | `c = ${?d}` / `d = [${?c}]` | `c = d = []` | `c = d = []` | also_valid |
+| `self-referential-examples/037` | `a = ${p}` / `p = 1` / `p = ${a}x` | `a = 1`, `p = "1x"` / error | `a = 1`, `p = "1x"` (rule 2) | expect |
+| `self-referential-examples/048` | `a = [${p}]` / `p = 1` / `p = ${a}` | `a = p = [1]` / error | `a = p = [1]` (rule 2) | expect |
+| `plus-equals-field-separator/024` / `025` | `e += ${?c}` twice / `c = ${e}` (and `c` first) | `e = c = []` | `e = c = []` | also_valid |
+| `self-referential-examples/065` / `066` | `e = x${?c}` / `e = ${e}y${?c}` / `c = ${e}` (and `c` first) | `e = c = "xy"` / error | `e = c = "xy"` | also_valid |
+| #67 probe P2 | `a = hello` / `a = ${b}` / `b = ${a}` / `a = {}` | `a = {}`, `b = "hello"` / error | `a = {}`, `b = "hello"` in either line order | Lightbend as named |
+
+Rows where the convention gives the suite's `also_valid` result rather than its `expect` follow from document order. The suite allows them, and they are recorded here so that every implementation gives the same one.
+
+#### Status
+
+Not implemented in any implementation yet. Today all four fail most of the rows above, each in its own way. Rule 1 lands in step (b) of the #67 / #125 window, and rule 2 in steps (a) and (d). Fixtures are added with those steps.
+
+#### Out of scope
+
+- Cycles with no optional substitution on them stay errors.
+- Which entries of a merge stack are resolved at all (E16, and its open note on fully shadowed entries) is a separate question.
+- The look-back mechanism of a single field (S13a.13, E14) is unchanged. Rule 1 only says that a look-back is never the link that breaks a cycle.
+
+**Tracking issue**: [#67](https://github.com/o3co/xx.hocon/issues/67).
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -960,3 +1053,5 @@ This is an API convention, not a reading of the spec. HOCON has no notion of a s
 2026-11-28 — E18 decision 5 amended for S1.2.4 ([#130](https://github.com/o3co/xx.hocon/issues/130)): the escaped double-quoted form now escapes every C0 control (`\b \f \n \r \t`, otherwise `\u00xx`) in values and keys, because a raw one inside a double-quoted (non-triple) string is a parse error (measured against Lightbend 1.4.9). Keys are never triple-quoted, since three of the four parsers reject a triple-quoted key. The triple-quote guard widens from "no CR" to "no C0 control other than LF and TAB", which is a readability choice: raw controls inside triple quotes remain valid input. Corpus gains rt11 (control characters). Status ✅ → ⏳ in all four until the per-impl PRs land.
 
 2026-11-28 — E16 dead-stack divergence withdrawn with the oracle bump to Lightbend 1.4.9 ([#121](https://github.com/o3co/xx.hocon/issues/121)). Lightbend 1.4.7+ (measured on 1.4.9) no longer evaluates entries below a value that cannot take fallbacks, so `pushcorn-hocon-parser/delayed-merge` resolves to the siblings' `sub = [10]`. The `h3` suppression in `differential/known-divergences.json` is removed (that minimal input never diverged). The live-stack half is unchanged and is scheduled for the #67 / #125 window. No other expected output changed under 1.4.9. The review also recorded which entries under an object winner 1.4.9 resolves (fully shadowed object skipped; partly shadowed, recursively merging, or non-object middle entries resolved) as an open note for the #67 / #125 window, not as a convention change.
+
+2026-11-28 — E23 (cycles are resolved in document order: break at the innermost optional, and resolve each reference once) added from the #67 / #125 window analysis. User decision D1 = A. Deliberate divergence from Lightbend's HashMap resolution order. Not yet implemented.
