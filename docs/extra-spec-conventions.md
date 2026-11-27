@@ -620,7 +620,7 @@ Each impl's mechanism is **strictly narrower** than path-equality — it correct
 
 **Tracking issue**: [#27](https://github.com/o3co/xx.hocon/issues/27). **Companion to S13a.13** (decision #1 amendment); sr01–sr11 in the same fixture directory cover the unchanged S13a.13 normative cases.
 
-See also [E23](#e23) for how a cycle is broken when look-back and an optional substitution meet in one cycle.
+See also [E23](#e23): the order fields are resolved in, and how a substitution cycle is broken (look-back first, then the innermost optional).
 
 ### E15 — Numeric VALUE JSON rendering: per-impl natural form accepted; differential harness compares semantically
 
@@ -666,6 +666,7 @@ The three dimensions are: (a) **integer-collapse** of integral doubles (`1.0` �
 
 **Tracking issue**: [#53](https://github.com/o3co/xx.hocon/issues/53).
 
+<a id="e16"></a>
 ### E16 — Superseded delayed-merge stack entries resolve only when the winning value can merge with them
 
 **Source**: [#67](https://github.com/o3co/xx.hocon/issues/67). Two harvested fixtures exercise the same machinery from opposite sides. With the 1.4.6 oracle the reference implementation and the four siblings split in **opposite directions on each**; with 1.4.9 they agree on the second:
@@ -893,94 +894,111 @@ This is an API convention, not a reading of the spec. HOCON has no notion of a s
 | rs.hocon | `#[serde(with = "hocon::serde::duration::require_unit")]` (and under `bytes`, `period`, each with `::option`) | ✅ | [rs.hocon#196](https://github.com/o3co/rs.hocon/pull/196), v1.14.2. The same answer on serde's buffered paths (flatten, untagged / internally tagged enums). `tests/serde_unit_helpers_test.rs`. |
 | py.hocon | `hocon.Duration(unit, require_unit=True)`, `hocon.Bytes(unit, require_unit=True)`, and the new period marker `hocon.PeriodUnit(require_unit=True)` | ✅ | [py.hocon#59](https://github.com/o3co/py.hocon/pull/59), v1.14.2. Dataclass and Pydantic paths. `tests/test_decode_unit_markers.py`. |
 
-### E23 — Cycles are resolved in document order: break at the innermost optional, and resolve each reference once (deliberate divergence from Lightbend's hash order)
+<a id="e23"></a>
+### E23 — Substitution cycles are resolved in document order, independent of key names (deliberate divergence from Lightbend)
 
-**Source**: the #67 / #125 resolver window (o3co/xx.hocon#67, #125, #127, #128) and the zig-hocon conformance rows filed under [#122](https://github.com/o3co/xx.hocon/issues/122). User decision 2026-11-28 (D1 = A).
+**Source**: the o3co resolver redesign for [#67](https://github.com/o3co/xx.hocon/issues/67) / [#125](https://github.com/o3co/xx.hocon/issues/125) / [#127](https://github.com/o3co/xx.hocon/issues/127) / [#128](https://github.com/o3co/xx.hocon/issues/128). The failing cases were found by the zig-hocon conformance suite (filed under [#122](https://github.com/o3co/xx.hocon/issues/122)). The direction (document order plus explicit cycle rules) was decided by the maintainer on 2026-11-28.
 
 #### The problem, in one example
 
-Two fields refer to each other, and one link is optional:
+Two fields refer to each other, and one of the two links is optional:
 
 ```hocon
 d = yes${?c}
 c = ${d}
 ```
 
-The spec answer is clear. `${?c}` leads back to `d` through `c = ${d}`. A substitution that leads back to the field it is in cannot be resolved (HOCON.md §Self-Referential Substitutions), and an optional substitution that cannot be resolved is treated as missing (L714-716). So `${?c}` contributes nothing, `d = "yes"` and `c = "yes"`. The order in which the two fields are resolved makes no difference to that reading.
+HOCON.md says that when substitutions form a cycle, "when possible the cycle must be broken" (L659-661), and that an optional substitution that is part of a cycle counts as missing (L714-716). Dropping the optional `${?c}` breaks the cycle, which gives `d = "yes"` and `c = "yes"`. Dropping the required `${d}` instead is not allowed.
 
-Lightbend 1.4.9 gets this answer only for some key names. Measured:
+Lightbend 1.4.9 gets this answer only for some key names:
 
 | input | Lightbend 1.4.9 |
 | --- | --- |
 | `d = yes${?c}` / `c = ${d}` | `{"c":"yes","d":"yes"}` |
-| `c = ${d}` / `d = yes${?c}` (same keys, other line order) | `{"c":"yes","d":"yes"}` |
-| `c = yes${?d}` / `d = ${c}` (the keys swapped) | `UnresolvedSubstitution: ${c} was part of a cycle` |
+| `c = ${d}` / `d = yes${?c}` (same keys, lines swapped) | `{"c":"yes","d":"yes"}` |
+| `c = yes${?d}` / `d = ${c}` (keys renamed) | `UnresolvedSubstitution: ${c} was part of a cycle` |
 
-The reason is an implementation detail:
-- Lightbend resolves an object's fields in the order of a Java `HashMap`, which depends on the key names (`ConfigParser.java:233`, `SimpleConfigObject.java:309`).
-- When it meets a cycle, it stops at the innermost substitution on it (`ConfigReference.java:96-105`).
+Two implementation details cause this:
+- Lightbend resolves the fields of an object in the order of a Java `HashMap`, which depends on the key names, not on the file (`ConfigParser.java:233`, `SimpleConfigObject.java:309`).
+- When it meets a cycle, it stops at the **innermost** substitution being resolved (`ConfigReference.java:96-105`). If that one is required, the config fails, even when an optional substitution sits on the same cycle one step further out.
 
-If that innermost substitution happens to be the required `${c}`, the whole config fails. If it happens to be the optional one, the optional is dropped and everything resolves. Renaming a key can therefore turn a valid config into an error.
-
-The four o3co implementations do not agree with each other either:
+So renaming a key can turn a valid config into an error. The four o3co implementations do not agree with each other either:
 - go and rs give `"yesyes"` on all three inputs.
 - ts and py raise an error on all three.
 
+#### Terms
+
+- **Assignment**: one `key = value` (or `key += value`, which is `key = ${?key} [value]`) in the document. A key assigned several times has several assignments, and the later ones win or merge as usual. Together they form the field's **history**.
+- **Document order**:
+  - Fields are resolved in the order their keys **first appear** in the document. A key that is assigned again later keeps its first position, as in an insertion-ordered map.
+  - Fields inside an object are ordered the same way, within that object.
+  - A file brought in by `include` takes its place at the `include`.
+  - Config combined with `withFallback` puts the receiver's keys first, then the keys that only the fallback has.
+- **A field being resolved**: a field whose value the resolver has started computing and not yet finished. A substitution **re-enters** a field being resolved when it names that field or one of its ancestors. `r = ${v}` while `v.x` is being resolved re-enters it. `r = ${v.y}` while only `v.x` is being resolved does not (S13a.14).
+
 #### o3co convention
 
-Fields are resolved in **document order**. When following substitutions leads back to a field that is still being resolved, there is a cycle, and two rules decide the outcome.
+**Rule 0 — look back through a field's history first.**
+- While one assignment of a field is being resolved, and that assignment is a substitution or a concatenation, the field stands for its earlier assignments only. This holds for every lookup of that field: direct, or through other fields. It is the spec's look-back (L659-661, L849-853; [E16](#e16) consequence 1), and it is what Lightbend does too.
+- Example: `p = 1` / `p = ${a}x` / `a = ${p}` gives `p = "1x"` and `a = 1`. While `${a}x` is being resolved, `p` stands for `1`, so `${a}` finds `a = ${p} = 1`.
+- A field reached during such a lookup is resolved in that same view, even if it is also being resolved elsewhere.
+- If the field has no earlier assignment, it stands for nothing. A lookup that reaches it again is a cycle, handled by rule 1.
 
-1. **Break the cycle at the innermost optional substitution on it.**
-   - Look at the substitutions that were being followed when the cycle closed, from the one that closed it outwards. The first **optional** one (`${?…}`) is treated as missing at that spot, exactly as if its path were undefined. Resolution continues from there.
-   - Look-back substitutions are skipped when choosing. A look-back is a self-reference that is answered from the field's earlier value, as in `a = ${?a} x` or `+=`. It only looks *down* the field's own history, so it is not the link that closes the cycle.
-   - If there is no optional substitution on the cycle, the config is an error ("part of a cycle"), as in Lightbend.
-2. **A field reached again inside a look-back is resolved there, and every substitution is resolved once.**
-   - A look-back answers a self-reference with the field's earlier value (`p = 1` / `p = ${a}x` sees `p = 1`). If following that earlier value reaches another field, that field is resolved in the same view (where `p` is still `1`). This is not reported as a cycle just because the field is also being resolved in the main view.
-   - Each substitution in the document is resolved once. The first result that is completed, whether in the main view or inside a look-back, is its value everywhere (HOCON.md L884-888: substitutions are memoized by instance, not by path).
+**Rule 1 — otherwise, break the cycle at the innermost optional substitution on it.**
+- A cycle exists when a substitution re-enters a field being resolved (in the same view), and rule 0 cannot answer it.
+- Take the substitutions on the cycle: from the one that closed it, back to the one that first left the re-entered field. The innermost **optional** one (`${?…}`) is treated as missing, exactly as if its path were undefined. Resolution continues from there.
+- Self-references answered by rule 0 are never chosen, because dropping one would drop the field's history.
+- If no optional substitution is on the cycle, the config is an error ("part of a cycle").
 
-Rules 1 and 2 never look at key names. The same document gives the same result whatever the fields are called.
+**Rule 2 — every substitution is resolved once.**
+- Each `${…}` in the document has one result: the first one that is completed, in whichever view. Every other place that needs that substitution uses this result. A substitution dropped by rule 1 has the result "missing".
+- Work that rule 1 abandoned on the way (substitutions that were between the dropped one and the point where the cycle closed) is discarded and resolved again when it is next needed.
+- This is the spec's "memoized by instance, not by path" (HOCON.md L883-890), extended to rule 0's views.
+
+The three rules never look at key names: the same document gives the same result whatever its fields are called.
 
 #### Why we diverge from Lightbend
 
-- **This is not a reading where the spec is open.** HOCON.md L866-881 leaves the order in which fields are resolved undefined, and allows "either result or an error" where the outcome depends on it.
-- **Lightbend does not make that choice; its `HashMap` does.** The authority rule (*Lightbend decides what the spec means where the spec is open*) assumes Lightbend's behaviour is a reading of the spec. Behaviour that changes when a key is renamed is not a reading of anything. Copying it would mean copying Java's string hash function.
-- **A fixed, documented order is the only portable choice.**
-  - Document order is what a reader sees.
-  - The two rules then give one answer per document.
-  - On the rows where the suite names an expected value, that answer is either that value or one the suite explicitly allows (`also_valid`).
+The spec deliberately leaves the order in which fields are resolved undefined. Where the result depends on it, HOCON.md allows "either result or an error" (L866-881), and calls a fixed order "too constraining". Lightbend's authority, as this project reads it, covers how the spec is interpreted where the text is open. Its behaviour here differs from the convention in three ways, and none of them is an interpretation of the spec:
+- **Order.** Lightbend's order is the hash of the key names. A result that changes when a key is renamed is not a reading of anything. Copying it would mean copying Java's string hash function. Document order is what a reader of the file sees.
+- **Where a cycle is broken.** Lightbend stops at the innermost substitution even when it is required, and fails although an optional one on the same cycle could break it. The spec says the cycle must be broken "when possible" (L659-661). Rule 1 does that. Even when the keys happen to sort in file order, Lightbend errors on rows 039, 045, 046, 024 and 065, and the convention resolves them.
+- **Remembering a break.** Lightbend does not keep a dropped optional's "missing" result, so the same substitution can be resolved again with a different outcome (row 063). Rule 2 keeps it, as the spec's memoization requires.
+
+On every row below, the convention's result is one the suite expects or explicitly allows. That is a compatibility check, not the reason for the rules.
 
 #### What it decides
 
-The rows below are from the zig-hocon conformance suite (commit `3e4ddc6`). The convention's results were traced by hand from the two rules. The implementation steps of the #67 / #125 window add them as fixtures and confirm them.
+The rows are from the zig-hocon conformance suite (commit `3e4ddc6`). The o3co results were traced by hand from the rules above, and are confirmed when the implementations add the rows as fixtures. "Renamed" means the keys renamed so that Lightbend's hash order equals file order.
 
-| row (suite) | input | Lightbend 1.4.9 as named / with keys renamed to file order | o3co (document order) | suite |
+| row (suite) | input | Lightbend 1.4.9 as named / renamed | o3co | suite |
 | --- | --- | --- | --- | --- |
-| `self-referential-examples/045` | `d = yes${?c}` / `c = ${d}` | `"yes"` both / error | `d = c = "yes"` | expect |
-| `self-referential-examples/039` | `v { x = ${?r} }` / `r = ${v}` | `{}` both / error | `v = r = {}` | expect |
-| `self-referential-examples/046` | `e += ${?c}` / `c = ${e}` | `[]` both / error | `e = c = []` | expect |
-| `plus-equals-field-separator/022` | `b.c += ${y}` / `b.c += 2` / `y = [1, ${?b}]` | `b.c = [[1], 2]` / same | `y = [1]`, `b.c = [[1], 2]` | expect |
+| `self-referential-examples/045` | `d = yes${?c}` / `c = ${d}` | `d = c = "yes"` / error | `d = c = "yes"` (rule 1) | expect |
+| `self-referential-examples/039` | `v { x = ${?r} }` / `r = ${v}` | `v = r = {}` / error | `v = r = {}` (rule 1) | expect |
+| `self-referential-examples/046` | `e += ${?c}` / `c = ${e}` | `e = c = []` / error | `e = c = []` (rule 1) | expect |
+| `plus-equals-field-separator/022` | `b.c += ${y}` / `b.c += 2` / `y = [1, ${?b}]` | `y = [1]`, `b.c = [[1], 2]` / same | the same (rules 0–2) | expect |
 | `plus-equals-field-separator/023` | 022 with `y` first | as 022 / error | as 022 | expect |
-| `plus-equals-field-separator/026` / `027` | `a += ${?b}` / `b += ${?a}` (and the lines swapped) | `a = [[]]`, `b = []` in both files (the name decides, not the line) | the first field `[[]]`, the second `[]` | expect |
-| `self-referential-examples/057` | `b = [${?a}]` / `a = [${?b}]` | `a = [[]]`, `b = []` (the suite's also_valid) | `b = [[]]`, `a = []` | expect |
-| `self-referential-examples/063` | `d = [${?c}]` / `c = ${?d}` | `c = d = []` (the suite's also_valid) | `d = []`, no `c` | expect |
-| `self-referential-examples/064` | `c = ${?d}` / `d = [${?c}]` | `c = d = []` | `c = d = []` | also_valid |
-| `self-referential-examples/037` | `a = ${p}` / `p = 1` / `p = ${a}x` | `a = 1`, `p = "1x"` / error | `a = 1`, `p = "1x"` (rule 2) | expect |
-| `self-referential-examples/048` | `a = [${p}]` / `p = 1` / `p = ${a}` | `a = p = [1]` / error | `a = p = [1]` (rule 2) | expect |
-| `plus-equals-field-separator/024` / `025` | `e += ${?c}` twice / `c = ${e}` (and `c` first) | `e = c = []` | `e = c = []` | also_valid |
-| `self-referential-examples/065` / `066` | `e = x${?c}` / `e = ${e}y${?c}` / `c = ${e}` (and `c` first) | `e = c = "xy"` / error | `e = c = "xy"` | also_valid |
-| #67 probe P2 | `a = hello` / `a = ${b}` / `b = ${a}` / `a = {}` | `a = {}`, `b = "hello"` / error | `a = {}`, `b = "hello"` in either line order | Lightbend as named |
-
-Rows where the convention gives the suite's `also_valid` result rather than its `expect` follow from document order. The suite allows them, and they are recorded here so that every implementation gives the same one.
+| `plus-equals-field-separator/026` / `027` | `a += ${?b}` / `b += ${?a}` (and the lines swapped) | `a = [[]]`, `b = []` in both files | the first field `[[]]`, the second `[]` | expect |
+| `self-referential-examples/057` | `b = [${?a}]` / `a = [${?b}]` | `a = [[]]`, `b = []` | `b = [[]]`, `a = []` | expect |
+| `self-referential-examples/063` | `d = [${?c}]` / `c = ${?d}` | `c = d = []` / same | `d = []`, no `c` (rule 2) | expect |
+| `self-referential-examples/064` | `c = ${?d}` / `d = [${?c}]` | `c = d = []` / same | `c = d = []` (`c` is first) | also_valid |
+| `self-referential-examples/037` | `a = ${p}` / `p = 1` / `p = ${a}x` | `a = 1`, `p = "1x"` / error | `a = 1`, `p = "1x"` (rules 0, 2) | expect |
+| `self-referential-examples/048` | `a = [${p}]` / `p = 1` / `p = ${a}` | `a = p = [1]` / error | `a = p = [1]` (rules 0, 2) | expect |
+| `plus-equals-field-separator/024` | `e += ${?c}` / `e += ${?c}` / `c = ${e}` | `e = c = []` / error | `e = [[]]`, `c = []` (rules 0–2) | expect |
+| `plus-equals-field-separator/025` | 024 with `c` first | `e = c = []` / same | `e = [[]]`, `c = []` | expect |
+| `self-referential-examples/065` | `e = x${?c}` / `e = ${e}y${?c}` / `c = ${e}` | `e = c = "xy"` / error | `e = "xyx"`, `c = "x"` (rules 0–2) | expect |
+| `self-referential-examples/066` | 065 with `c` first | `e = c = "xy"` / same | `e = "xyx"`, `c = "x"` | expect |
+| #67 probe P2 | `a = hello` / `a = ${b}` / `b = ${a}` / `a = {}` | `a = {}`, `b = "hello"`; with `b` first and renamed: error | `a = {}`, `b = "hello"` in either line order (rules 0, 2) | Lightbend as named |
+| — | `a = 1` / `a = ${b}` / `b = [${?a}]` | `a = b = [1]` in either line order | the same (rule 0) | — |
+| — | `v { x = ${?r}, y = 1 }` / `r = ${v.y}` | `r = 1`, `v = {x: 1, y: 1}` | the same (no cycle) | — |
 
 #### Status
 
-Not implemented in any implementation yet. Today all four fail most of the rows above, each in its own way. Rule 1 lands in step (b) of the #67 / #125 window, and rule 2 in steps (a) and (d). Fixtures are added with those steps.
+Not implemented in any implementation yet. Today all four fail most of these rows, each in its own way. Rule 0 and rule 2 come with the redesign's merge-stack and resolution steps, and rule 1 with its cycle step (#67 / #125). The rows are added as fixtures with those steps.
 
 #### Out of scope
 
-- Cycles with no optional substitution on them stay errors.
-- Which entries of a merge stack are resolved at all (E16, and its open note on fully shadowed entries) is a separate question.
-- The look-back mechanism of a single field (S13a.13, E14) is unchanged. Rule 1 only says that a look-back is never the link that breaks a cycle.
+- Which assignments of a field are resolved at all is [E16](#e16)'s question. That includes its open note on fully shadowed assignments.
+- How an implementation detects a self-reference ([E14](#e14)) is unchanged. Rule 0 describes what the answer is, not how it is found.
 
 **Tracking issue**: [#67](https://github.com/o3co/xx.hocon/issues/67).
 
@@ -1054,4 +1072,4 @@ Not implemented in any implementation yet. Today all four fail most of the rows 
 
 2026-11-28 — E16 dead-stack divergence withdrawn with the oracle bump to Lightbend 1.4.9 ([#121](https://github.com/o3co/xx.hocon/issues/121)). Lightbend 1.4.7+ (measured on 1.4.9) no longer evaluates entries below a value that cannot take fallbacks, so `pushcorn-hocon-parser/delayed-merge` resolves to the siblings' `sub = [10]`. The `h3` suppression in `differential/known-divergences.json` is removed (that minimal input never diverged). The live-stack half is unchanged and is scheduled for the #67 / #125 window. No other expected output changed under 1.4.9. The review also recorded which entries under an object winner 1.4.9 resolves (fully shadowed object skipped; partly shadowed, recursively merging, or non-object middle entries resolved) as an open note for the #67 / #125 window, not as a convention change.
 
-2026-11-28 — E23 (cycles are resolved in document order: break at the innermost optional, and resolve each reference once) added from the #67 / #125 window analysis. User decision D1 = A. Deliberate divergence from Lightbend's HashMap resolution order. Not yet implemented.
+2026-11-28 — E23 added (substitution cycles are resolved in document order, independent of key names: look back through a field's history first, otherwise break at the innermost optional on the cycle, and resolve every substitution once). It is a deliberate divergence from Lightbend's HashMap resolution order and from where it breaks a cycle, and is not yet implemented. E16 gains an anchor.
