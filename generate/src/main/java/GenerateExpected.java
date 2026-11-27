@@ -321,6 +321,16 @@ public class GenerateExpected {
         "subst-removed-target/rq31-two-optionals-then-reference-pending-125.conf",
         "subst-removed-target/rq32-forward-reference-two-optionals-pending-125.conf",
         "subst-removed-target/rq33-self-ref-chain-then-reference-pending-125.conf",
+        // rq34–rq37 (`-window`): #123 moved into the #67 window — configs
+        // Lightbend loads that the single-slot #123 branches rejected (a hidden
+        // required ref evaluated, an optional cycle under optionals, an optional
+        // self-ref through an alias, the default-then-env-override object).
+        // Canonical today: rq34 silently loses url in rs/ts/py, rq36 crashes go
+        // (go.hocon#218 class), rq37 errors in go. rq38 is in SIDECAR_ERROR_CONFS.
+        "subst-removed-target/rq34-default-then-env-override-in-object-window.conf",
+        "subst-removed-target/rq35-hidden-required-ref-never-evaluated-window.conf",
+        "subst-removed-target/rq36-optional-cycle-under-optionals-window.conf",
+        "subst-removed-target/rq37-optional-self-ref-concat-through-alias-window.conf",
         // S13.11 (HOCON.md L632) through a root-level include (xx.hocon#115):
         // an undefined optional that an included file assigns to a root-level
         // key leaves the including file's prior value in place. rs/ts/py
@@ -577,6 +587,9 @@ public class GenerateExpected {
         "subst-removed-target/rq15-merged-not-hidden.conf",
         "subst-removed-target/rq16-kept-prior-is-required-ref.conf",
         "subst-removed-target/rq29-include-fixed-up-removed-original-set.conf",
+        // rq38 (`-window`): no value may be invented for a path through a list
+        // (rs/py #123 branches gave c = 1).
+        "subst-removed-target/rq38-no-value-invented-through-list-window.conf",
         // io19: the including file's required ${gh115_missing} is live under the
         // included object (E16), so it is an error — accepted by rs/ts/py today,
         // so the #115 redesign is BREAKING for it. oc02: the required form of
