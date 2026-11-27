@@ -934,10 +934,12 @@ So renaming a key can turn a valid config into an error. The four o3co implement
   - A file brought in by `include` takes its place at the `include`.
   - Config combined with `withFallback` puts the receiver's keys first, then the keys that only the fallback has.
 - **A field being resolved**: a field whose value the resolver has started computing and not yet finished.
-- **Re-enter**: a substitution re-enters a field being resolved when finding its target needs that field's unfinished value. That happens when the target is the field, an ancestor of it, or a path inside it that can only be reached by evaluating it.
+- **Re-enter**: a substitution re-enters a field being resolved when finding its target needs a value that is itself still being evaluated. That is the case when the target is that field, an ancestor of it, or a path that can only be reached by evaluating that unfinished value (for example, a concatenation the field is part of). The field's other assignments are separate values. Reaching a path through an assignment that is not being evaluated is not a re-entry, even while another part of the same field is being resolved.
   - `r = ${v}` while `v.x` is being resolved re-enters it.
   - `r = ${v.y}` while only `v.x` is being resolved does not, because `v.y` is an independent sibling (S13a.14).
   - `b = ${a.y}` while `a = ${?b} {y = 1}` is being resolved does, because `a.y` exists only once `a`'s concatenation has been evaluated.
+  - `server = ${defaults}` / `server { port = 8080, url = "http://"${server.host}":"${server.port} }`: while `server.url` is resolved, `${server.host}` is reached through the earlier assignment `${defaults}`, which is not being evaluated. This is not a re-entry, and `url = "http://localhost:8080"`.
+  - Written as one concatenation, `server = ${defaults} { port = 8080, url = "http://"${server.host}… }`, it is a re-entry: `server.host` exists only once that concatenation, which is being evaluated, is finished. No optional substitution is on the cycle, so this is an error, as in Lightbend.
 
 #### o3co convention
 
@@ -1009,6 +1011,9 @@ The rows are from the zig-hocon conformance suite (commit `3e4ddc6`). The o3co r
 | — | `b.c = 1` / `b.c = ${y}` / `y = ${b}` | `b = {c: {c: 1}}`, `y = {c: 1}` | the same (rule 0 covers the ancestor `b`) | — |
 | — (HOCON.md L870-873) | `a : 1` / `b : 2` / `a : ${b}` / `b : ${a}` | `a = b = 1`, also with the first two lines swapped | `a = b = 1`; with `b : 2` written first, `a = b = 2` | the spec allows either |
 | — | `v { x = ${?r}, y = 1 }` / `r = ${v.y}` | `r = 1`, `v = {x: 1, y: 1}` | the same (no cycle) | — |
+| — | `defaults { host = localhost, port = 80 }` / `server = ${defaults}` / `server { port = 8080, url = "http://"${server.host}":"${server.port} }` | `server.url = "http://localhost:8080"` (also with the two `server` lines swapped) | the same (no re-entry) | — |
+| — | the same as one concatenation: `server = ${defaults} { port = 8080, url = "http://"${server.host}":"${server.port} }` | error | error (re-entry, no optional) | — |
+| — | `server = ${defaults} { port = 8080 }` / `url = "http://"${server.host}":"${server.port}` | `url = "http://localhost:8080"` | the same | — |
 
 #### Status
 
