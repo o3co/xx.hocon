@@ -312,6 +312,15 @@ public class GenerateExpected {
         "subst-removed-target/rq26-optional-closes-cycle-ok.conf",
         "subst-removed-target/rq27-optional-ref-into-cycle-ok.conf",
         "subst-removed-target/rq28-optional-self-ref-ok.conf",
+        // rq30–rq33: EXPECTED-LB success fixtures that fail in all four impls
+        // until #125 (single-level prior). Two undefined optionals over a
+        // value (or a self-ref chain) lose the bottom layer, so the field looks
+        // removed and the #123 rule would turn a config Lightbend loads into an
+        // error. #123 therefore ships with #125 / #67; impls mark these pending.
+        "subst-removed-target/rq30-two-overrides-then-reference-pending-125.conf",
+        "subst-removed-target/rq31-two-optionals-then-reference-pending-125.conf",
+        "subst-removed-target/rq32-forward-reference-two-optionals-pending-125.conf",
+        "subst-removed-target/rq33-self-ref-chain-then-reference-pending-125.conf",
         // S13.11 (HOCON.md L632) through a root-level include (xx.hocon#115):
         // an undefined optional that an included file assigns to a root-level
         // key leaves the including file's prior value in place. rs/ts/py
