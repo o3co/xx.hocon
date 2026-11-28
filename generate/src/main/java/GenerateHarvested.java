@@ -89,8 +89,11 @@ public class GenerateHarvested {
                     // Stale-doc alarm: a divergence doc usually documents a
                     // reference-side error, so success + doc means a reference
                     // upgrade may have changed behaviour. Docs whose first line
-                    // contains "quirk" describe sanctioned quirk SUCCESSES
-                    // (e.g. array-5.error) and are expected to coexist.
+                    // contains "quirk" describe sanctioned quirk SUCCESSES and
+                    // are expected to coexist. None remains since the 1.4.10
+                    // oracle (array-5.error / object-4.error, the last two, now
+                    // error and their docs were removed); the exemption is kept
+                    // for future quirk successes.
                     Path divergenceDoc = sourceDir.resolve(stem + ".divergence.md");
                     if (Files.exists(divergenceDoc)
                             && !Files.readAllLines(divergenceDoc).get(0).toLowerCase().contains("quirk")) {

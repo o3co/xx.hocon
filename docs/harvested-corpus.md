@@ -210,7 +210,9 @@ outputs across siblings on every non-pass.
   prohibition; backtick accepted in unquoted strings) — filed as
   [xx.hocon#68](https://github.com/o3co/xx.hocon/issues/68).
 - The 4 error-on-success cases: `array-5.error` / `object-4.error`
-  (documented strict-posture rejections, see above) and `path-keys-4` /
+  (documented strict-posture rejections, see above; since the 1.4.10 oracle
+  both are `.error` fixtures, so the four implementations now agree with the
+  reference on them) and `path-keys-4` /
   `substitutions-4` (key-position whitespace/adjacency handling — group B of
   xx.hocon#68, needs S8.6 cross-check before fixing).
 
@@ -220,6 +222,8 @@ outputs across siblings on every non-pass.
    (per-impl work, tracked separately). Runners need the documented
    exemption classes: limitation-derived `.error` fixtures
    (`.divergence.md` present) and quirk-success fixtures where strict
-   implementations reject.
+   implementations reject. Since the 1.4.10 oracle no quirk-success fixture
+   remains (`array-5.error` / `object-4.error` became `.error` fixtures), so
+   only the first class is needed today.
 2. Inline-string extraction sources: `chimpler/pyhocon`,
    `gurkankaymak/hocon`, Lightbend's inline parser tests.
