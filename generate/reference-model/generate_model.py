@@ -102,7 +102,7 @@ def main():
         else:
             path, other = err_path, json_path
             text = MARKER + '\nMessage: ' + value[len('ERR '):] + '\n'
-        owned.add(path)
+        owned.add(os.path.normpath(path))
         old = open(path, encoding='utf-8').read() if os.path.exists(path) else None
         if old != text or os.path.exists(other):
             changed.append(os.path.relpath(path, ROOT))
@@ -115,7 +115,7 @@ def main():
     # A model-written .error whose case no longer has an .expectation.md is stale.
     for dirpath, _, files in os.walk(EXPECTED):
         for f in files:
-            p = os.path.join(dirpath, f)
+            p = os.path.normpath(os.path.join(dirpath, f))
             if f.endswith('.error') and p not in owned:
                 with open(p, encoding='utf-8', errors='replace') as fh:
                     if fh.readline().rstrip('\n') == MARKER:

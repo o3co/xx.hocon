@@ -186,6 +186,7 @@ class P:
                 s.i += 2; opt = False
                 if s.peek() == '?': opt = True; s.i += 1
                 j = s.t.index('}', s.i); expr = s.t[s.i:j].strip(); s.i = j + 1
+                if expr.replace(' ', '').endswith('[]'): s.err('${X[]} list expansion is not modelled')
                 pieces.append(Subst(tuple(split_path(expr)), opt, 0))
             else:
                 j = s.i
@@ -315,6 +316,7 @@ class Resolver:
     def __init__(s, root, env):
         s.root, s.env = root, env
         s.smemo, s.cmemo, s.stmemo = {}, {}, {}
+        s.smemo_view = {}
         s.active = set()
         s.subcache = {}
         s.notes = set()
@@ -453,8 +455,10 @@ class Resolver:
     def resolve_subst(s, S, view, restrict):             # §5.1, §6
         if id(S) in s.smemo:
             hit = s.smemo[id(S)]
-            # §5.3: a full result answers a restricted request, except that presence is judged on the raw value
+            # §5.3: a full result answers a restricted request, except that presence is judged on the raw
+            # value -- in the view that produced the memoized result, not in the caller's view.
             if not (restrict and isinstance(hit, Obj) and restrict[0] not in hit.fields): return hit
+            view = s.smemo_view[id(S)]
         mk = (id(S), view.key)
         if mk in s.active: raise ReEntry('marker')
         s.active.add(mk)
@@ -474,7 +478,7 @@ class Resolver:
         if restrict is None or (isinstance(r, Val) and resolved(r)) or r is MISSING:
             if id(S) in s.smemo and restrict is None: return s.smemo[id(S)]   # first completed result wins
             if id(S) in s.smemo: return r
-            if r is not MISSING or caught: s.smemo[id(S)] = r
+            if r is not MISSING or caught: s.smemo[id(S)] = r; s.smemo_view[id(S)] = view
         return r
 
     def snapshot(s):

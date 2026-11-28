@@ -257,6 +257,7 @@ A single-entry field never maps to EMPTY (§3.2 W3). Reaching it again is handle
 - Mappings of unrelated slots do not count. This is the shape of Lightbend's memo: siblings keep their identity in the look-back tree, and only the replaced node and its ancestors are new instances. [LB ResolveSource.java:206-265, ResolveContext.java:149-227]
 - **A full result satisfies a restricted request** [LB :151-164], **except for presence**: when a restricted request `[k, …]` would be answered from a full result that has no `k`, the restricted resolution is performed anyway, and decides whether `k` is present.
   - This applies wherever a restricted request is made: in `find`'s descent (§3.3), in a restricted object's child (§3.4), and in the leaf of a `Subst` resolved under a restriction.
+  - When the full result is a `memoS` entry, the restricted resolution runs in **the view in which that entry was computed**, not the caller's view. A key that exists only in another view is not present (rv124: `a = {}` / `a = ${b} { y = 1 }` / `b = ${a}` / `z = ${?b.y}` gives no `z`, as in Lightbend).
   - Example (rq29): `x.y = ${?unset}` already resolved to `{}`, so `${x.y}` is still found (raw), resolves to MISSING, and is an error.
   - Lightbend gives this only in some key orders (rv115). [o3co, §11 J2]
 - Never cache by path.
@@ -393,8 +394,8 @@ The result tree contains merged, resolved values only. No `Subst`, `Concat` or m
 
 The fixtures that pin this document:
 
-- **`testdata/hocon/resolution-model/` (`rv001`–`rv123`)** has 123 o3co cases. See [fixture-conventions.md "Resolution-model fixtures"](fixture-conventions.md#resolution-model-fixtures).
-  - 113 are Lightbend-aligned: 88 json and 25 `.error`.
+- **`testdata/hocon/resolution-model/` (`rv001`–`rv124`)** has 124 o3co cases. See [fixture-conventions.md "Resolution-model fixtures"](fixture-conventions.md#resolution-model-fixtures).
+  - 114 are Lightbend-aligned: 89 json and 25 `.error`.
   - 9 are E23 / o3co. Each has an `.expectation.md` and a model-written expected file:
     - `e23-order`: rv113, rv120;
     - `e23-view-reentry`: rv114, rv116;

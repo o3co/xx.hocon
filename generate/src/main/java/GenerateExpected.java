@@ -469,6 +469,7 @@ public class GenerateExpected {
         "resolution-model/rv110-tsk-k3.conf",
         "resolution-model/rv111-tsk-k4.conf",
         "resolution-model/rv112-tsk-k5.conf",
+        "resolution-model/rv124-alias-presence-other-view.conf",
         // S3.1 empty-file fixtures (cluster 3h). An empty document is valid HOCON
         // parsing to `{}` (L134 brace-omission relaxation; L130-132 is the JSON
         // baseline). The `{}` sidecars emitted here are normative — per-impl
@@ -848,9 +849,10 @@ public class GenerateExpected {
         // A case with a <name>.expectation.md takes its expected file from the reference
         // model (`make generate-model`, generate/reference-model/), never from Lightbend.
         // Refuse a listing here, so the two generators can never write the same file.
-        for (String[] list : new String[][] { SUCCESS_CONFS, SIDECAR_ERROR_CONFS }) {
+        for (String[] list : new String[][] { SUCCESS_CONFS, SIDECAR_ERROR_CONFS, ERROR_CONFS, ENV_VAR_LIST_ERROR_CONFS, PROPERTIES_CONFS }) {
             for (String confName : list) {
-                Path sidecar = testdataDir.resolve(confName.replaceAll("\\.conf$", ".expectation.md"));
+                if (!confName.endsWith(".conf")) continue;
+                Path sidecar = testdataDir.resolve(confName.substring(0, confName.length() - ".conf".length()) + ".expectation.md");
                 if (Files.exists(sidecar)) {
                     throw new RuntimeException(confName + " has " + sidecar.getFileName()
                         + ": its expected file comes from the reference model (make generate-model);"
