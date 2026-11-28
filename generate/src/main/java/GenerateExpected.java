@@ -184,7 +184,6 @@ public class GenerateExpected {
         "unquoted-starts/us45-exp-minus-double-exp.conf",        // 1e-5e5   → "1e-5e5" (no `+`)
         "unquoted-starts/us46-negative-frac-exp-plus.conf",      // -1.5e+3  → -1500
         "unquoted-starts/us53-dot-no-frac-exp-plus.conf",        // 1.e+5    → 100000
-        "unquoted-starts/us59-negative-leading-dot-exp-plus.conf", // -.5e+3 → -500 (cf. us48 `.5e+3`: error)
         // Key position (whole documents; us08/us09 precedent for keys in this group).
         "unquoted-starts/us54-key-exp-plus.conf",                // 1e+5 = 1   → {"1e+5":1}
         "unquoted-starts/us55-key-exp-plus-letter-tail.conf",    // 1e+5x = 1  → {"1e+5x":1}
@@ -199,7 +198,7 @@ public class GenerateExpected {
         "unquoted-starts/us60-trailing-dot.conf",                // 1.    → 1
         "unquoted-starts/us61-trailing-dot-exp.conf",            // 1.e5  → 100000
         "unquoted-starts/us62-negative-trailing-dot.conf",       // -1.   → -1
-        "unquoted-starts/us63-negative-leading-dot.conf",        // -.5   → -0.5
+        "unquoted-starts/us63-negative-leading-dot.conf",        // -.5   → "-.5" since 1.4.10 (was -0.5; o3co/xx.hocon#140)
         "unquoted-starts/us64-frac-trailing-dot.conf",           // 1.5.  → "1.5."
         "unquoted-starts/us65-leading-dot.conf",                 // .5    → ".5"
         "unquoted-starts/us66-hyphen-dot.conf",                  // -.    → "-."
@@ -601,16 +600,18 @@ public class GenerateExpected {
         // the cycle-written-twice crash (go.hocon#218 / rs.hocon#199).
         "include-optional-prior/io19-live-prior-required-missing.conf",
         "optional-cycle-repeat/oc02-required-cycle-twice.conf",
+        // us59 (-.5e+3): a success up to Lightbend 1.4.9 (-500); since 1.4.10 "-." does not
+        // start a number, so the + is outside a number and the input is a parse error
+        // (E8 step 4). o3co/xx.hocon#140.
+        "unquoted-starts/us59-negative-leading-dot-exp-plus.conf",
         "concat-errors/ce01-array-plus-object.conf",
         "concat-errors/ce02-object-plus-array.conf",
         "concat-errors/ce03-array-plus-scalar.conf",
         "concat-errors/ce04-scalar-plus-array.conf",
-        // ce05-object-plus-scalar.conf: EXCLUDED — Lightbend 1.4.3 silently accepts
-        // "a = { b: 1 } x" (object wins, trailing scalar discarded). Spec S10.13 says
-        // this should error, but Lightbend is permissive here. Fixture file is kept on
-        // disk for documentation; conformance tests for ce05 must use a Lightbend-quirk
-        // annotation rather than a .error sidecar. See docs/fixture-conventions.md §Lightbend
-        // quirks.
+        // ce05: Lightbend up to 1.4.9 silently accepted "a = { b: 1 } x" (object wins,
+        // trailing scalar discarded); 1.4.10 rejects it (lightbend/config#862), as E5
+        // and S10.13 require, so it now has a .error sidecar like ce01–ce04.
+        "concat-errors/ce05-object-plus-scalar.conf",
         "concat-errors/ce06-scalar-plus-object.conf",
         "concat-errors/ce07-subst-obj-plus-array.conf",
         "concat-errors/ce08-subst-array-plus-obj.conf",

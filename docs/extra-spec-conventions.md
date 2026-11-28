@@ -103,7 +103,9 @@ The three `🤷` are due to absent test coverage, not divergent behavior — fol
 
 **o3co convention**: each of the four implementations (ts.hocon / rs.hocon / go.hocon / py.hocon) MUST raise a type error (`ResolveError` or per-impl resolver-layer equivalent) for `{object} scalar` concatenation. The error fires in the pairwise-fold `joinPair` helper introduced by Phase 6 #2 (S15 work). The same rule extends to `[array] scalar`, `scalar {object}`, `scalar [array]` (covered by ce03–ce06 in the `concat-errors/` fixture group); the asymmetry — where Lightbend errors on some but not others — is documented in `fixture-conventions.md` "Lightbend quirks".
 
-**Why an E-item rather than an S-item**: HOCON.md L373 is unambiguous, but Lightbend's reference implementation does not enforce it for this specific cell. Tracking this as an E-item makes the deliberate Lightbend divergence explicit (parallel to the strict-spec posture for S8.6 cluster 3c and S12.5 cluster 3e). The S10.13 row in `compliance-matrix.md` already represents the canonical spec rule; E5 documents the specific Lightbend divergence in narrative form so implementers know what they are tightening beyond Lightbend.
+**Update 2026-11-28 (oracle 1.4.10):** Lightbend 1.4.10 rejects this concatenation too (lightbend/config#862, by lejmr). `a = { b: 1 } x` is a `WrongType` error, and so are text after an array and text joined to an object or array after resolution (`x = s` / `a = [1] ${x}`). **E5 is no longer a divergence from Lightbend.** The convention is unchanged, and ce05 now has a Lightbend-generated `.error` sidecar like ce01–ce04.
+
+**Why an E-item rather than an S-item** (as written when Lightbend accepted it): HOCON.md L373 is unambiguous, but Lightbend's reference implementation did not enforce it for this specific cell before 1.4.10. Tracking this as an E-item makes the deliberate Lightbend divergence explicit (parallel to the strict-spec posture for S8.6 cluster 3c and S12.5 cluster 3e). The S10.13 row in `compliance-matrix.md` already represents the canonical spec rule; E5 documents the specific Lightbend divergence in narrative form so implementers know what they are tightening beyond Lightbend.
 
 | Impl | Status | Test | Notes |
 | --- | --- | --- | --- |
@@ -112,7 +114,7 @@ The three `🤷` are due to absent test coverage, not divergent behavior — fol
 | go.hocon | ✅ | `concat-errors/ce05-object-plus-scalar.conf` loaded by `internal/resolver/concat_errors_test.go` with ce05 in the per-impl override list | Flipped ✅ via [go.hocon#87](https://github.com/o3co/go.hocon/pull/87) (Phase 6 #3b, BREAKING); `joinPair` `default:` case rewritten to discriminate object operands before falling through to `concatStrings` |
 | py.hocon | ✅ | `concat-errors/ce05-object-plus-scalar.conf` loaded by `tests/conformance/test_error_fixtures.py` with ce05 in `_IMPL_OVERRIDE_ERRORS` | Rejected as a concat type mismatch in the resolver, as in the siblings. |
 
-**Fixture**: `testdata/hocon/concat-errors/ce05-object-plus-scalar.conf`. No `expected/.../ce05-object-plus-scalar.error` sidecar (Lightbend silent-accept; see `fixture-conventions.md` "Lightbend quirks").
+**Fixture**: `testdata/hocon/concat-errors/ce05-object-plus-scalar.conf`, with `expected/hocon/concat-errors/ce05-object-plus-scalar.error` since the 1.4.10 oracle. Up to 1.4.9 it had no sidecar (Lightbend silently accepted it), and the impls checked it through a per-impl override list, which they can now drop.
 
 <a id="e6"></a>
 
@@ -163,6 +165,8 @@ The three `🤷` are due to absent test coverage, not divergent behavior — fol
 <a id="e8"></a>
 
 ### E8 — Leading `-` / digit handling: strict at value-start, pragmatic at concat-continuation (aligned with Lightbend)
+
+**Update 2026-11-28 (oracle 1.4.10):** Lightbend 1.4.10 no longer starts a number at `-.`. `-.5` and `-.5e3` are text, and `-.5e+3` is a parse error (the `+` is outside a number, step 4). This changes step 1 and the behaviour table below, and the four implementations still follow 1.4.9. Tracked in [#140](https://github.com/o3co/xx.hocon/issues/140) (BREAKING; one PR per implementation). The fixtures `us59` (now `.error`) and `us63` (now `"-.5"`) follow 1.4.10.
 
 **Source**: cross-impl convention, aligned with the spec-author reference implementation (Lightbend 1.4.3). HOCON.md §Unquoted strings L270-276 states:
 
@@ -687,7 +691,7 @@ Two consequences each implementation must satisfy:
 1. **Live stack**: a cycle reached through it MUST be broken by lookback, not reported as an error. The false-positive `circular reference` / `circular substitution` that all four impls raise on `a = hello; a = ${b}; b = ${a}; a = {}` (probe P2 in #67) violates the spec MUST quoted above and is a bug on its own terms — it is not part of the divergence this E-item sanctions.
 2. **Dead stack**: no error may be raised on account of substitutions appearing only in discarded entries.
 
-**Open for the #67 / #125 window (observed on Lightbend 1.4.9, not yet a convention):** under an object winner, 1.4.9 does not resolve every entry below it. The rule that decides which ones is part of the window's design, so it is not fixed here. Probes:
+**Open for the #67 / #125 window (observed on Lightbend 1.4.9, unchanged on 1.4.10; not yet a convention):** under an object winner, 1.4.9 does not resolve every entry below it. The rule that decides which ones is part of the window's design, so it is not fixed here. Probes:
 
 | input | Lightbend 1.4.9 | note |
 | --- | --- | --- |
@@ -695,6 +699,7 @@ Two consequences each implementation must satisfy:
 | `p = {a: ${y}, b: 1}` / `p = ${x}` / `x = {a: 42}` | error | partly shadowed entry still resolved, though `${y}` is hidden by `42` — possibly an oracle limitation against S13a.5 |
 | `p = {a: {old: 1}}` / `p = ${x}` / `x = {a: {new: 2}}` | `p.a = {new: 2, old: 1}` | a matching key whose value still merges (S7.5) does not shadow it |
 | `p = {a: 1}` / `p = [${z}]` / `p = {b: 2}` (z undefined) | error | a non-object middle entry is resolved as a merge barrier (S7.6) |
+| `x = s` / `c = [1] ${x}` / `c = { a = 1 }` (zig 051) | 1.4.9: `c = {a: 1}`; 1.4.10: `WrongType` | the concatenation below the object winner is resolved in both versions. 1.4.9 dropped the text, 1.4.10 rejects it (#862). The suite reads it as never evaluated (S13a.5 speaks only of a non-object hider). Decision pending |
 
 
 The control probe P1 (`a = ${b}; b = {x: 1}; a = {y: 2}` → `{x:1, y:2}`) already passes in all five engines and is what establishes that a later object genuinely may need to merge through a substitution; it is the premise the live-stack half rests on.
@@ -960,3 +965,5 @@ This is an API convention, not a reading of the spec. HOCON has no notion of a s
 2026-11-28 — E18 decision 5 amended for S1.2.4 ([#130](https://github.com/o3co/xx.hocon/issues/130)): the escaped double-quoted form now escapes every C0 control (`\b \f \n \r \t`, otherwise `\u00xx`) in values and keys, because a raw one inside a double-quoted (non-triple) string is a parse error (measured against Lightbend 1.4.9). Keys are never triple-quoted, since three of the four parsers reject a triple-quoted key. The triple-quote guard widens from "no CR" to "no C0 control other than LF and TAB", which is a readability choice: raw controls inside triple quotes remain valid input. Corpus gains rt11 (control characters). Status ✅ → ⏳ in all four until the per-impl PRs land.
 
 2026-11-28 — E16 dead-stack divergence withdrawn with the oracle bump to Lightbend 1.4.9 ([#121](https://github.com/o3co/xx.hocon/issues/121)). Lightbend 1.4.7+ (measured on 1.4.9) no longer evaluates entries below a value that cannot take fallbacks, so `pushcorn-hocon-parser/delayed-merge` resolves to the siblings' `sub = [10]`. The `h3` suppression in `differential/known-divergences.json` is removed (that minimal input never diverged). The live-stack half is unchanged and is scheduled for the #67 / #125 window. No other expected output changed under 1.4.9. The review also recorded which entries under an object winner 1.4.9 resolves (fully shadowed object skipped; partly shadowed, recursively merging, or non-object middle entries resolved) as an open note for the #67 / #125 window, not as a convention change.
+
+2026-11-28 — Oracle moved to Lightbend 1.4.10 (#121 follow-up). E5 is no longer a divergence (1.4.10 rejects text after an array or object, lightbend/config#862), and ce05 gains a `.error` sidecar. E8: `-.` no longer starts a number in 1.4.10; tracked in [#140](https://github.com/o3co/xx.hocon/issues/140). The E16 open-note probes are unchanged; zig 051 is added to the note.

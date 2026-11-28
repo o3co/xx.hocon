@@ -244,6 +244,8 @@ enforce. These cannot have `.error` sidecars because the generator oracle
 
 ### ce05-object-plus-scalar (`a = { b: 1 } x`)
 
+**Resolved in Lightbend 1.4.10** (lightbend/config#862): the input is now a `WrongType` error, so ce05 is in `SIDECAR_ERROR_CONFS` with a Lightbend-generated `.error` sidecar. The text below describes the 1.4.3–1.4.9 behaviour.
+
 Spec S10.13 says this should be a type error (object in string concat). However,
 Lightbend 1.4.3 silently accepts it: the object wins and the trailing unquoted
 scalar `x` is discarded, yielding `{"b": 1}`.
