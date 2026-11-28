@@ -1,0 +1,2 @@
+Exception class: o3co reference model (generate/reference-model, not Lightbend)
+Message: UnresolvedSubstitution: ${a.q} was part of a cycle

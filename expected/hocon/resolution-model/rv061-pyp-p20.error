@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/resolution-model/rv061-pyp-p20.conf: 3: Could not resolve substitution to a value: ${o} was part of a cycle of substitutions involving ${o}, ${o}

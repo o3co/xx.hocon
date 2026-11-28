@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/resolution-model/rv099-tsc-c01.conf: 3: Could not resolve substitution to a value: ${server.port}

@@ -1,0 +1,44 @@
+# dr31 — key order after withFallback at a nested level (resolution-model §8.3, J4)
+#
+# Receiver: `o { a = [${?o.b}] }`   Fallback: `o { b = [${?o.a}] }`
+#
+# The two fields form a cycle of optional substitutions, so the field resolved
+# first keeps the nested value (as in zig-hocon 057). resolution-model §8.3 puts
+# the receiver's keys first at every merged level, so `o.a` is first:
+# `o.a = [[]]`, `o.b = []`.
+#
+# Lightbend resolves object fields in HashMap order, which here happens to be
+# the same (`a` before `b`), so this scenario is Lightbend-generated. dr32 is
+# the same structure with the names swapped, where Lightbend's order differs.
+
+description: withFallback at a nested level puts the receiver's keys first; a cycle of optionals keeps the nested value in the receiver's field (Lightbend agrees for these key names).
+xref: [E12, E23, resolution-model-8.3]
+
+sources:
+  receiver:
+    parseString: |
+      o { a = [${?o.b}] }
+    parseOptions:
+      resolveSubstitutions: false
+
+  fb:
+    parseString: |
+      o { b = [${?o.a}] }
+    parseOptions:
+      resolveSubstitutions: false
+
+build:
+  - { op: take, source: receiver, as: r0 }
+  - { op: withFallback, this: r0, other: fb, as: r1 }
+  - { op: resolve, this: r1, allowUnresolved: false, useSystemEnvironment: false, as: result }
+
+expect:
+  outcome: success
+  isResolved: true
+  json: |-
+    {
+      "o": {
+        "a": [[]],
+        "b": []
+      }
+    }

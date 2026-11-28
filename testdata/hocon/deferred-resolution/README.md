@@ -173,10 +173,13 @@ See [design doc § "Fixture inventory"](../../../../.claude/superpowers/specs/20
 | dr28 | `dr28-optional-multi-all-undef.yaml` | success | `a = ${?x}${?y}` (both undef) → field omitted |
 | dr29 | `dr29-empty-config-edges.yaml` | success | `Empty().Resolve()`, `c.WithFallback(Empty())`, `Empty().WithFallback(c)` |
 | dr30 | `dr30-object-merge-barrier.yaml` | success | Receiver-non-object blocks fallback-object |
+| dr31 | `dr31-nested-key-order-receiver-first.yaml` | success | Nested key order after withFallback: receiver's keys first (resolution-model §8.3); Lightbend agrees for these names |
+| dr32 | `dr32-nested-key-order-receiver-first-renamed.yaml` | success | dr31 with the names swapped; `lightbendSkip` (Lightbend orders by key hash) |
 
 ## Per-impl override notes
 
 - **dr17** (E11 package include): NOT applicable to Lightbend (Lightbend has no `package(...)` qualifier). Java generator skips. Per-impl tests run.
+- **dr32** (nested key order, names swapped): Lightbend orders object fields by key hash, so its answer differs between dr31 and dr32; the receiver-first order of [resolution-model §8.3](../../../docs/resolution-model.md) is asserted from the YAML `json`. Java generator skips. Per-impl tests run.
 - **dr19** (idempotency): the assertion "`c.Resolve()` twice yields equivalent Config" is not expressible in scenario YAML (no "compare two builds" op in v1). Per-impl tests verify programmatically. The YAML for dr19 just records the spec assertion as `description`; `expect` is single-resolve outcome.
 - **dr12** (origin preservation): the assertion is that the error message contains source-position info (file:line:col). Lightbend formats positions differently from our impls. Generator emits `errorContains` with a Lightbend-format substring; per-impl tests check their format's analogue.
 

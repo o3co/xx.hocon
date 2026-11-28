@@ -376,6 +376,100 @@ public class GenerateExpected {
         "optional-cycle-repeat/oc04-optional-cycle-repeated-by-include.conf",
         "optional-cycle-repeat/oc05-optional-cycle-once-ok.conf",
         "optional-cycle-repeat/oc06-optional-cycle-then-value-ok.conf",
+        // resolution-model/ (docs/resolution-model.md, #67/#125-#128 window): o3co-authored
+        // cases whose answer is Lightbend's. The cases whose answer is an E23 / o3co
+        // decision carry a <name>.expectation.md and are NOT listed here: their expected
+        // files come from `make generate-model` (generate/reference-model/), which refuses
+        // any case listed in this file. Errors are in SIDECAR_ERROR_CONFS.
+        "resolution-model/rv001-br-a-concat-self.conf",
+        "resolution-model/rv002-br-a-opt-self.conf",
+        "resolution-model/rv003-br-bar-nested.conf",
+        "resolution-model/rv004-br-bar-x.conf",
+        "resolution-model/rv005-br-db-url.conf",
+        "resolution-model/rv006-br-early-o.conf",
+        "resolution-model/rv007-br-outer-use.conf",
+        "resolution-model/rv008-br-py-A.conf",
+        "resolution-model/rv009-br-py-B.conf",
+        "resolution-model/rv010-br-server-concat-self.conf",
+        "resolution-model/rv012-e23-p2-bfirst.conf",
+        "resolution-model/rv013-e23-p2.conf",
+        "resolution-model/rv014-e23-start.conf",
+        "resolution-model/rv015-e23-x1-bfirst.conf",
+        "resolution-model/rv016-e23-x1.conf",
+        "resolution-model/rv017-e23-x2.conf",
+        "resolution-model/rv018-e23-x3.conf",
+        "resolution-model/rv019-e23-x4.conf",
+        "resolution-model/rv020-fo-e23-x3-swap.conf",
+        "resolution-model/rv022-pye-01.conf",
+        "resolution-model/rv023-pye-03.conf",
+        "resolution-model/rv024-pye-04.conf",
+        "resolution-model/rv025-pye-05.conf",
+        "resolution-model/rv026-pye-06.conf",
+        "resolution-model/rv027-pye-07.conf",
+        "resolution-model/rv028-pye-08.conf",
+        "resolution-model/rv029-pye-09.conf",
+        "resolution-model/rv030-pye-10.conf",
+        "resolution-model/rv031-pye-11.conf",
+        "resolution-model/rv032-pye-12.conf",
+        "resolution-model/rv035-pye-15.conf",
+        "resolution-model/rv036-pye-16.conf",
+        "resolution-model/rv037-pye-17.conf",
+        "resolution-model/rv038-pye-18.conf",
+        "resolution-model/rv040-pye-22.conf",
+        "resolution-model/rv042-pyp-p01.conf",
+        "resolution-model/rv043-pyp-p02.conf",
+        "resolution-model/rv044-pyp-p03.conf",
+        "resolution-model/rv045-pyp-p04.conf",
+        "resolution-model/rv046-pyp-p05.conf",
+        "resolution-model/rv047-pyp-p06.conf",
+        "resolution-model/rv048-pyp-p07.conf",
+        "resolution-model/rv049-pyp-p08.conf",
+        "resolution-model/rv050-pyp-p09.conf",
+        "resolution-model/rv052-pyp-p11.conf",
+        "resolution-model/rv053-pyp-p12.conf",
+        "resolution-model/rv054-pyp-p13.conf",
+        "resolution-model/rv056-pyp-p15.conf",
+        "resolution-model/rv057-pyp-p16.conf",
+        "resolution-model/rv058-pyp-p17.conf",
+        "resolution-model/rv059-pyp-p18.conf",
+        "resolution-model/rv060-pyp-p19.conf",
+        "resolution-model/rv063-pyp-p22.conf",
+        "resolution-model/rv064-pyp-p23.conf",
+        "resolution-model/rv065-pyp-p24.conf",
+        "resolution-model/rv068-rv-a-concat-list.conf",
+        "resolution-model/rv069-rv-dm-top-ignores.conf",
+        "resolution-model/rv070-rv-empty-ancestor.conf",
+        "resolution-model/rv071-rv-empty-obj-entry.conf",
+        "resolution-model/rv072-rv-flag-include.conf",
+        "resolution-model/rv073-rv-flag-top-parse.conf",
+        "resolution-model/rv074-rv-flag-top-walk.conf",
+        "resolution-model/rv075-rv-fold-remainder.conf",
+        "resolution-model/rv076-rv-inc-bottom-subst.conf",
+        "resolution-model/rv077-rv-inc-own-path-undefined.conf",
+        "resolution-model/rv078-rv-lookback-through-list-anc.conf",
+        "resolution-model/rv082-rv-own-path-concat-single.conf",
+        "resolution-model/rv084-rv-pluseq-concat-elem.conf",
+        "resolution-model/rv085-rv-pluseq-include.conf",
+        "resolution-model/rv086-rv-pluseq-nested-include.conf",
+        "resolution-model/rv087-rv-restrict-list-opt.conf",
+        "resolution-model/rv088-rv-restricted-dm-late.conf",
+        "resolution-model/rv091-rv-shadow-merge.conf",
+        "resolution-model/rv092-rv-sibling-inprog.conf",
+        "resolution-model/rv098-rv-y10.conf",
+        "resolution-model/rv100-tsc-c02.conf",
+        "resolution-model/rv101-tsc-c03.conf",
+        "resolution-model/rv102-tsc-c04.conf",
+        "resolution-model/rv103-tsc-c05.conf",
+        "resolution-model/rv104-tsc-c06.conf",
+        "resolution-model/rv105-tsc-c07.conf",
+        "resolution-model/rv106-tsc-c08.conf",
+        "resolution-model/rv107-tsc-c09.conf",
+        "resolution-model/rv108-tsk-k1.conf",
+        "resolution-model/rv109-tsk-k2.conf",
+        "resolution-model/rv110-tsk-k3.conf",
+        "resolution-model/rv111-tsk-k4.conf",
+        "resolution-model/rv112-tsk-k5.conf",
+        "resolution-model/rv124-alias-presence-other-view.conf",
         // S3.1 empty-file fixtures (cluster 3h). An empty document is valid HOCON
         // parsing to `{}` (L134 brace-omission relaxation; L130-132 is the JSON
         // baseline). The `{}` sidecars emitted here are normative — per-impl
@@ -465,6 +559,7 @@ public class GenerateExpected {
         "subst-removed-target/",
         "include-optional-prior/",
         "optional-cycle-repeat/",
+        "resolution-model/",
     };
 
     // Resolve options for a SUCCESS_CONFS or SIDECAR_ERROR_CONFS entry: env
@@ -601,6 +696,32 @@ public class GenerateExpected {
         // the cycle-written-twice crash (go.hocon#218 / rs.hocon#199).
         "include-optional-prior/io19-live-prior-required-missing.conf",
         "optional-cycle-repeat/oc02-required-cycle-twice.conf",
+        // resolution-model/: Lightbend-aligned error cases (see SUCCESS_CONFS).
+        "resolution-model/rv011-br-top-seen.conf",
+        "resolution-model/rv021-fo-rv-restricted-then-full.conf",
+        "resolution-model/rv033-pye-13.conf",
+        "resolution-model/rv034-pye-14.conf",
+        "resolution-model/rv039-pye-20.conf",
+        "resolution-model/rv041-pye-23.conf",
+        "resolution-model/rv051-pyp-p10.conf",
+        "resolution-model/rv055-pyp-p14.conf",
+        "resolution-model/rv061-pyp-p20.conf",
+        "resolution-model/rv062-pyp-p21.conf",
+        "resolution-model/rv066-pyp-p25.conf",
+        "resolution-model/rv067-pyp-p30.conf",
+        "resolution-model/rv079-rv-merged-leaf-ext.conf",
+        "resolution-model/rv080-rv-merged-leaf.conf",
+        "resolution-model/rv081-rv-nonobj-middle.conf",
+        "resolution-model/rv083-rv-partial-shadow.conf",
+        "resolution-model/rv089-rv-self-bottom-noenv.conf",
+        "resolution-model/rv090-rv-self-single.conf",
+        "resolution-model/rv093-rv-single-alias-cycle.conf",
+        "resolution-model/rv094-rv-single-alias-opt.conf",
+        "resolution-model/rv095-rv-xd1.conf",
+        "resolution-model/rv096-rv-xd2.conf",
+        "resolution-model/rv097-rv-y1.conf",
+        "resolution-model/rv099-tsc-c01.conf",
+        "resolution-model/rv123-alias-presence-renamed.conf",
         "concat-errors/ce01-array-plus-object.conf",
         "concat-errors/ce02-object-plus-array.conf",
         "concat-errors/ce03-array-plus-scalar.conf",
@@ -725,6 +846,20 @@ public class GenerateExpected {
         System.out.println("Generating expected JSON from typesafe-config...");
         System.out.println("testdata dir: " + testdataDir.toAbsolutePath());
         System.out.println();
+        // A case with a <name>.expectation.md takes its expected file from the reference
+        // model (`make generate-model`, generate/reference-model/), never from Lightbend.
+        // Refuse a listing here, so the two generators can never write the same file.
+        for (String[] list : new String[][] { SUCCESS_CONFS, SIDECAR_ERROR_CONFS, ERROR_CONFS, ENV_VAR_LIST_ERROR_CONFS, PROPERTIES_CONFS }) {
+            for (String confName : list) {
+                if (!confName.endsWith(".conf")) continue;
+                Path sidecar = testdataDir.resolve(confName.substring(0, confName.length() - ".conf".length()) + ".expectation.md");
+                if (Files.exists(sidecar)) {
+                    throw new RuntimeException(confName + " has " + sidecar.getFileName()
+                        + ": its expected file comes from the reference model (make generate-model);"
+                        + " remove it from GenerateExpected or remove the sidecar");
+                }
+            }
+        }
 
         int okCount = 0;
         int errCount = 0;

@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/resolution-model/rv066-pyp-p25.conf: 4: Could not resolve substitution to a value: ${a.d} was part of a cycle of substitutions involving ${b}, ${c}, ${a.d}, ${b}

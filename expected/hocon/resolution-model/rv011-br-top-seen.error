@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/resolution-model/rv011-br-top-seen.conf: 3: Could not resolve substitution to a value: ${top.n} was part of a cycle of substitutions involving ${top.n}, ${top.n}
