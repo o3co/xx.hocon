@@ -620,6 +620,8 @@ Each impl's mechanism is **strictly narrower** than path-equality — it correct
 
 **Tracking issue**: [#27](https://github.com/o3co/xx.hocon/issues/27). **Companion to S13a.13** (decision #1 amendment); sr01–sr11 in the same fixture directory cover the unchanged S13a.13 normative cases.
 
+See also [E23](#e23): the order fields are resolved in, and how a substitution cycle is broken (look-back first, then the innermost optional).
+
 ### E15 — Numeric VALUE JSON rendering: per-impl natural form accepted; differential harness compares semantically
 
 **Source**: [#53](https://github.com/o3co/xx.hocon/issues/53) (follow-up to [#50](https://github.com/o3co/xx.hocon/issues/50)). After #50 closed the **leading-zero** invalid-JSON divergence (the only validity bug in the class), an empirical battery across all four engines revealed that numeric-VALUE JSON rendering still diverges in three orthogonal *cosmetic* dimensions — none of which affect the semantic value (`Number(...)` is identical across all four):
@@ -664,6 +666,7 @@ The three dimensions are: (a) **integer-collapse** of integral doubles (`1.0` �
 
 **Tracking issue**: [#53](https://github.com/o3co/xx.hocon/issues/53).
 
+<a id="e16"></a>
 ### E16 — Superseded delayed-merge stack entries resolve only when the winning value can merge with them
 
 **Source**: [#67](https://github.com/o3co/xx.hocon/issues/67). Two harvested fixtures exercise the same machinery from opposite sides. With the 1.4.6 oracle the reference implementation and the four siblings split in **opposite directions on each**; with 1.4.9 they agree on the second:
@@ -891,6 +894,146 @@ This is an API convention, not a reading of the spec. HOCON has no notion of a s
 | rs.hocon | `#[serde(with = "hocon::serde::duration::require_unit")]` (and under `bytes`, `period`, each with `::option`) | ✅ | [rs.hocon#196](https://github.com/o3co/rs.hocon/pull/196), v1.14.2. The same answer on serde's buffered paths (flatten, untagged / internally tagged enums). `tests/serde_unit_helpers_test.rs`. |
 | py.hocon | `hocon.Duration(unit, require_unit=True)`, `hocon.Bytes(unit, require_unit=True)`, and the new period marker `hocon.PeriodUnit(require_unit=True)` | ✅ | [py.hocon#59](https://github.com/o3co/py.hocon/pull/59), v1.14.2. Dataclass and Pydantic paths. `tests/test_decode_unit_markers.py`. |
 
+<a id="e23"></a>
+### E23 — Substitution cycles are resolved in document order, independent of key names (deliberate divergence from Lightbend)
+
+**Source**: the o3co resolver redesign for [#67](https://github.com/o3co/xx.hocon/issues/67) / [#125](https://github.com/o3co/xx.hocon/issues/125) / [#127](https://github.com/o3co/xx.hocon/issues/127) / [#128](https://github.com/o3co/xx.hocon/issues/128). The failing cases were found by the zig-hocon conformance suite (filed under [#122](https://github.com/o3co/xx.hocon/issues/122)). The direction (document order plus explicit cycle rules) was decided by the maintainer on 2026-11-28.
+
+#### The problem, in one example
+
+Two fields refer to each other, and one of the two links is optional:
+
+```hocon
+d = yes${?c}
+c = ${d}
+```
+
+HOCON.md says that when substitutions form a cycle, "when possible the cycle must be broken" (L659-661), and that an optional substitution that is part of a cycle counts as missing (L714-716). Dropping the optional `${?c}` breaks the cycle, which gives `d = "yes"` and `c = "yes"`. Dropping the required `${d}` instead is not allowed.
+
+Lightbend 1.4.9 gets this answer only for some key names:
+
+| input | Lightbend 1.4.9 |
+| --- | --- |
+| `d = yes${?c}` / `c = ${d}` | `{"c":"yes","d":"yes"}` |
+| `c = ${d}` / `d = yes${?c}` (same keys, lines swapped) | `{"c":"yes","d":"yes"}` |
+| `c = yes${?d}` / `d = ${c}` (keys renamed) | `UnresolvedSubstitution: ${c} was part of a cycle` |
+
+Two implementation details cause this:
+- Lightbend resolves the fields of an object in the iteration order of a Java `HashMap` (`ConfigParser.java:233`, `SimpleConfigObject.java:309`). That order comes from the hash of the key names. Only when two keys' hashes collide does it fall back to the order they were inserted (`Aa` / `BB` collide, and then the one written first wins).
+- When it meets a cycle, it stops at the **innermost** substitution being resolved (`ConfigReference.java:96-105`). If that one is required, the config fails, even when an optional substitution sits on the same cycle one step further out.
+
+So renaming a key can turn a valid config into an error. The four o3co implementations do not agree with each other either. go and rs give `"yesyes"` on the first and third inputs and an error on the second. ts and py raise an error on all three.
+
+#### Terms
+
+- **Assignment**: one `key = value` (or `key += value`, which is `key = ${?key} [value]`) in the document. A key assigned several times has several assignments, and the later ones win or merge as usual. Together they form the field's **history**.
+- **Document order**:
+  - Fields are resolved in the order their keys **first appear** in the document. A key that is assigned again later keeps its first position, as in an insertion-ordered map.
+  - Resolution is depth-first. An object's own fields are resolved at the object's position, in the same order within it, before the object's later siblings.
+  - Within one value, substitutions are resolved left to right: array elements in order, the pieces of a concatenation in order. With `start = [${a}, ${b}]` / `a = [${?b}]` / `b = [${?a}]`, `${a}` goes first, so `a = [[]]` and `b = []`.
+  - A file brought in by `include` takes its place at the `include`.
+  - Config combined with `withFallback` puts the receiver's keys first, then the keys that only the fallback has.
+- **A field being resolved**: a field whose value the resolver has started computing and not yet finished.
+- **Re-enter**: a substitution re-enters a field being resolved when finding its target needs a value that is itself still being evaluated. That is the case when the target is that field, an ancestor of it, or a path that can only be reached by evaluating that unfinished value (for example, a concatenation the field is part of). The field's other assignments are separate values. Reaching a path through an assignment that is not being evaluated is not a re-entry, even while another part of the same field is being resolved.
+  - `r = ${v}` while `v.x` is being resolved re-enters it.
+  - `r = ${v.y}` while only `v.x` is being resolved does not, because `v.y` is an independent sibling (S13a.14).
+  - `b = ${a.y}` while `a = ${?b} {y = 1}` is being resolved does, because `a.y` exists only once `a`'s concatenation has been evaluated.
+  - `server = ${defaults}` / `server { port = 8080, url = "http://"${server.host}":"${server.port} }`: while `server.url` is resolved, `${server.host}` is reached through the earlier assignment `${defaults}`, which is not being evaluated. This is not a re-entry, and `url = "http://localhost:8080"`.
+  - Written as one concatenation, `server = ${defaults} { port = 8080, url = "http://"${server.host}… }`, it is a re-entry: `server.host` exists only once that concatenation, which is being evaluated, is finished. No optional substitution is on the cycle, so this is an error, as in Lightbend.
+
+#### o3co convention
+
+**Rule 0 — look back through a field's history first.**
+- Take a field with several assignments, while one of them is being resolved, and that one is a substitution, or a concatenation with a substitution as one of its own pieces. A substitution only inside an object or array piece does not count: `a = {x = 1} {y = ${a.x}}` is an object merge, and `${a.x}` looks forward to `1` (S13a.11). **Every lookup made during that time** is made in a view in which the field stands for its earlier assignments only. That covers the field itself, an ancestor of it (whose value then contains the earlier assignments), and anything reached through other fields.
+- A field reached in that view is resolved afresh there, even if it is also being resolved outside the view.
+- This is the spec's look-back (L659-661, L849-853; [E16](#e16) consequence 1). Lightbend builds the same view, but differs on a field reached inside it that is already being resolved outside it (see *Why we diverge*).
+- Example: `a = ${p}` / `p = 1` / `p = ${a}x` gives `a = 1` and `p = "1x"`. Resolving `a` reaches `p`, whose last assignment `${a}x` is a concatenation. While it is resolved, `p` stands for `1`, so `${a}` resolves `a` afresh in that view: `a = ${p} = 1`, and `p = "1x"`. The outer `a` then takes that same result (rule 2).
+- A field with a single assignment never creates a view.
+- If a field with no earlier assignment is reached again while it is being resolved, it has nothing to look back at. The lookup first treats it as absent, as for any undefined path. It tries the original path of an included substitution (S14c.2) and then the environment (S26). Only if neither finds a value is it a cycle, handled by rule 1. This matches Lightbend, which treats such a field as absent. The result differs from a plain cycle only when an environment variable or original path supplies the value.
+- There is one exception, for a field with several assignments.
+  - While its **bottom** assignment is resolved, a substitution of the field's own path finds nothing earlier. It is then undefined (S13a.3 / S13a.4), and like any undefined path it falls back to the environment (S26).
+  - Example: `X = ${X}` / `X = {x: 1}` with `X=seed` in the environment reads the environment and gives `X = {x: 1}`, as Lightbend does.
+  - A field with a **single** assignment has no view, so the exception does not apply. Its own `a = ${a}` is a cycle under rule 1, so it is an error (S13a.3), even with `a` set in the environment, as in Lightbend. `a = ${?a}` is missing (S13a.4).
+
+**Rule 1 — otherwise, break the cycle at the innermost optional substitution on it.**
+- A cycle exists when a substitution re-enters a field being resolved (in the same view), and rule 0 cannot answer it.
+- List the substitutions on the cycle, in this order:
+  1. the one that closed it (the one that reached the re-entered field again);
+  2. the one it was reached from;
+  3. and so on, back to the one that first left the re-entered field.
+
+  The **first optional one in that list** (`${?…}`), the one nearest the point where the cycle closed, is treated as missing, exactly as if its path were undefined. It may be the closing substitution itself. Resolution continues from there.
+  - Example (row 023): the list is [`y`'s `${?b}` (closing), T1's `${y}`]. The first optional is `${?b}`, so `y = [1]` and `b.c = [[1], 2]`.
+  - Taking the *outermost* optional instead would give a different result on row 057, where the suite expects the closing `${?b}` to be the one dropped.
+- Self-references answered by rule 0 are never chosen, because dropping one would drop the field's history.
+- If no optional substitution is on the cycle, the config is an error ("part of a cycle").
+
+**Rule 2 — every substitution, and every concatenation containing one, is resolved once.**
+- Each `${…}` in the document, and each concatenation that contains one, has one result: the first one that is completed, in whichever view. Every other place that needs it uses this result.
+  - Example: `b = ${?a}foo` / `a = ${b}` / `a = ${?U}` gives `a = b = "foo"`, not `"foofoo"`.
+- A substitution dropped by rule 1 has the result "missing", and that result is remembered, but only when the cycle closed by reaching a substitution that was still being resolved. When it closed by reaching a field with nothing to look back at, the drop is not remembered: the substitution is looked up again wherever it is needed.
+- A substitution that is merely undefined is **not** remembered as missing. That includes one that finds nothing to look back at inside a view. It is looked up again wherever it is needed, and Lightbend does the same: it never memoizes an undefined result.
+- That includes a resolution of the same substitution that is still in progress further out: when it finishes, it takes the first completed result.
+- Work that rule 1 abandoned on the way is discarded and resolved again when it is next needed. That is every substitution after the dropped one, up to and including the one that closed the cycle.
+- This is the spec's "memoized by instance, not by path" (HOCON.md L883-890), extended to rule 0's views.
+
+The three rules never look at key names: the same document gives the same result whatever its fields are called.
+
+One consequence can surprise readers: an alias can end up different from its target. In row 024 below, `c = ${e}` but `c = []` while `e = [[]]`. `c` was resolved inside a view in which `e` still stood for its earlier assignment, and rule 2 keeps that result.
+
+#### Why we diverge from Lightbend
+
+The spec deliberately leaves the order in which fields are resolved undefined. Where the result depends on it, HOCON.md allows "either result or an error" (L866-881), and calls a fixed order "too constraining". Lightbend's authority, as this project reads it, covers how the spec is interpreted where the text is open. Its behaviour here differs from the convention in four ways, and none of them is an interpretation of the spec:
+- **Order.** Lightbend's order is the hash of the key names. A result that changes when a key is renamed is not a reading of anything. Copying it would mean copying Java's string hash function. Document order is what a reader of the file sees.
+- **Where a cycle is broken.** Lightbend stops at the innermost substitution even when it is required, and fails although an optional one on the same cycle could break it. The spec says the cycle must be broken "when possible" (L659-661). Rule 1 does that. Even when the keys happen to sort in file order, Lightbend errors on rows 039, 045, 046, 024 and 065, and the convention resolves them. The same happens with `a = ${?b} {y = 1}` / `b = ${a.y}`: Lightbend fails on the required `${a.y}`, while rule 1 drops `${?b}`, giving `a = {y: 1}` and `b = 1`.
+- **Re-entering a field from inside a look-back.** Lightbend builds rule 0's view, but its cycle markers belong to the substitution, not to the view. A field reached inside the view that is already being resolved outside it is therefore reported as a cycle. In file order this makes rows 037, 048 and 023 fail, as well as P2 and the first extra row with `b` written first. Neither of the first two has an optional substitution at all. Rule 0 resolves such a field afresh in the view instead.
+- **Remembering a break.** Lightbend does not keep a dropped optional's "missing" result, so the same substitution can be resolved again with a different outcome (row 063, renamed: Lightbend gives `c = []`, the convention no `c`). Rule 2 keeps it, as the spec's memoization requires. Only a break is remembered; an undefined lookup is not, as in Lightbend.
+
+On every row below, the convention's result is one the suite expects or explicitly allows. That is a compatibility check, not the reason for the rules.
+
+#### What it decides
+
+The rows are from the zig-hocon conformance suite (commit `3e4ddc6`). The o3co results were traced by hand from the rules above, and are confirmed when the implementations add the rows as fixtures. "Renamed" means the keys renamed so that Lightbend's hash order equals file order.
+
+| row (suite) | input | Lightbend 1.4.9 as named / renamed | o3co | suite |
+| --- | --- | --- | --- | --- |
+| `self-referential-examples/045` | `d = yes${?c}` / `c = ${d}` | `d = c = "yes"` / error | `d = c = "yes"` (rule 1) | expect |
+| `self-referential-examples/039` | `v { x = ${?r} }` / `r = ${v}` | `v = r = {}` / error | `v = r = {}` (rule 1) | expect |
+| `self-referential-examples/046` | `e += ${?c}` / `c = ${e}` | `e = c = []` / error | `e = c = []` (rule 1) | expect |
+| `plus-equals-field-separator/022` | `b.c += ${y}` / `b.c += 2` / `y = [1, ${?b}]` | `y = [1]`, `b.c = [[1], 2]` / same | the same (rules 0–2) | expect |
+| `plus-equals-field-separator/023` | 022 with `y` first | as 022 / error | as 022 | expect |
+| `plus-equals-field-separator/026` / `027` | `a += ${?b}` / `b += ${?a}` (and the lines swapped) | `a = [[]]`, `b = []` in both files | the first field `[[]]`, the second `[]` | expect |
+| `self-referential-examples/057` | `b = [${?a}]` / `a = [${?b}]` | `a = [[]]`, `b = []` | `b = [[]]`, `a = []` | expect |
+| `self-referential-examples/063` | `d = [${?c}]` / `c = ${?d}` | `c = d = []` / same | `d = []`, no `c` (rule 2) | expect |
+| `self-referential-examples/064` | `c = ${?d}` / `d = [${?c}]` | `c = d = []` / same | `c = d = []` (`c` is first) | also_valid |
+| `self-referential-examples/037` | `a = ${p}` / `p = 1` / `p = ${a}x` | `a = 1`, `p = "1x"` / error | `a = 1`, `p = "1x"` (rules 0, 2) | expect |
+| `self-referential-examples/048` | `a = [${p}]` / `p = 1` / `p = ${a}` | `a = p = [1]` / error | `a = p = [1]` (rules 0, 2) | expect |
+| `plus-equals-field-separator/024` | `e += ${?c}` / `e += ${?c}` / `c = ${e}` | `e = c = []` / error | `e = [[]]`, `c = []` (rules 0–2) | expect |
+| `plus-equals-field-separator/025` | 024 with `c` first | `e = c = []` / same | `e = [[]]`, `c = []` | expect |
+| `self-referential-examples/065` | `e = x${?c}` / `e = ${e}y${?c}` / `c = ${e}` | `e = c = "xy"` / error | `e = "xyx"`, `c = "x"` (rules 0–2) | expect |
+| `self-referential-examples/066` | 065 with `c` first | `e = c = "xy"` / same | `e = "xyx"`, `c = "x"` | expect |
+| #67 probe P2 | `a = hello` / `a = ${b}` / `b = ${a}` / `a = {}` | `a = {}`, `b = "hello"`; with `b` first and renamed: error | `a = {}`, `b = "hello"` in either line order (rules 0, 2) | Lightbend as named |
+| — | `a = 1` / `a = ${b}` / `b = [${?a}]` | `a = b = [1]` in either line order; with `b` first and renamed: error | `a = b = [1]` in either line order (rules 0, 2) | — |
+| — | `b.c = 1` / `b.c = ${y}` / `y = ${b}` | `b = {c: {c: 1}}`, `y = {c: 1}` | the same (rule 0 covers the ancestor `b`) | — |
+| — (HOCON.md L870-873) | `a : 1` / `b : 2` / `a : ${b}` / `b : ${a}` | `a = b = 1`, also with the first two lines swapped | `a = b = 1`; with `b : 2` written first, `a = b = 2` | the spec allows either |
+| — | `v { x = ${?r}, y = 1 }` / `r = ${v.y}` | `r = 1`, `v = {x: 1, y: 1}` | the same (no cycle) | — |
+| — | `a = ${a}` (a single assignment) with `a=seed` in the environment | `UnresolvedSubstitution … part of a cycle` | error (rule 1: no view, no optional; the environment is not read) | — |
+| — | `X = ${X}` / `X = {x: 1}` with `X=seed` in the environment | `X = {x: 1}` | the same (the bottom assignment reads the environment) | — |
+| — | `defaults { host = localhost, port = 80 }` / `server = ${defaults}` / `server { port = 8080, url = "http://"${server.host}":"${server.port} }` | `server.url = "http://localhost:8080"` (also with the two `server` lines swapped) | the same (no re-entry) | — |
+| — | the same as one concatenation: `server = ${defaults} { port = 8080, url = "http://"${server.host}":"${server.port} }` | error | error (re-entry, no optional) | — |
+| — | `server = ${defaults} { port = 8080 }` / `url = "http://"${server.host}":"${server.port}` | `url = "http://localhost:8080"` | the same | — |
+
+#### Status
+
+Not implemented in any implementation yet. Today all four fail most of these rows, each in its own way. Rule 0 and rule 2 come with the redesign's merge-stack and resolution steps, and rule 1 with its cycle step (#67 / #125). The rows are added as fixtures with those steps.
+
+#### Out of scope
+
+- Which assignments of a field are resolved at all is [E16](#e16)'s question. That includes its open note on fully shadowed assignments.
+- How an implementation detects a self-reference ([E14](#e14)) is unchanged. Rule 0 describes what the answer is, not how it is found.
+
+**Tracking issue**: [#67](https://github.com/o3co/xx.hocon/issues/67).
+
 ## How this file is maintained
 
 1. Add a new item when a cross-impl convergence (or divergence worth documenting) is observed that does not map to a row in [`spec-checklist.md`](spec-checklist.md).
@@ -960,3 +1103,5 @@ This is an API convention, not a reading of the spec. HOCON has no notion of a s
 2026-11-28 — E18 decision 5 amended for S1.2.4 ([#130](https://github.com/o3co/xx.hocon/issues/130)): the escaped double-quoted form now escapes every C0 control (`\b \f \n \r \t`, otherwise `\u00xx`) in values and keys, because a raw one inside a double-quoted (non-triple) string is a parse error (measured against Lightbend 1.4.9). Keys are never triple-quoted, since three of the four parsers reject a triple-quoted key. The triple-quote guard widens from "no CR" to "no C0 control other than LF and TAB", which is a readability choice: raw controls inside triple quotes remain valid input. Corpus gains rt11 (control characters). Status ✅ → ⏳ in all four until the per-impl PRs land.
 
 2026-11-28 — E16 dead-stack divergence withdrawn with the oracle bump to Lightbend 1.4.9 ([#121](https://github.com/o3co/xx.hocon/issues/121)). Lightbend 1.4.7+ (measured on 1.4.9) no longer evaluates entries below a value that cannot take fallbacks, so `pushcorn-hocon-parser/delayed-merge` resolves to the siblings' `sub = [10]`. The `h3` suppression in `differential/known-divergences.json` is removed (that minimal input never diverged). The live-stack half is unchanged and is scheduled for the #67 / #125 window. No other expected output changed under 1.4.9. The review also recorded which entries under an object winner 1.4.9 resolves (fully shadowed object skipped; partly shadowed, recursively merging, or non-object middle entries resolved) as an open note for the #67 / #125 window, not as a convention change.
+
+2026-11-28 — E23 added (substitution cycles are resolved in document order, independent of key names: look back through a field's history first, otherwise break at the innermost optional on the cycle, and resolve every substitution once). It is a deliberate divergence from Lightbend's HashMap resolution order and from where it breaks a cycle, and is not yet implemented. E16 gains an anchor.
