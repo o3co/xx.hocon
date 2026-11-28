@@ -80,6 +80,10 @@ def run():
             conf = os.path.join(CONF, base + ".conf")
             if not os.path.exists(conf):
                 continue
+            # -pending-step-b: the expected value needs E23 rule 1 (resolution-model
+            # step (b)); implementations are not scored on it until then.
+            if base.endswith("-pending-step-b"):
+                continue
             try:
                 exp = json.load(open(os.path.join(EXP, rel)))
             except Exception:

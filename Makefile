@@ -1,4 +1,4 @@
-.PHONY: generate generate-harvested generate-model clean differential differential-corpus differential-adapters differential-fuzz
+.PHONY: generate generate-harvested generate-model generate-model-check clean differential differential-corpus differential-adapters differential-fuzz
 
 generate:
 	cd generate && ./gradlew run
@@ -12,6 +12,11 @@ generate-harvested:
 generate-model:
 	python3 generate/reference-model/generate_model.py
 
+generate-model-check:
+	python3 generate/reference-model/generate_model.py --check
+
+# Deletes every expected JSON, including the reference model's: run both
+# `make generate` and `make generate-model` afterwards.
 clean:
 	find expected/hocon -name '*.json' -delete
 

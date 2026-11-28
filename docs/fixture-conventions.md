@@ -649,9 +649,12 @@ Lightbend's own result for comparison.
 `README.md`):
 
 - `make generate-model` writes expected files only for cases that have an `.expectation.md`.
-- It **refuses**, with a non-zero exit, any case that `GenerateExpected.java` lists, so a Lightbend-aligned
-  case can never be overwritten by the model.
-- `python3 generate/reference-model/generate_model.py --check` fails if any model-written file is out of date.
+- It **refuses**, with a non-zero exit, any case that `GenerateExpected.java` lists, and any case in the root of
+  `testdata/hocon/` (the Lightbend mirror). So a Lightbend-aligned case can never be overwritten by the model.
+- Symmetrically, `GenerateExpected` throws if a case it lists has an `.expectation.md`.
+- It fails on any case the model cannot evaluate: a parse error, an internal error, or a missing include target.
+- `make generate-model-check` fails if any model-written file is out of date, or if a model-written `.error`
+  is left over from a case that no longer has a sidecar.
 - Its error expectations use the ordinary `.error` sidecar. The `Exception class:` line is
   `o3co reference model (generate/reference-model, not Lightbend)`. Runners treat it like any `.error`
   file: the case must error, and the message is not asserted.
@@ -702,7 +705,7 @@ arrive with the suite vendoring ([#132](https://github.com/o3co/xx.hocon/issues/
 | `oc01`–`oc06` | `optional-cycle-repeat/` | A substitution cycle written twice ([go.hocon#218](https://github.com/o3co/go.hocon/issues/218), [rs.hocon#199](https://github.com/o3co/rs.hocon/issues/199)): `a = ${?b}` / `b = ${?a}` / `a = ${?b}` / `b = ${?a}` overflowed the stack in go and rs (process crash) and gave a `ParseError` in ts/py; Lightbend gives `{}`. `oc02` (required form) is `.error`; `oc04` repeats the cycle through an include (go crashed); `oc05`/`oc06` are guards already right in all four. In `HERMETIC_NO_ENV_GROUPS`, since `${?a}` / `${?b}` would otherwise reach env vars |
 | `uf01`–`uf04` | `unquoted-forbidden/` | S8.1 backtick — the one forbidden character (L245-247) still accepted by unquoted-string lexers in all four impls (xx.hocon [#68](https://github.com/o3co/xx.hocon/issues/68)); the other forbidden characters were already rejected. `uf01` value position, `uf02` key position, `uf03` mid-token; `uf04` is the SUCCESS guard (backtick inside a quoted string is ordinary content) |
 | `qc01`–`qc12` | `quoted-control/` | S1.2.4 raw C0 control (U+0000–U+001F) inside a **double-quoted** (non-triple) string (xx.hocon [#130](https://github.com/o3co/xx.hocon/issues/130)) — Lightbend 1.4.9 rejects every one; the four impls rejected only LF (`subst-tokenize/st-err07`). Error cases: `qc01` tab, `qc02` U+0001, `qc03` NUL, `qc04` U+001F, `qc05` CR (value position), `qc06` key, `qc07` substitution path (the key exists, written with an escaped tab, so a lenient parser resolves it instead of failing for an unrelated reason), `qc08` `include`. SUCCESS guards: `qc09` the same controls written as escapes (value and key), `qc10` DEL / C1 (outside the C0 range), `qc11` triple-quoted (S9.1, kept verbatim), `qc12` unquoted (S8.8). The `.conf` files hold raw control bytes — edit them with a script, not an editor |
-| `rv001`–`rv121` | `resolution-model/` | [resolution-model.md](resolution-model.md) (#67 / #125–#128 window) — merge stacks (§2), look-back views (§4), restricted lookup (§3), memo (§5) and the interim cycle rule (§6). 112 Lightbend-aligned (88 json, 24 `.error`), 8 E23 / o3co (`rv113`–`rv120`, each with an `.expectation.md`), 1 `-pending-step-b` (`rv121`). In `HERMETIC_NO_ENV_GROUPS`. See "Resolution-model fixtures" above |
+| `rv001`–`rv123` | `resolution-model/` | [resolution-model.md](resolution-model.md) (#67 / #125–#128 window) — merge stacks (§2), look-back views (§4), restricted lookup (§3), memo (§5) and the interim cycle rule (§6). 113 Lightbend-aligned (88 json, 25 `.error`: `rv001`–`rv112`, `rv123`), 9 E23 / o3co (`rv113`–`rv120`, `rv122`, each with an `.expectation.md`), 1 `-pending-step-b` (`rv121`). In `HERMETIC_NO_ENV_GROUPS`. See "Resolution-model fixtures" above |
 
 ### Sibling include-target files
 

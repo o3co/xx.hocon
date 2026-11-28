@@ -1,2 +1,2 @@
 Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
-Message: ../testdata/hocon/resolution-model/rv081-rv-nonobj-middle.conf: 3: Could not resolve substitution to a value: ${z}
+Message: ../testdata/hocon/resolution-model/rv081-rv-nonobj-middle.conf: 3: Could not resolve substitution to a value: ${GH67_RV081_Z}

@@ -720,6 +720,7 @@ public class GenerateExpected {
         "resolution-model/rv096-rv-xd2.conf",
         "resolution-model/rv097-rv-y1.conf",
         "resolution-model/rv099-tsc-c01.conf",
+        "resolution-model/rv123-alias-presence-renamed.conf",
         "concat-errors/ce01-array-plus-object.conf",
         "concat-errors/ce02-object-plus-array.conf",
         "concat-errors/ce03-array-plus-scalar.conf",
@@ -844,6 +845,19 @@ public class GenerateExpected {
         System.out.println("Generating expected JSON from typesafe-config...");
         System.out.println("testdata dir: " + testdataDir.toAbsolutePath());
         System.out.println();
+        // A case with a <name>.expectation.md takes its expected file from the reference
+        // model (`make generate-model`, generate/reference-model/), never from Lightbend.
+        // Refuse a listing here, so the two generators can never write the same file.
+        for (String[] list : new String[][] { SUCCESS_CONFS, SIDECAR_ERROR_CONFS }) {
+            for (String confName : list) {
+                Path sidecar = testdataDir.resolve(confName.replaceAll("\\.conf$", ".expectation.md"));
+                if (Files.exists(sidecar)) {
+                    throw new RuntimeException(confName + " has " + sidecar.getFileName()
+                        + ": its expected file comes from the reference model (make generate-model);"
+                        + " remove it from GenerateExpected or remove the sidecar");
+                }
+            }
+        }
 
         int okCount = 0;
         int errCount = 0;

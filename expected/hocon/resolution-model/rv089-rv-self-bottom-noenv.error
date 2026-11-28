@@ -1,2 +1,2 @@
 Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
-Message: ../testdata/hocon/resolution-model/rv089-rv-self-bottom-noenv.conf: 2: Could not resolve substitution to a value: ${a}
+Message: ../testdata/hocon/resolution-model/rv089-rv-self-bottom-noenv.conf: 2: Could not resolve substitution to a value: ${GH67_RV089_A}

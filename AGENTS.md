@@ -17,7 +17,7 @@ Shared HOCON test resource repository. Contains:
 - expected/ files are generated, not hand-edited — regenerate via `cd generate && ./gradlew run` (spec corpus) / `make generate-harvested` (harvested corpus) / `make generate-model` (only the E23 / o3co cases that carry a `<name>.expectation.md`; see `generate/reference-model/README.md` — an expectation generator, not an implementation; Lightbend-aligned cases always come from `./gradlew run`).
 - Harvested fixtures under `testdata/harvested/` are byte-for-byte upstream copies — never edit them; classification (success vs error) is decided by observed reference-implementation behaviour, not by normative lists. Each source directory carries a `PROVENANCE.yaml` (pinned commit, license, exclusions) and optional `companions.txt`.
 - Naming conventions for expected outputs:
-  - Success fixtures: `<conf-basename>-expected.json` (Lightbend-generated parse-tree JSON).
+  - Success fixtures: `<conf-basename>-expected.json` (Lightbend-generated parse-tree JSON; for a case with a `<conf-basename>.expectation.md`, written by the reference model — see `docs/fixture-conventions.md` "Resolution-model fixtures").
   - Error fixtures (legacy convention): `<conf-basename>-expected-error.json` (JSON record `{"error":true,"type":...,"message":...}`).
   - Error fixtures (new convention, NORMATIVE for clusters 3b/3c/3e/3f): `<conf-basename>.error` plain-text sidecar (format: `Exception class: <fqcn>\nMessage: <text>`). See `docs/fixture-conventions.md` for full sidecar spec.
 - Hand-written divergence notes: `<conf-basename>.divergence.md` documents Lightbend-vs-o3co behaviour for E-prefix items (e.g., `numeric-obj-array/na08-leading-zero.divergence.md`).

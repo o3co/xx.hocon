@@ -7,7 +7,7 @@ for a case whose answer comes from Lightbend.
 
 Usage: python3 resolution_model.py file.conf [...]
 Prints one JSON line per file: {"file":..., "result": <json or "ERR ...">, "notes": [...]}
-A sibling <file>.env.json (a JSON object) supplies the environment; otherwise it is empty.
+The environment is empty (the fixtures are hermetic); run_file(path, env) takes one for tests.
 Section numbers in comments (§n) refer to docs/resolution-model.md.
 """
 import json, os, sys, re
@@ -46,6 +46,7 @@ class Partial(Val):
     def __init__(s, stack): s.stack = stack
 
 MISSING = object()
+NOTES = set()                                       # parse-time notes (e.g. a missing include target)
 PHASE = ['parse']
 
 def resolved(v):
@@ -119,7 +120,9 @@ class P:
             if sep == '+=' and s.depth > 0: s.err('+= inside a list')                # §2.3 [LB ConfigParser:262-276]
             s.skip_ws()
             full = tuple(path) + tuple(keys)
+            if sep == '+=': s.depth += 1          # a += value counts as inside a list [LB ConfigParser.java:275]
             v = s.value(full)
+            if sep == '+=': s.depth -= 1
             if sep == '+=': v = Concat([Subst(full, True), Lst([v])], full)
             s.put(obj, keys, v, path)
     def put(s, obj, keys, v, path):
@@ -135,7 +138,8 @@ class P:
         else: obj.fields[k] = Field(k, st, tuple(path) + (k,))
     def include(s, obj, fn, path):
         full = os.path.join(os.path.dirname(s.fname), fn)
-        if not os.path.exists(full): return
+        if not os.path.exists(full):              # Lightbend ignores a missing non-required include
+            NOTES.add('missing include target ' + fn); return
         sub = parse_file(full)
         if s.depth > 0 and not resolved(sub): s.err('include with substitutions inside a list')
         if path: sub = relativize(sub, tuple(path))
@@ -161,6 +165,7 @@ class P:
         s.i += 1; out = ''
         while s.peek() != '"':
             c = s.peek()
+            if c == '' or c == '\n': s.err('unterminated string')
             if c == '\\': out += {'n': '\n', 't': '\t'}.get(s.peek(1), s.peek(1)); s.i += 2
             else: out += c; s.i += 1
         s.i += 1
@@ -223,7 +228,7 @@ def to_string(v):
         return v.v if v.kind == 'str' else v.text
     return None
 
-class HardError(Exception): pass      # aborts the whole resolve (§6.4)
+class HardError(Exception): pass      # aborts the whole resolve (§6.3)
 class ReEntry(Exception):              # caught by the innermost active substitution frame (§6.3)
     def __init__(s, kind): s.kind = kind   # 'marker' (an active substitution again) or 'empty' (EMPTY in a view)
 
@@ -313,6 +318,7 @@ class Resolver:
         s.active = set()
         s.subcache = {}
         s.notes = set()
+        s.keep = []
 
     def substitute(s, stack, start):                      # §4.2
         key = (id(stack), start)
@@ -342,7 +348,9 @@ class Resolver:
             r = s.stmemo.get((id(F), id(st), vk, restrict))
             if r is not None: return r
         r = s.walk(F, st, view, restrict)
-        if r is not MISSING: s.stmemo[(id(F), id(st), vk, restrict)] = r
+        if r is not MISSING:
+            s.stmemo[(id(F), id(st), vk, restrict)] = r
+            s.keep.append((F, st))                 # keep the keyed objects alive, so their ids are never reused
         return r
 
     def walk(s, F, st, view, restrict):                   # §3.2
@@ -427,33 +435,36 @@ class Resolver:
             return Field(key, st, path, True)
         return None
 
-    def find(s, path, view, S):                           # §3.3
+    def find(s, path, view, S):                           # §3.3; returns (slot or None, reached EMPTY?)
         F = s.root.fields.get(path[0])
-        if F is None: return None
+        if F is None: return None, False
         for i in range(len(path)):
             m = s.stack_of(F, view)
             if isinstance(m, Empty):
-                if S.path == F.path and id(S) in m.owned: return None       # §4.4 own-path: undefined
-                s.empty_hit = True                       # §4.4: absent for §7.2 (original path, env), then a re-entry
-                return None
-            if i == len(path) - 1: return F
+                if S.path == F.path and id(S) in m.owned: return None, False   # §4.4 own-path: undefined
+                return None, True                    # §4.4: absent for §7.2 (original path, env), then a re-entry
+            if i == len(path) - 1: return F, False
             v = s.value_of(F, view, path[i+1:], need_key=path[i+1])
-            if v is MISSING: return None
+            if v is MISSING: return None, False
             F = s.child(v, path[i+1], F.path + (path[i+1],))
-            if F is None: return None
-        return F
+            if F is None: return None, False
+        return F, False
 
     def resolve_subst(s, S, view, restrict):             # §5.1, §6
-        if id(S) in s.smemo: return s.smemo[id(S)]
+        if id(S) in s.smemo:
+            hit = s.smemo[id(S)]
+            # §5.3: a full result answers a restricted request, except that presence is judged on the raw value
+            if not (restrict and isinstance(hit, Obj) and restrict[0] not in hit.fields): return hit
         mk = (id(S), view.key)
         if mk in s.active: raise ReEntry('marker')
         s.active.add(mk)
         caught = False
-        snap = (set(s.smemo), set(s.cmemo), set(s.stmemo))
+        frame = {'snap': s.snapshot()}
         try:
             try:
-                r = s.lookup(S, view, restrict)
+                r = s.lookup(S, view, restrict, frame)
             except ReEntry as e:
+                snap = frame['snap']                  # §5.4
                 for memo, keys in ((s.smemo, snap[0]), (s.cmemo, snap[1]), (s.stmemo, snap[2])):
                     for k in set(memo) - keys: del memo[k]
                 if not S.optional: raise HardError('UnresolvedSubstitution: %r was part of a cycle' % (S,))
@@ -461,18 +472,20 @@ class Resolver:
         finally:
             s.active.discard(mk)
         if restrict is None or (isinstance(r, Val) and resolved(r)) or r is MISSING:
-            if id(S) in s.smemo: return s.smemo[id(S)]          # first completed result wins
+            if id(S) in s.smemo and restrict is None: return s.smemo[id(S)]   # first completed result wins
+            if id(S) in s.smemo: return r
             if r is not MISSING or caught: s.smemo[id(S)] = r
         return r
 
-    def lookup(s, S, view, restrict):                     # §7.2
-        s.empty_hit = False
-        F = s.find(S.path, view, S)
-        hit = s.empty_hit
+    def snapshot(s):
+        return (set(s.smemo), set(s.cmemo), set(s.stmemo))
+
+    def lookup(s, S, view, restrict, frame):              # §7.2
+        F, hit = s.find(S.path, view, S)
         if F is None and S.prefix > 0:
-            s.empty_hit = False
-            F = s.find(S.path[S.prefix:], view, S)
-            hit = hit or s.empty_hit
+            F, hit2 = s.find(S.path[S.prefix:], view, S)
+            hit = hit or hit2
+        frame['snap'] = s.snapshot()                       # §5.4: what the lookup itself memoized is kept
         if F is None:
             names = (['.'.join(S.path)] if S.prefix > 0 else []) + ['.'.join(S.path[S.prefix:])]
             for n in names:
@@ -480,7 +493,7 @@ class Resolver:
             if hit: raise ReEntry('empty')                    # §4.4: nothing found anywhere -> re-entry
             if S.optional: return MISSING
             raise HardError('UnresolvedSubstitution: %r' % (S,))
-        r = s.value_of(F, view, restrict)
+        r = s.value_of(F, view, restrict, need_key=restrict[0] if restrict else None)
         if r is MISSING and not S.optional: raise HardError('UnresolvedSubstitution: %r (resolved to nothing)' % (S,))
         return r
 
@@ -493,10 +506,12 @@ def to_json(v):
 def run_file(fn, env=None):
     sys.setrecursionlimit(20000)
     PHASE[0] = 'parse'
+    NOTES.clear()
     try: root = parse_file(fn)
     except (SyntaxError, HardError) as e: return 'ERR parse ' + str(e), set()
     PHASE[0] = 'resolve'
     R = Resolver(root, env or {})
+    R.notes |= NOTES
     try: return to_json(R.resolve_obj(root, View(), None)), R.notes
     except HardError as e: return 'ERR ' + str(e), R.notes
     except ReEntry: return 'ERR internal: re-entry escaped to top level', R.notes
@@ -505,7 +520,5 @@ def run_file(fn, env=None):
 if __name__ == '__main__':
     args = sys.argv[1:]
     for fn in args:
-        envf = fn[:-5] + '.env.json'
-        env = json.load(open(envf)) if os.path.exists(envf) else {}
-        r, notes = run_file(fn, env)
+        r, notes = run_file(fn)
         print(json.dumps({'file': os.path.basename(fn), 'result': r, 'notes': sorted(notes)}))

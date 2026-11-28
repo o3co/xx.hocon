@@ -179,7 +179,7 @@ See [design doc § "Fixture inventory"](../../../../.claude/superpowers/specs/20
 ## Per-impl override notes
 
 - **dr17** (E11 package include): NOT applicable to Lightbend (Lightbend has no `package(...)` qualifier). Java generator skips. Per-impl tests run.
-- **dr32** (nested key order, names swapped): Lightbend orders object fields by key hash, so its answer differs between dr31 and dr32; the receiver-first order of [resolution-model §8.3](../../../../docs/resolution-model.md) is asserted from the YAML `json`. Java generator skips. Per-impl tests run.
+- **dr32** (nested key order, names swapped): Lightbend orders object fields by key hash, so its answer differs between dr31 and dr32; the receiver-first order of [resolution-model §8.3](../../../docs/resolution-model.md) is asserted from the YAML `json`. Java generator skips. Per-impl tests run.
 - **dr19** (idempotency): the assertion "`c.Resolve()` twice yields equivalent Config" is not expressible in scenario YAML (no "compare two builds" op in v1). Per-impl tests verify programmatically. The YAML for dr19 just records the spec assertion as `description`; `expect` is single-resolve outcome.
 - **dr12** (origin preservation): the assertion is that the error message contains source-position info (file:line:col). Lightbend formats positions differently from our impls. Generator emits `errorContains` with a Lightbend-format substring; per-impl tests check their format's analogue.
 

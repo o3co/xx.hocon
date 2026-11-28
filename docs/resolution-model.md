@@ -11,14 +11,14 @@ The reference model of this document is [`generate/reference-model/`](../generat
 
 Related documents:
 - [E23](extra-spec-conventions.md#e23) is the convention this document implements where it departs from Lightbend. The anchor exists once xx.hocon#138 is merged, and E23 links back here.
-- [E12](extra-spec-conventions.md#e12), [E16](extra-spec-conventions.md#e16) and [E17](extra-spec-conventions.md#e17) are the other conventions it relies on.
+- [E12](extra-spec-conventions.md#e12), E16 and E17 (in [extra-spec-conventions.md](extra-spec-conventions.md)) are the other conventions it relies on.
 
 ## 0. How to read this document
 
 Every rule carries one tag:
 
 - **[LB *File.java:line*]**: a Lightbend config 1.4.9 mechanism, reproduced exactly. Paths are relative to `config/src/main/java/com/typesafe/config/impl/`. Citations are against the 1.4.9 source tree.
-- **[E23]**: the o3co convention in [E23](extra-spec-conventions.md#e23), where it deliberately departs from Lightbend. **[E23-am1]** … **[E23-am4]** are the E23 amendments listed in §13. am1 is in E23 (xx.hocon#138, commit 33c503e); am2–am4 are proposed and assumed here.
+- **[E23]**: the o3co convention in [E23](extra-spec-conventions.md#e23), where it deliberately departs from Lightbend. **[E23-am1]** … **[E23-am4]** are the E23 amendments listed in §13. am1–am3 are in E23 on xx.hocon#138; am4 is proposed and assumed here.
 - **[E17]**, **[E12]**: other o3co conventions.
 - **[interim → step (b)]**: a temporary rule. Step (b) replaces it with E23 rule 1.
 - **[o3co]**: a decision made in this document where Lightbend gives no deterministic answer. Each one is listed in §11.
@@ -57,6 +57,7 @@ A slot has a **path**, which is the full key path from the document root. Slots 
 
 Pieces are joined left to right. Each step joins the last built value `L` with the next piece `R` [LB ConfigConcatenation.java:91-140]:
 
+0. If one side is an object and the other a list, the object is first converted to a list by the S15 numeric-key conversion (S15.3–S15.5: non-integer keys are ignored, and there is no conversion when no eligible key remains), as in `numeric-obj-array/`. [LB ConfigConcatenation.java:95-101, DefaultTransformer]
 1. `L` and `R` are both objects: the result is `fallback([R], [L])` (§2.1). The right piece is on top.
 2. `L` and `R` are both lists: the result is their concatenation.
 3. `L` is a list or an object, and `R` is an **unquoted** string: `R` is dropped. This includes whitespace and any unquoted text such as `s` (row 051). [LB ConfigConcatenation.java:84-86, 111-113]
@@ -106,6 +107,7 @@ Repeated assignment, dotted paths, includes, the merges in §3.2 W5 and the API 
 ### 2.3 Parse errors (unchanged; listed so that no implementation resolves them)
 
 - `+=` anywhere inside a list value, including inside an object that is a list element, is a parse error (row 127/015). [LB ConfigParser.java:262-276]
+- The value of a `+=` counts as inside a list for these two rules, so `a += { b += 1 }` is a parse error, and so is an `include` with substitutions inside a `+=` value. [LB ConfigParser.java:275: `arrayCount` is incremented while the value is parsed]
 - An `include` inside a list value whose included object is unresolved is a parse error. [LB ConfigParser.java:211-214]
 
 ## 3. Resolving
@@ -122,7 +124,7 @@ Let `st` be the slot's stack *in the view* (§4.1). Take the memoized result if 
 
 - **W1. Cut.** If `merged` ignores fallbacks (§1.2), stop. [LB :88]
 - **W2. Shadow skip.** If all of these hold, skip `e` without evaluating it [LB :140-148, :183-197]:
-  - `merged` is a single `Obj`;
+  - `merged` is a single `Obj`. Lightbend also tries a ConfigDelayedMergeObject (a partial stack). That only arises under a restriction, and its peek gives up on any unresolved layer. This document does not skip there [o3co];
   - `e` is a **non-empty** `Obj`;
   - every key of `e` is present in `merged`, and that key's stack ignores fallbacks.
 - **W3. Look-back entry.** If `e` is a `Subst` or a `Concat` [LB :101-126]:
@@ -145,7 +147,7 @@ The result is MISSING if nothing contributed, the single value if `merged` has o
 
 Then the leaf slot is resolved with `valueOf(leaf, view, callerRestrict)`. `callerRestrict` is the restriction under which this `Subst` itself is being resolved: none at the top level, or the remaining path when the `Subst` is a stack entry walked under a restriction (049). **The leaf is not resolved fully when the caller is restricted.** [LB ResolveSource.java:44-59 restores the caller's restriction; ConfigReference.java:82-89]
 
-- **Found means present in the raw value** (§5.3). A found leaf that resolves to MISSING gives MISSING for `${?…}`, and an unresolved error for `${…}`. It never falls back to §7.2 (rq29, #123). [LB ResolveSource.java:71-88, 102]
+- **Found means present in the raw value** (§5.3) [o3co, §11 J2]. A found leaf that resolves to MISSING gives MISSING for `${?…}`, and an unresolved error for `${…}`. It never falls back to §7.2 (rq29, #123). [LB ResolveSource.java:71-88, 102]
 - A list is not an object: a path through a list is not found (rm02).
 - Only the ancestors on the path are resolved, and only restricted. Siblings are never touched (S13a.14, rows 038/047/049).
 
@@ -206,7 +208,9 @@ The same `(st, i)` always gives the same substitute instance.
 
 ### 4.3 EMPTY inside values
 
-A slot mapped to EMPTY is **absent** from every value built in that view. `resolveObj` omits the key (rv070: `o { a = ${o} }` / `o { a = {x : 1} }` gives `{o: {a: {x: 1}}}`). [LB SimpleConfigObject.java:203-217: replaceChild with null removes the key]
+A slot mapped to EMPTY is **absent** from every value that an **unrestricted** `resolveObj` builds in that view, and so from the result: the key is omitted (rv070: `o { a = ${o} }` / `o { a = {x : 1} }` gives `{o: {a: {x: 1}}}`). [LB SimpleConfigObject.java:203-217: replaceChild with null removes the key]
+
+A **restricted** resolution (§3.4) leaves an EMPTY-mapped slot in place, so that `find` reaches it and applies §4.4. It never removes the key, because "absent" there would turn a §4.4 re-entry into a plain "not found".
 
 ### 4.4 A lookup that reaches EMPTY
 
@@ -232,7 +236,7 @@ A single-entry field never maps to EMPTY (§3.2 W3). Reaching it again is handle
 - Keep `memoS[instance] = result` for **unrestricted** resolutions of each `Subst` instance. The key is the instance only, regardless of view.
 - Look up `memoS` before anything else in §6.1. A hit skips cycle detection. [LB :151-166]
 - **First completed result wins.** When a resolution finishes and `memoS[instance]` was already set (by a resolution of the same instance inside a view, which finished first), the stored result is returned and kept.
-- A restricted resolution of a `Subst` is stored only if its result is resolved. [LB :192-213]
+- A restricted resolution of a `Subst` is stored only if its result is resolved, or if it is MISSING from a cycle break by marker re-entry (the next bullet applies to restricted and unrestricted resolutions alike). [LB :192-213]
 - **MISSING is stored only when it is the result of a cycle break by marker re-entry (§6.3).** That is the E23 rule 1 case, interim in this step. MISSING is never stored for:
   - an undefined path;
   - a path whose target resolved to MISSING;
@@ -251,14 +255,17 @@ A single-entry field never maps to EMPTY (§3.2 W3). Reaching it again is handle
 
 - Keep `memoV[(slot, stack in the view, M, restrict)] = result` for finished `valueOf`. Here `M` is the set of the view's mappings for slots **at or below** the slot's path. MISSING is not stored.
 - Mappings of unrelated slots do not count. This is the shape of Lightbend's memo: siblings keep their identity in the look-back tree, and only the replaced node and its ancestors are new instances. [LB ResolveSource.java:206-265, ResolveContext.java:149-227]
-- **A full result satisfies a restricted request** [LB :151-164], **except for presence**: when `find` descends through key `k` and the full result has no `k`, the restricted resolution is performed anyway, and decides whether `k` is found.
+- **A full result satisfies a restricted request** [LB :151-164], **except for presence**: when a restricted request `[k, …]` would be answered from a full result that has no `k`, the restricted resolution is performed anyway, and decides whether `k` is present.
+  - This applies wherever a restricted request is made: in `find`'s descent (§3.3), in a restricted object's child (§3.4), and in the leaf of a `Subst` resolved under a restriction.
   - Example (rq29): `x.y = ${?unset}` already resolved to `{}`, so `${x.y}` is still found (raw), resolves to MISSING, and is an error.
   - Lightbend gives this only in some key orders (rv115). [o3co, §11 J2]
 - Never cache by path.
 
 ### 5.4 Abandoned work
 
-When §6.3 catches a re-entry at a `Subst` frame, every `memoS`, `memoC` and `memoV` entry written since that frame started is discarded. [LB ConfigReference.java:73-105: the catch keeps the context from before the lookup]
+When §6.3 catches a re-entry at a `Subst` frame [LB ConfigReference.java:71-105]:
+- **During the frame's `find`** (§3.3, including §7.2 steps 1–2): every `memoS`, `memoC` and `memoV` entry written since the frame started is discarded. Lightbend's `newContext` is still the context from :71.
+- **After `find` returned** (while resolving the found leaf, or a §4.4 re-entry raised after the environment lookup): the entries written by `find` are kept. Only those written after it are discarded. Lightbend reassigns `newContext` at :75, after `lookupSubst`, and keeps it.
 
 ## 6. Cycles
 
@@ -357,6 +364,7 @@ An undefined (MISSING) optional:
 - The roots combine as `fallback(receiver's root stack, fallback's root stack)`. Per key this is the §2.1 rules: the receiver's assignments are on top, and a receiver value that ignores fallbacks drops the fallback's entries (F2).
 - **Key order**: the receiver's keys first, in the receiver's order, then the keys that only the fallback has. This applies at every object level merged by this call. It overrides F5's parse-time order. [E23 terms: "Config combined with withFallback puts the receiver's keys first"; §11 J4]
 - Look-back crosses layers as in E12 (dr04–dr06).
+- The order only decides which field is resolved first. W5 folds during resolution merge entries that are already resolved, so the key order of a folded result never changes a value. It is not asserted: fixtures compare JSON objects regardless of key order.
 
 ## 9. Whole-document result
 
@@ -371,7 +379,7 @@ The result tree contains merged, resolved values only. No `Subst`, `Concat` or m
 
 ## 11. Judgement calls ([o3co])
 
-**Principle.** First, the result must not depend on key names or on line order (E23's point). Within that, match Lightbend. Each call below applies it.
+**Principle.** First, the result must not depend on key names: renaming keys while keeping the document order of the assignments must not change the outcome (E23's point). Document order itself is significant (§3.1); swapping two assignments may change the result, as E23's table shows. Within that, match Lightbend. Each call below applies it.
 
 | id | question | decision | alternative |
 |---|---|---|---|
@@ -385,13 +393,13 @@ The result tree contains merged, resolved values only. No `Subst`, `Concat` or m
 
 The fixtures that pin this document:
 
-- **`testdata/hocon/resolution-model/` (`rv001`–`rv121`)** has 121 o3co cases. See [fixture-conventions.md "Resolution-model fixtures"](fixture-conventions.md#resolution-model-fixtures).
-  - 112 are Lightbend-aligned: 88 json and 24 `.error`.
-  - 8 are E23 / o3co. Each has an `.expectation.md` and a model-written expected file:
+- **`testdata/hocon/resolution-model/` (`rv001`–`rv123`)** has 123 o3co cases. See [fixture-conventions.md "Resolution-model fixtures"](fixture-conventions.md#resolution-model-fixtures).
+  - 113 are Lightbend-aligned: 88 json and 25 `.error`.
+  - 9 are E23 / o3co. Each has an `.expectation.md` and a model-written expected file:
     - `e23-order`: rv113, rv120;
     - `e23-view-reentry`: rv114, rv116;
     - `o3co-J1`: rv117–rv119;
-    - `o3co-J2`: rv115.
+    - `o3co-J2`: rv115, rv122 (rv123 is its key-renamed variant, where Lightbend agrees).
   - 1 is `pending-step-b` (rv121).
 - **`testdata/hocon/deferred-resolution/` dr31 / dr32** pin J4.
 - **zig-hocon conformance rows**, which arrive with the suite vendoring (#132), referenced by ID:
@@ -407,14 +415,14 @@ Rules for the implementations:
 - Every existing test that does not pin a known-wrong value stays green. Tests that pin a known-wrong value are re-pinned, citing the issue (for example ts `s13a12-prefix-self-ref.test.ts:161`, py `test_s13a12` L133 / L229).
 - Today's prior / reset-key / fold code is replaced by §2–§3 and must not remain as a second path.
 
-The reference model was checked against Lightbend 1.4.9 on a 248-case window corpus: these fixtures, the zig rows above, `stack-override`, `resolve-memo`, `subst-removed-target`, `include-optional-prior`, and key-renamed variants.
+The reference model was checked against Lightbend 1.4.9 on a 248-case window corpus: these fixtures, the zig rows above, `stack-override` and `resolve-memo` (on their pending fixture branches), `subst-removed-target`, `include-optional-prior`, and key-renamed variants.
 - 225 cases agree with Lightbend.
 - The other 23 are classified: `e23-order` 5, `e23-view-reentry` 5, `e23-memo` 2, `interim-128` 7, and Lightbend artefacts (J1, J2) 4.
-- None is unclassified.
+- None is unclassified. The per-case list is [`generate/reference-model/window-corpus.json`](../generate/reference-model/window-corpus.json).
 
 ## 13. E23 amendments
 
-1. **E23-am1** (in E23, xx.hocon#138 commit 33c503e). A rule-1 drop is remembered only when the cycle closed on a substitution that is still being resolved. Reaching EMPTY is not remembered (§5.1, §6.3). Without it, 061/062 (#126) lose `a`.
-2. **E23-am2** (proposed). Rule 2 applies to every substitution and to every concatenation containing one (§5.2). Without it, rq37 gives `b = "foofoo"`.
-3. **E23-am3** (proposed). The own-path environment exception applies only to the bottom entry of a field with several assignments. A single `a = ${a}` is a cycle (Lightbend errors even with `a` set); a single `a = ${?a}` is missing (§4.4).
-4. **E23-am4** (proposed, from J5). When a field with nothing to look back at is reached by any other substitution, it is first looked up as absent (original path, then environment), as Lightbend does. Only if nothing is found is it a cycle under rule 1. This narrows rule 0's "it does not count as an absent field" to that last case (§4.4).
+1. **E23-am1** (in E23, xx.hocon#138). A rule-1 drop is remembered only when the cycle closed on a substitution that is still being resolved. Reaching EMPTY is not remembered, and neither is an undefined lookup (§5.1, §6.3). Without it, 061/062 (#126) lose `a`.
+2. **E23-am2** (in E23, xx.hocon#138). Rule 2 applies to every substitution and to every concatenation containing one (§5.2). Without it, rq37 gives `b = "foofoo"`.
+3. **E23-am3** (in E23, xx.hocon#138). The own-path environment exception applies only to the bottom entry of a field with several assignments. A single `a = ${a}` is a cycle (Lightbend errors even with `a` set); a single `a = ${?a}` is missing (§4.4).
+4. **E23-am4** (proposed, from J5). When a field with nothing to look back at is reached by any other substitution, it is first looked up as absent (original path, then environment), as Lightbend does. Only if nothing is found is it a cycle under rule 1. This narrows rule 0's "It does not count as an absent field" to that last case (§4.4).

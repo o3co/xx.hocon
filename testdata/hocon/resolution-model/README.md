@@ -140,3 +140,5 @@ reads the environment. Cases that need an environment variable set (own-path env
 | `rv119-rv-restricted-dm3` | o3co-J1 | same, deeper path |
 | `rv120-rv-restricted-then-full` | e23-order | Subst first resolved under restriction, then fully |
 | `rv121-e23-x5-pending-step-b` | pending-step-b | E23 "why we diverge" example |
+| `rv122-alias-presence-j2` | o3co-J2 | presence through an already-resolved alias (found in review) |
+| `rv123-alias-presence-renamed` | lightbend (`.error`) | rv122 with the keys renamed |

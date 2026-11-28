@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/resolution-model/rv123-alias-presence-renamed-inner.conf: 1: Could not resolve substitution to a value: ${common.w.y}
