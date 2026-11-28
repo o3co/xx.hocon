@@ -971,7 +971,7 @@ So renaming a key can turn a valid config into an error. The four o3co implement
 **Rule 2 — every substitution, and every concatenation containing one, is resolved once.**
 - Each `${…}` in the document, and each concatenation that contains one, has one result: the first one that is completed, in whichever view. Every other place that needs it uses this result.
   - Example: `b = ${?a}foo` / `a = ${b}` / `a = ${?U}` gives `a = b = "foo"`, not `"foofoo"`.
-- A substitution dropped by rule 1 has the result "missing", and that result is remembered.
+- A substitution dropped by rule 1 has the result "missing", and that result is remembered, but only when the cycle closed by reaching a substitution that was still being resolved. When it closed by reaching a field with nothing to look back at, the drop is not remembered: the substitution is looked up again wherever it is needed.
 - A substitution that is merely undefined is **not** remembered as missing. That includes one that finds nothing to look back at inside a view. It is looked up again wherever it is needed, and Lightbend does the same: it never memoizes an undefined result.
 - That includes a resolution of the same substitution that is still in progress further out: when it finishes, it takes the first completed result.
 - Work that rule 1 abandoned on the way is discarded and resolved again when it is next needed. That is every substitution after the dropped one, up to and including the one that closed the cycle.
