@@ -166,7 +166,7 @@ The three `🤷` are due to absent test coverage, not divergent behavior — fol
 
 ### E8 — Leading `-` / digit handling: strict at value-start, pragmatic at concat-continuation (aligned with Lightbend)
 
-**Update 2026-11-28 (oracle 1.4.10):** Lightbend 1.4.10 no longer starts a number at `-.`. `-.5` and `-.5e3` are text, and `-.5e+3` is a parse error (the `+` is outside a number, step 4). This changes step 1 and the behaviour table below, and the four implementations still follow 1.4.9. Tracked in [#140](https://github.com/o3co/xx.hocon/issues/140) (BREAKING; one PR per implementation). The fixtures `us59` (now `.error`) and `us63` (now `"-.5"`) follow 1.4.10.
+**Update 2026-11-28 (oracle 1.4.10):** in Lightbend 1.4.10 a `-` still starts number-lexing (step 1 is unchanged), but a run that begins with `-.` no longer converts to a number. Step 3's conversion fails, so the run stays text: `-.5` and `-.5e3` are strings. `-.5e+3` is a parse error, because once the run is not a number its `+` is outside a number (step 4). `a = [1]` / `a += -.5` gives `[1, "-.5"]`. This changes step 3 and the behaviour table below, not the eligibility rule, and the four implementations still follow 1.4.9. Tracked in [#140](https://github.com/o3co/xx.hocon/issues/140) (BREAKING; one PR per implementation). The fixtures `us59` (now `.error`) and `us63` (now `"-.5"`) follow 1.4.10.
 
 **Source**: cross-impl convention, aligned with the spec-author reference implementation (Lightbend 1.4.3). HOCON.md §Unquoted strings L270-276 states:
 
