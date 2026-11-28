@@ -950,7 +950,10 @@ So renaming a key can turn a valid config into an error. The four o3co implement
 - Example: `a = ${p}` / `p = 1` / `p = ${a}x` gives `a = 1` and `p = "1x"`. Resolving `a` reaches `p`, whose last assignment `${a}x` is a concatenation. While it is resolved, `p` stands for `1`, so `${a}` resolves `a` afresh in that view: `a = ${p} = 1`, and `p = "1x"`. The outer `a` then takes that same result (rule 2).
 - A field with a single assignment never creates a view.
 - If a field with no earlier assignment is reached again while it is being resolved, it has nothing to look back at, and this is a cycle, handled by rule 1. It does not count as an absent field.
-- There is one exception. A substitution of the field's own path, in its own assignment, that finds no earlier assignment is undefined (S13a.3 / S13a.4). Like any undefined path, it then falls back to the environment (S26). `X = ${X}` / `X = {x: 1}` with `X=seed` in the environment reads the environment and gives `X = {x: 1}`, as Lightbend does.
+- There is one exception, for a field with several assignments.
+  - While its **bottom** assignment is resolved, a substitution of the field's own path finds nothing earlier. It is then undefined (S13a.3 / S13a.4), and like any undefined path it falls back to the environment (S26).
+  - Example: `X = ${X}` / `X = {x: 1}` with `X=seed` in the environment reads the environment and gives `X = {x: 1}`, as Lightbend does.
+  - A field with a **single** assignment has no view, so the exception does not apply. Its own `a = ${a}` is a cycle under rule 1, so it is an error (S13a.3), even with `a` set in the environment, as in Lightbend. `a = ${?a}` is missing (S13a.4).
 
 **Rule 1 — otherwise, break the cycle at the innermost optional substitution on it.**
 - A cycle exists when a substitution re-enters a field being resolved (in the same view), and rule 0 cannot answer it.
@@ -965,8 +968,11 @@ So renaming a key can turn a valid config into an error. The four o3co implement
 - Self-references answered by rule 0 are never chosen, because dropping one would drop the field's history.
 - If no optional substitution is on the cycle, the config is an error ("part of a cycle").
 
-**Rule 2 — every substitution is resolved once.**
-- Each `${…}` in the document has one result: the first one that is completed, in whichever view. Every other place that needs that substitution uses this result. A substitution dropped by rule 1 has the result "missing".
+**Rule 2 — every substitution, and every concatenation containing one, is resolved once.**
+- Each `${…}` in the document, and each concatenation that contains one, has one result: the first one that is completed, in whichever view. Every other place that needs it uses this result.
+  - Example: `b = ${?a}foo` / `a = ${b}` / `a = ${?U}` gives `a = b = "foo"`, not `"foofoo"`.
+- A substitution dropped by rule 1 has the result "missing", and that result is remembered.
+- A substitution that is merely undefined is **not** remembered as missing. That includes one that finds nothing to look back at inside a view. It is looked up again wherever it is needed, and Lightbend does the same: it never memoizes an undefined result.
 - That includes a resolution of the same substitution that is still in progress further out: when it finishes, it takes the first completed result.
 - Work that rule 1 abandoned on the way is discarded and resolved again when it is next needed. That is every substitution after the dropped one, up to and including the one that closed the cycle.
 - This is the spec's "memoized by instance, not by path" (HOCON.md L883-890), extended to rule 0's views.
@@ -977,11 +983,11 @@ One consequence can surprise readers: an alias can end up different from its tar
 
 #### Why we diverge from Lightbend
 
-The spec deliberately leaves the order in which fields are resolved undefined. Where the result depends on it, HOCON.md allows "either result or an error" (L866-881), and calls a fixed order "too constraining". Lightbend's authority, as this project reads it, covers how the spec is interpreted where the text is open. Its behaviour here differs from the convention in three ways, and none of them is an interpretation of the spec:
+The spec deliberately leaves the order in which fields are resolved undefined. Where the result depends on it, HOCON.md allows "either result or an error" (L866-881), and calls a fixed order "too constraining". Lightbend's authority, as this project reads it, covers how the spec is interpreted where the text is open. Its behaviour here differs from the convention in four ways, and none of them is an interpretation of the spec:
 - **Order.** Lightbend's order is the hash of the key names. A result that changes when a key is renamed is not a reading of anything. Copying it would mean copying Java's string hash function. Document order is what a reader of the file sees.
 - **Where a cycle is broken.** Lightbend stops at the innermost substitution even when it is required, and fails although an optional one on the same cycle could break it. The spec says the cycle must be broken "when possible" (L659-661). Rule 1 does that. Even when the keys happen to sort in file order, Lightbend errors on rows 039, 045, 046, 024 and 065, and the convention resolves them. The same happens with `a = ${?b} {y = 1}` / `b = ${a.y}`: Lightbend fails on the required `${a.y}`, while rule 1 drops `${?b}`, giving `a = {y: 1}` and `b = 1`.
 - **Re-entering a field from inside a look-back.** Lightbend builds rule 0's view, but its cycle markers belong to the substitution, not to the view. A field reached inside the view that is already being resolved outside it is therefore reported as a cycle. In file order this makes rows 037, 048 and 023 fail, as well as P2 and the first extra row with `b` written first. Neither of the first two has an optional substitution at all. Rule 0 resolves such a field afresh in the view instead.
-- **Remembering a break.** Lightbend does not keep a dropped optional's "missing" result, so the same substitution can be resolved again with a different outcome (row 063, renamed: Lightbend gives `c = []`, the convention no `c`). Rule 2 keeps it, as the spec's memoization requires.
+- **Remembering a break.** Lightbend does not keep a dropped optional's "missing" result, so the same substitution can be resolved again with a different outcome (row 063, renamed: Lightbend gives `c = []`, the convention no `c`). Rule 2 keeps it, as the spec's memoization requires. Only a break is remembered; an undefined lookup is not, as in Lightbend.
 
 On every row below, the convention's result is one the suite expects or explicitly allows. That is a compatibility check, not the reason for the rules.
 
@@ -1011,6 +1017,8 @@ The rows are from the zig-hocon conformance suite (commit `3e4ddc6`). The o3co r
 | — | `b.c = 1` / `b.c = ${y}` / `y = ${b}` | `b = {c: {c: 1}}`, `y = {c: 1}` | the same (rule 0 covers the ancestor `b`) | — |
 | — (HOCON.md L870-873) | `a : 1` / `b : 2` / `a : ${b}` / `b : ${a}` | `a = b = 1`, also with the first two lines swapped | `a = b = 1`; with `b : 2` written first, `a = b = 2` | the spec allows either |
 | — | `v { x = ${?r}, y = 1 }` / `r = ${v.y}` | `r = 1`, `v = {x: 1, y: 1}` | the same (no cycle) | — |
+| — | `a = ${a}` (a single assignment) with `a=seed` in the environment | `UnresolvedSubstitution … part of a cycle` | error (rule 1: no view, no optional; the environment is not read) | — |
+| — | `X = ${X}` / `X = {x: 1}` with `X=seed` in the environment | `X = {x: 1}` | the same (the bottom assignment reads the environment) | — |
 | — | `defaults { host = localhost, port = 80 }` / `server = ${defaults}` / `server { port = 8080, url = "http://"${server.host}":"${server.port} }` | `server.url = "http://localhost:8080"` (also with the two `server` lines swapped) | the same (no re-entry) | — |
 | — | the same as one concatenation: `server = ${defaults} { port = 8080, url = "http://"${server.host}":"${server.port} }` | error | error (re-entry, no optional) | — |
 | — | `server = ${defaults} { port = 8080 }` / `url = "http://"${server.host}":"${server.port}` | `url = "http://localhost:8080"` | the same | — |
