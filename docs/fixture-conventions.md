@@ -546,7 +546,7 @@ cannot encode this structural information. Instead, each fixture is a YAML
 scenario file with explicit step sequencing.
 
 This group is normative for E12 cross-impl conformance. The Java generator
-**does** run these scenarios through Lightbend (with the exception of two
+**does** run these scenarios through Lightbend (with the exception of three
 fixtures marked `lightbendSkip: true`).
 
 ### File layout
@@ -554,7 +554,7 @@ fixtures marked `lightbendSkip: true`).
 ```text
 testdata/hocon/deferred-resolution/
   README.md                      — schema spec + per-impl test runner contract
-  dr01-basic-fallback.yaml       — scenario fixtures (dr01..dr30)
+  dr01-basic-fallback.yaml       — scenario fixtures (dr01..dr32)
   dr02-frommap-only-fallback.yaml
   ...
 expected/hocon/deferred-resolution/
@@ -603,10 +603,11 @@ The generator wires into the existing `GenerateExpected.main` pipeline; running
 
 ### lightbendSkip mechanism
 
-Two fixtures are currently marked `lightbendSkip: true`:
+Three fixtures are currently marked `lightbendSkip: true`:
 
 - **dr11b** (`ResolveWith with unresolved source`): intentional Lightbend divergence per E12 decision 10. Lightbend does NOT precondition-check the source; E12 deliberately strengthens this to `NotResolved`. Lightbend cannot produce ground truth here.
 - **dr17** (`E11 package include + deferred resolve`): Lightbend has no `package(...)` qualifier (E11 is non-JVM extension). Per-impl tests run with their registered package content; Lightbend skips.
+- **dr32** (`nested key order after withFallback, names swapped`): Lightbend orders object fields by key hash, so it keeps the nested value in the receiver's field for dr31 and in the fallback's field for dr32. The receiver-first order of [resolution-model §8.3](resolution-model.md) does not depend on the names; per-impl tests assert the YAML `json`.
 
 Marking a scenario `lightbendSkip: true` ALSO requires the runner to write a
 `.skip` file documenting the rationale. The fixture YAML's `description` field
@@ -621,6 +622,55 @@ sidecars (`.env`, `.error`); for E12 the structural complexity (parse with
 options → fromMap → multiple withFallback → resolve with options) exceeds what
 sidecars can express cleanly. YAML's named-key + structured-list shape maps
 directly to the step sequence.
+
+---
+
+## Resolution-model fixtures
+
+The `resolution-model/` group pins the resolver rules of
+[`docs/resolution-model.md`](resolution-model.md): merge stacks, look-back views, restricted lookup,
+memoization and the interim cycle rule. It is the first group that mixes Lightbend expectations with
+expectations no oracle provides, so every case states where its expected file comes from. There are three
+kinds:
+
+| kind | marker | expected file written by |
+| --- | --- | --- |
+| **lightbend** | listed in `SUCCESS_CONFS` / `SIDECAR_ERROR_CONFS` in `GenerateExpected.java`; no sidecar | Lightbend 1.4.9 (`make generate`), like any other group |
+| **E23 / o3co** | `<name>.expectation.md` with `kind:` set to `e23-order`, `e23-view-reentry`, `e23-memo` or `o3co-J1` … `o3co-J5` | the reference model (`make generate-model`) |
+| **pending-step-b** | `-pending-step-b` at the end of the name, and an `<name>.expectation.md` with `kind: pending-step-b`, `e23-final:` and `interim:` | `make generate-model`, which copies the `e23-final` value after checking that the model still gives `interim` |
+
+The `.expectation.md` sidecar lives next to the `.conf` in `testdata/`, not in `expected/`, because it is
+hand-written input: it names the E23 rule or the resolution-model §11 decision (J1–J5), and records
+Lightbend's own result for comparison.
+
+### The generator boundary
+
+`generate/reference-model/` is an **expectation generator, not a fifth implementation** (see its
+`README.md`):
+
+- `make generate-model` writes expected files only for cases that have an `.expectation.md`.
+- It **refuses**, with a non-zero exit, any case that `GenerateExpected.java` lists, so a Lightbend-aligned
+  case can never be overwritten by the model.
+- `python3 generate/reference-model/generate_model.py --check` fails if any model-written file is out of date.
+- Its error expectations use the ordinary `.error` sidecar. The `Exception class:` line is
+  `o3co reference model (generate/reference-model, not Lightbend)`. Runners treat it like any `.error`
+  file: the case must error, and the message is not asserted.
+
+### Runner contract
+
+- **lightbend** and **E23 / o3co** cases are asserted like every other `.conf` fixture: `-expected.json`
+  equality, or any error for `.error`.
+- **pending-step-b** cases: the `-expected.json` is the E23 final value, which needs E23 rule 1 (window
+  step (b)). Until an implementation has step (b), its runner marks these cases pending (skip with a pointer to
+  resolution-model §6.3), not pinned to the interim value. The interim value every implementation produces
+  in the meantime is the `interim:` line of the sidecar.
+- `*-inner.conf` files are include targets, not cases.
+- The group is in `HERMETIC_NO_ENV_GROUPS`. Cases that need an environment variable set (the own-path env
+  fallback of resolution-model §4.4, J5) are per-impl tests.
+
+The zig-hocon conformance rows that resolution-model.md cites (`self-referential-examples/…`,
+`plus-equals-field-separator/…`, …) and their key-renamed variants are not copied into this group; they
+arrive with the suite vendoring ([#132](https://github.com/o3co/xx.hocon/issues/132)).
 
 ---
 
@@ -642,7 +692,7 @@ directly to the step sequence.
 | `bsl01`–`bsl09` | `byte-single-letter/` | S21.4 binary single-letter K/M/G/T/P/E byte abbreviations (cluster 3h) — per-impl `getBytes()` assertion |
 | `pc01`–`pc04` | `properties-conflict/` | S23.4 `.properties` object-wins conflict (cluster 3h) — direct `.properties` parse, no `.conf` wrapper |
 | `ipk01`–`ipk14` | `include-package/` | E11 `include package(...)` qualifier — service-locator pattern; no Lightbend sidecars; per-impl registry-population model (see "Test-package registry fixtures" section above) |
-| `dr01`–`dr30` (with `dr11a`/`dr11b`) | `deferred-resolution/` | E12 deferred substitution resolution lifecycle — multi-step scenario YAML format (parse / withFallback / resolve); Lightbend ground truth via `DeferredResolutionRunner`; 2 `lightbendSkip` (dr11b, dr17) per "Scenario YAML fixtures (E12)" section above |
+| `dr01`–`dr32` (with `dr11a`/`dr11b`) | `deferred-resolution/` | E12 deferred substitution resolution lifecycle — multi-step scenario YAML format (parse / withFallback / resolve); Lightbend ground truth via `DeferredResolutionRunner`; 3 `lightbendSkip` (dr11b, dr17, dr32) per "Scenario YAML fixtures (E12)" section above |
 | `kh01`–`kh08` | `key-hyphen-position/` | S8.6 in key position (xx.hocon [#42](https://github.com/o3co/xx.hocon/issues/42), v1.5.3) — hyphen-start segments accepted in field keys per Lightbend; previously over-strict in ts/rs/go. kh08 pins the hyphen-then-digit branch (`-1bar` accepted verbatim, not number-lexed) |
 | `pw01`–`pw07` | `path-expr-whitespace/` | Path-expression literal whitespace preservation (xx.hocon [#42](https://github.com/o3co/xx.hocon/issues/42), v1.5.3) — whitespace adjacent to dots in path expressions taken verbatim per Lightbend; `pw04` is a combined-regression guard (no whitespace at dot); `pw06` pins trailing-dot rule still errors (BadPath); `pw07` pins HOCON_WS tab coverage adjacent to dot |
 | `ar01`–`ar03` | `array-root/` | S3.5 array-root document rejected with a **type** error at the Config boundary after a successful syntax parse (Lightbend `WrongType` "has type LIST rather than object at file root"); `ar03` pins S14b.1 — an included file with array root is invalid (L993-994), error names the *included* file. `.error` sidecars; per-impl tests assert the impl's type-mismatch error class, not a syntax error |
@@ -652,6 +702,7 @@ directly to the step sequence.
 | `oc01`–`oc06` | `optional-cycle-repeat/` | A substitution cycle written twice ([go.hocon#218](https://github.com/o3co/go.hocon/issues/218), [rs.hocon#199](https://github.com/o3co/rs.hocon/issues/199)): `a = ${?b}` / `b = ${?a}` / `a = ${?b}` / `b = ${?a}` overflowed the stack in go and rs (process crash) and gave a `ParseError` in ts/py; Lightbend gives `{}`. `oc02` (required form) is `.error`; `oc04` repeats the cycle through an include (go crashed); `oc05`/`oc06` are guards already right in all four. In `HERMETIC_NO_ENV_GROUPS`, since `${?a}` / `${?b}` would otherwise reach env vars |
 | `uf01`–`uf04` | `unquoted-forbidden/` | S8.1 backtick — the one forbidden character (L245-247) still accepted by unquoted-string lexers in all four impls (xx.hocon [#68](https://github.com/o3co/xx.hocon/issues/68)); the other forbidden characters were already rejected. `uf01` value position, `uf02` key position, `uf03` mid-token; `uf04` is the SUCCESS guard (backtick inside a quoted string is ordinary content) |
 | `qc01`–`qc12` | `quoted-control/` | S1.2.4 raw C0 control (U+0000–U+001F) inside a **double-quoted** (non-triple) string (xx.hocon [#130](https://github.com/o3co/xx.hocon/issues/130)) — Lightbend 1.4.9 rejects every one; the four impls rejected only LF (`subst-tokenize/st-err07`). Error cases: `qc01` tab, `qc02` U+0001, `qc03` NUL, `qc04` U+001F, `qc05` CR (value position), `qc06` key, `qc07` substitution path (the key exists, written with an escaped tab, so a lenient parser resolves it instead of failing for an unrelated reason), `qc08` `include`. SUCCESS guards: `qc09` the same controls written as escapes (value and key), `qc10` DEL / C1 (outside the C0 range), `qc11` triple-quoted (S9.1, kept verbatim), `qc12` unquoted (S8.8). The `.conf` files hold raw control bytes — edit them with a script, not an editor |
+| `rv001`–`rv121` | `resolution-model/` | [resolution-model.md](resolution-model.md) (#67 / #125–#128 window) — merge stacks (§2), look-back views (§4), restricted lookup (§3), memo (§5) and the interim cycle rule (§6). 112 Lightbend-aligned (88 json, 24 `.error`), 8 E23 / o3co (`rv113`–`rv120`, each with an `.expectation.md`), 1 `-pending-step-b` (`rv121`). In `HERMETIC_NO_ENV_GROUPS`. See "Resolution-model fixtures" above |
 
 ### Sibling include-target files
 

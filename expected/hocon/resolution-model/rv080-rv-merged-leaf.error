@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/resolution-model/rv080-rv-merged-leaf.conf: 4: Could not resolve substitution to a value: ${a.x} was part of a cycle of substitutions involving ${a.x}, ${a.x}

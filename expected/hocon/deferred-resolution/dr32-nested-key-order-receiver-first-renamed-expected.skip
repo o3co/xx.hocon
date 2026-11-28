@@ -1,0 +1,1 @@
+lightbendSkip=true; description: dr31 with the key names swapped. The receiver's key is still first after withFallback (resolution-model §8.3), so o.b = [[]] and o.a = []. Lightbend 1.4.9 orders object fields by key hash and gives o.a = [[]], o.b = [] for these names only, so it is skipped as the oracle; per-impl tests assert the json below.

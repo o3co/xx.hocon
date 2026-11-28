@@ -14,7 +14,7 @@ Shared HOCON test resource repository. Contains:
 
 - Root-level files in `testdata/hocon/` (e.g., `test01.conf`, `cycle.conf`, `bom.conf`) must match the Lightbend HOCON test suite exactly. These are the upstream-mirror layer.
 - Subdirectory groups under `testdata/hocon/<group-name>/` (e.g., `numeric-obj-array/`, `concat-errors/`, `env-var-list/`, `units-default/`, `subst-tokenize/`) hold o3co-defined cross-impl spec-compliance fixtures. These are NOT from Lightbend and may exercise spec rules Lightbend itself doesn't enforce (see `docs/fixture-conventions.md` "Lightbend quirks" and `docs/extra-spec-conventions.md` E-prefix entries for the strict-spec-over-Lightbend posture).
-- expected/ files are generated, not hand-edited — regenerate via `cd generate && ./gradlew run` (spec corpus) / `make generate-harvested` (harvested corpus).
+- expected/ files are generated, not hand-edited — regenerate via `cd generate && ./gradlew run` (spec corpus) / `make generate-harvested` (harvested corpus) / `make generate-model` (only the E23 / o3co cases that carry a `<name>.expectation.md`; see `generate/reference-model/README.md` — an expectation generator, not an implementation; Lightbend-aligned cases always come from `./gradlew run`).
 - Harvested fixtures under `testdata/harvested/` are byte-for-byte upstream copies — never edit them; classification (success vs error) is decided by observed reference-implementation behaviour, not by normative lists. Each source directory carries a `PROVENANCE.yaml` (pinned commit, license, exclusions) and optional `companions.txt`.
 - Naming conventions for expected outputs:
   - Success fixtures: `<conf-basename>-expected.json` (Lightbend-generated parse-tree JSON).

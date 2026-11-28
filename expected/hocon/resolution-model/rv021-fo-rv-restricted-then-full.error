@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/resolution-model/rv021-fo-rv-restricted-then-full.conf: 4: Could not resolve substitution to a value: ${a.q} was part of a cycle of substitutions involving ${b}, ${a.q}, ${b}

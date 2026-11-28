@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/resolution-model/rv094-rv-single-alias-opt.conf: 2: Could not resolve substitution to a value: ${b}

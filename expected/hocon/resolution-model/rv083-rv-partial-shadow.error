@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/resolution-model/rv083-rv-partial-shadow.conf: 2: Could not resolve substitution to a value: ${y}

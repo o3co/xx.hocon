@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$UnresolvedSubstitution
+Message: ../testdata/hocon/resolution-model/rv041-pye-23.conf: 4: Could not resolve substitution to a value: ${y.a}

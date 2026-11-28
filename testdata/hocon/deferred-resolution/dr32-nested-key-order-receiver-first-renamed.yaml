@@ -1,0 +1,47 @@
+# dr32 — dr31 with the two key names swapped (resolution-model §8.3, J4)
+#
+# Receiver: `o { b = [${?o.a}] }`   Fallback: `o { a = [${?o.b}] }`
+#
+# Same structure as dr31: the receiver's field is first (resolution-model §8.3),
+# so it keeps the nested value: `o.b = [[]]`, `o.a = []`.
+#
+# Lightbend 1.4.9 gives `o.a = [[]]`, `o.b = []` here: it resolves `a` before
+# `b` because of the key names' hash (HashMap order), so in dr31 and dr32 it
+# picks the receiver's field once and the fallback's field once. By the window
+# principle (resolution-model §11: the result must not depend on key names; within
+# that, match Lightbend), the receiver-first order stands and Lightbend cannot
+# provide the ground truth for this scenario.
+
+description: dr31 with the key names swapped. The receiver's key is still first after withFallback (resolution-model §8.3), so o.b = [[]] and o.a = []. Lightbend 1.4.9 orders object fields by key hash and gives o.a = [[]], o.b = [] for these names only, so it is skipped as the oracle; per-impl tests assert the json below.
+xref: [E12, E23, resolution-model-8.3]
+
+lightbendSkip: true
+
+sources:
+  receiver:
+    parseString: |
+      o { b = [${?o.a}] }
+    parseOptions:
+      resolveSubstitutions: false
+
+  fb:
+    parseString: |
+      o { a = [${?o.b}] }
+    parseOptions:
+      resolveSubstitutions: false
+
+build:
+  - { op: take, source: receiver, as: r0 }
+  - { op: withFallback, this: r0, other: fb, as: r1 }
+  - { op: resolve, this: r1, allowUnresolved: false, useSystemEnvironment: false, as: result }
+
+expect:
+  outcome: success
+  isResolved: true
+  json: |-
+    {
+      "o": {
+        "a": [],
+        "b": [[]]
+      }
+    }
