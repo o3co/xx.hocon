@@ -174,7 +174,8 @@ public class GenerateExpected {
         // inside a valid number run (pullNumber's greedy `[0-9.eE+-]` run, i.e. as the
         // exponent sign after `e`/`E`) or as the `+=` operator. A valid number run
         // followed by other characters concatenates into a string. Success guards here;
-        // the error cases are in SIDECAR_ERROR_CONFS next to us15.
+        // the error cases (including us59 since the 1.4.10 oracle) are in
+        // SIDECAR_ERROR_CONFS next to us15.
         "unquoted-starts/us35-exp-plus.conf",                    // 1e+5     → 100000
         "unquoted-starts/us40-exp-plus-unit.conf",               // 1e+5ms   → "1e+5ms"
         "unquoted-starts/us41-exp-plus-space-unit.conf",         // 1e+5 ms  → "1e+5 ms"
@@ -184,7 +185,6 @@ public class GenerateExpected {
         "unquoted-starts/us45-exp-minus-double-exp.conf",        // 1e-5e5   → "1e-5e5" (no `+`)
         "unquoted-starts/us46-negative-frac-exp-plus.conf",      // -1.5e+3  → -1500
         "unquoted-starts/us53-dot-no-frac-exp-plus.conf",        // 1.e+5    → 100000
-        "unquoted-starts/us59-negative-leading-dot-exp-plus.conf", // -.5e+3 → -500 (cf. us48 `.5e+3`: error)
         // Key position (whole documents; us08/us09 precedent for keys in this group).
         "unquoted-starts/us54-key-exp-plus.conf",                // 1e+5 = 1   → {"1e+5":1}
         "unquoted-starts/us55-key-exp-plus-letter-tail.conf",    // 1e+5x = 1  → {"1e+5x":1}
@@ -194,12 +194,14 @@ public class GenerateExpected {
         "unquoted-starts/us58-plus-equals-list.conf",            // x = [1], x += 2 → [1,2]
         // S8.4 number-lex edges without `+` (us60–us67): which `.`-bearing runs are
         // numbers. The greedy `[0-9.eE+-]` run is kept as a number when Java parses it
-        // (`Double.parseDouble` accepts `1.`, `1.e5`, `-.5`), else it falls back to
-        // unquoted text. A leading `.` is not number-lex eligible at all (us65).
+        // (`Double.parseDouble` accepts `1.`, `1.e5`), else it falls back to unquoted
+        // text. Since Lightbend 1.4.10 a run starting `-.` fails conversion before
+        // parseDouble is tried (lightbend/config#861), so `-.5` is text (us63). A
+        // leading `.` is not number-lex eligible at all (us65).
         "unquoted-starts/us60-trailing-dot.conf",                // 1.    → 1
         "unquoted-starts/us61-trailing-dot-exp.conf",            // 1.e5  → 100000
         "unquoted-starts/us62-negative-trailing-dot.conf",       // -1.   → -1
-        "unquoted-starts/us63-negative-leading-dot.conf",        // -.5   → -0.5
+        "unquoted-starts/us63-negative-leading-dot.conf",        // -.5   → "-.5" since 1.4.10 (was -0.5; o3co/xx.hocon#140)
         "unquoted-starts/us64-frac-trailing-dot.conf",           // 1.5.  → "1.5."
         "unquoted-starts/us65-leading-dot.conf",                 // .5    → ".5"
         "unquoted-starts/us66-hyphen-dot.conf",                  // -.    → "-."
@@ -605,12 +607,10 @@ public class GenerateExpected {
         "concat-errors/ce02-object-plus-array.conf",
         "concat-errors/ce03-array-plus-scalar.conf",
         "concat-errors/ce04-scalar-plus-array.conf",
-        // ce05-object-plus-scalar.conf: EXCLUDED — Lightbend 1.4.3 silently accepts
-        // "a = { b: 1 } x" (object wins, trailing scalar discarded). Spec S10.13 says
-        // this should error, but Lightbend is permissive here. Fixture file is kept on
-        // disk for documentation; conformance tests for ce05 must use a Lightbend-quirk
-        // annotation rather than a .error sidecar. See docs/fixture-conventions.md §Lightbend
-        // quirks.
+        // ce05: Lightbend up to 1.4.9 silently accepted "a = { b: 1 } x" (object wins,
+        // trailing scalar discarded); 1.4.10 rejects it (lightbend/config#862), as E5
+        // and S10.13 require, so it now has a .error sidecar like ce01–ce04.
+        "concat-errors/ce05-object-plus-scalar.conf",
         "concat-errors/ce06-scalar-plus-object.conf",
         "concat-errors/ce07-subst-obj-plus-array.conf",
         "concat-errors/ce08-subst-array-plus-obj.conf",
@@ -624,8 +624,8 @@ public class GenerateExpected {
         // reserved char). Both produce "some error" — conformance test asserts error raised.
         "unquoted-starts/us15-incomplete-exp.conf",
         // E8 step 4 / S8.1 — every other unquoted `+` is an error: a number run that
-        // contains `+` but is not a valid number (us31–us33, us49–us52), a leading `+`
-        // (us34), and a `+` that is not part of a number run at all (us36–us39, us47,
+        // contains `+` but is not a valid number (us31–us33, us49–us52, us59), a leading
+        // `+` (us34), and a `+` that is not part of a number run at all (us36–us39, us47,
         // us48, and key position us56/us57). Success guards are in SUCCESS_CONFS.
         "unquoted-starts/us31-plus-between-digits.conf",         // 1+2
         "unquoted-starts/us32-plus-after-version.conf",          // 1.2.3+build
@@ -637,6 +637,11 @@ public class GenerateExpected {
         "unquoted-starts/us39-plus-between-letters.conf",        // a+b
         "unquoted-starts/us47-letter-then-exp-plus.conf",        // x1e+5
         "unquoted-starts/us48-leading-dot-exp-plus.conf",        // .5e+3
+        // us59 (-.5e+3): a success up to Lightbend 1.4.9 (-500). Since 1.4.10 `-` still
+        // starts number-lexing, but a run starting `-.` fails conversion (E8 step 3,
+        // lightbend/config#861), so its `+` is outside a number: a parse error (E8
+        // step 4). o3co/xx.hocon#140.
+        "unquoted-starts/us59-negative-leading-dot-exp-plus.conf", // -.5e+3
         "unquoted-starts/us49-exp-plus-trailing-frac.conf",      // 1e+5.5
         "unquoted-starts/us50-exp-plus-trailing-frac-alt.conf",  // 1e+5.2
         "unquoted-starts/us51-exp-plus-double-exp.conf",         // 1e+5e5
@@ -910,7 +915,7 @@ public class GenerateExpected {
             }
             if (caught == null) {
                 // FAIL the build: an entry in SIDECAR_ERROR_CONFS must throw under Lightbend.
-                // If Lightbend silently accepts (e.g. ce05-style Lightbend quirk), the fixture
+                // If Lightbend silently accepts (e.g. ir03/ir04-style Lightbend quirk), the fixture
                 // MUST be moved out of SIDECAR_ERROR_CONFS and documented under §Lightbend
                 // quirks in docs/fixture-conventions.md. This safety net catches both regressions
                 // (Lightbend used to throw, now doesn't) and typos (fixture content doesn't

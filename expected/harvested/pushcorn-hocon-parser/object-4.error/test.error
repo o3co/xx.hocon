@@ -1,0 +1,2 @@
+Exception class: com.typesafe.config.ConfigException$WrongType
+Message: ../testdata/harvested/pushcorn-hocon-parser/object-4.error/test.conf: 1: Cannot concatenate object or list with a non-object-or-list, SimpleConfigObject({"b":3}) and Unquoted("test") are not compatible

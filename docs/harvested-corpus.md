@@ -160,7 +160,7 @@ Findings, in triage order:
 | [puppetlabs/ruby-hocon](https://github.com/puppetlabs/ruby-hocon) `spec/fixtures/` | `55c38f8` | 12 | 11 | 8 | 3 | 0 | 6 exact dups + upstream expectations |
 | [josephtzeng/hocon-parser](https://github.com/josephtzeng/hocon-parser) (@pushcorn) `tests/resources/configs/` | `bff7090` | 111 | 95 | 51 | 44 | 14 | 61 of 156 cases (extension categories + syntax sweep) |
 
-(Counts as harvested. Since the 1.4.9 oracle (#121), pushcorn is 52 `-expected.json` / 43 `.error`: `delayed-merge` became a success fixture.)
+(Counts as harvested. Since the 1.4.9 oracle (#121), pushcorn was 52 `-expected.json` / 43 `.error`, because `delayed-merge` became a success fixture. Since the 1.4.10 oracle it is 50 / 45: `array-5.error` and `object-4.error` are now Lightbend errors, lightbend/config#862.)
 
 Highlights: ruby-hocon contributes encoding edges (UTF-16LE input, non-ASCII
 fixture filename, by-extension and upstream-modified Lightbend-suite
@@ -183,7 +183,7 @@ Spec cross-check of the new classifications (details in the fixtures'
   (`+=` onto a non-array), so the classification is robust, but the error
   class must not be matched; candidate for an upstream lightbend/config
   report.
-- **Quirk successes**: `array-5.error` / `object-4.error` — the reference
+- **Quirk successes** (resolved in Lightbend 1.4.10, which rejects both, lightbend/config#862): `array-5.error` / `object-4.error` — the reference
   silently discards a trailing string concatenated onto an array/object;
   S10.13 makes this a type error and the o3co strict posture is already
   documented for the spec corpus (`concat-errors/`). Strict implementations
@@ -210,7 +210,9 @@ outputs across siblings on every non-pass.
   prohibition; backtick accepted in unquoted strings) — filed as
   [xx.hocon#68](https://github.com/o3co/xx.hocon/issues/68).
 - The 4 error-on-success cases: `array-5.error` / `object-4.error`
-  (documented strict-posture rejections, see above) and `path-keys-4` /
+  (documented strict-posture rejections, see above; since the 1.4.10 oracle
+  both are `.error` fixtures, so the four implementations now agree with the
+  reference on them) and `path-keys-4` /
   `substitutions-4` (key-position whitespace/adjacency handling — group B of
   xx.hocon#68, needs S8.6 cross-check before fixing).
 
@@ -220,6 +222,8 @@ outputs across siblings on every non-pass.
    (per-impl work, tracked separately). Runners need the documented
    exemption classes: limitation-derived `.error` fixtures
    (`.divergence.md` present) and quirk-success fixtures where strict
-   implementations reject.
+   implementations reject. Since the 1.4.10 oracle no quirk-success fixture
+   remains (`array-5.error` / `object-4.error` became `.error` fixtures), so
+   only the first class is needed today.
 2. Inline-string extraction sources: `chimpler/pyhocon`,
    `gurkankaymak/hocon`, Lightbend's inline parser tests.
