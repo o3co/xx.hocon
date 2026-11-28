@@ -1025,7 +1025,7 @@ The rows are from the zig-hocon conformance suite (commit `3e4ddc6`). The o3co r
 
 #### Status
 
-Not implemented in any implementation yet. Today all four fail most of these rows, each in its own way. Rule 0 and rule 2 come with the redesign's merge-stack and resolution steps, and rule 1 with its cycle step (#67 / #125). The rows are added as fixtures with those steps.
+Not implemented in any implementation yet. Today all four fail most of these rows, each in its own way. The algorithm the four implementations follow, which implements this convention on top of Lightbend's mechanisms, is [`resolution-model.md`](resolution-model.md) (#139). Rule 0 and rule 2 come with the redesign's merge-stack and resolution steps, and rule 1 with its cycle step (#67 / #125). The rows are added as fixtures with those steps.
 
 #### Out of scope
 
